@@ -35,6 +35,9 @@ export class HUD {
     this.$('bar-stability').style.width = `${(state.stability / state.maxStability) * 100}%`;
     this.$('bar-energy').style.width = `${(state.energy / state.maxEnergy) * 100}%`;
     this.$('bar-fuel').style.width = `${(state.fuel / state.maxFuel) * 100}%`;
+    // Low trolley fuel warning rattle (only meaningful once unlocked)
+    this.$('fuel-wrap').classList.toggle('fuel-low',
+      state.flags.trolleyUnlocked && state.fuel < state.maxFuel * 0.18);
     this.$('coins-val').textContent = state.coins.toLocaleString();
     this.$('rebars-val').textContent = state.rebars;
     this.$('shards-val').textContent = state.shards;

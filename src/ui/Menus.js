@@ -52,7 +52,7 @@ export class Menus {
         <button class="mbtn" id="btn-controls">CONTROLS</button>
       </div>
       <div class="hint-line" id="tip-line">CLICK A BUTTON TO START — AUDIO POWERED BY PURE REBAR ENERGY</div>
-      <div class="version-tag">v2.0 — DOUBLE REBAR REVAMP · BUNG INDUSTRIES PTY LTD</div>
+      <div class="version-tag">v3.0 — WORLD DETAIL + CARTOON REVAMP · BUNG INDUSTRIES PTY LTD</div>
     `);
     s.querySelector('#btn-new').onclick = () => this.game.startGame(true);
     if (hasSave) s.querySelector('#btn-continue').onclick = () => this.game.startGame(false);

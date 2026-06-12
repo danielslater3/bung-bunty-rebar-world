@@ -1,7 +1,7 @@
 // Goofy non-gory enemy roster. Every enemy is built from primitives and
 // pops in a shower of harmless confetti when bonked.
 import * as THREE from 'three';
-import { mat, sphere, box, cyl, clamp, damp } from '../core/utils.js';
+import { mat, sphere, box, cyl, clamp, damp, addOutline } from '../core/utils.js';
 import { state, bus } from '../core/state.js';
 
 export const ENEMY_DEFS = {
@@ -48,6 +48,13 @@ function buildEnemyMesh(kind) {
         ant.position.set(sx * 0.15, 0.4, 0.1); ant.rotation.z = sx * -0.4; g.add(ant);
       }
     }
+    // Glowing hover ring under the chassis (readable flier silhouette)
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.03, 6, 18),
+      mat(kind === 'bug' ? 0xff2e5f : 0x8f1fff, { emissive: kind === 'bug' ? 0xff2e5f : 0x8f1fff, emissiveIntensity: 1.6 }));
+    ring.position.y = -0.22;
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    g.userData.hoverRing = ring;
   } else if (kind === 'blob') {
     const body = sphere(0.55, mat(def.color, { transparent: true, opacity: 0.85, roughness: 0.2, emissive: 0x0a2a3a }), 12, 10);
     g.add(body); g.userData.body = body;
@@ -84,6 +91,7 @@ function buildEnemyMesh(kind) {
     }
   }
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  addOutline(g, 0.07); // cartoon ink — enemies must read instantly
   return g;
 }
 
@@ -179,6 +187,7 @@ export class Enemy {
       this.mesh.userData.rotorL.rotation.y += dt * 30;
       this.mesh.userData.rotorR.rotation.y -= dt * 30;
     }
+    if (this.mesh.userData.hoverRing) this.mesh.userData.hoverRing.rotation.z = this.t * 2;
     if (this.mesh.userData.legL) {
       const s = Math.sin(this.t * 12);
       this.mesh.userData.legL.rotation.x = s * 0.8;

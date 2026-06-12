@@ -2,7 +2,7 @@
 // primitives so the game needs zero external assets. Each builder returns a
 // THREE.Group with named parts stashed in .userData for animation.
 import * as THREE from 'three';
-import { mat, box, sphere, cyl, goldMat, rebarMat } from '../core/utils.js';
+import { mat, box, sphere, cyl, goldMat, rebarMat, addOutline } from '../core/utils.js';
 
 const SKIN = () => mat(0xe8b88a, { roughness: 0.75 });
 const SKIN_D = () => mat(0xd6a173, { roughness: 0.75 });
@@ -27,10 +27,21 @@ export function buildBung() {
   }
   parts.belly = belly;
 
-  // Dodgy brown boxer shorts
+  // Dodgy brown boxer shorts (with a simple lighter band pattern)
   const shorts = cyl(0.5, 0.55, 0.42, mat(0x7a5230, { roughness: 1 }), 14);
   shorts.position.y = 0.42;
   g.add(shorts);
+  const shortsBand = cyl(0.515, 0.515, 0.07, mat(0x9a6c42, { roughness: 1 }), 14);
+  shortsBand.position.y = 0.56;
+  g.add(shortsBand);
+  // Trolley grease smudge on the shorts
+  const grease = sphere(0.1, mat(0x3a3026, { roughness: 1 }), 7, 5);
+  grease.position.set(0.3, 0.42, 0.42); grease.scale.z = 0.2;
+  g.add(grease);
+  // Singlet seam line
+  const seam = cyl(0.585, 0.585, 0.025, mat(0xd9d4c4, { roughness: 1 }), 16);
+  seam.position.y = 0.66;
+  g.add(seam);
 
   // Legs (stubby)
   const legGeoMat = SKIN();
@@ -60,6 +71,16 @@ export function buildBung() {
     grp.add(hand);
     g.add(grp);
   }
+  // Rebar-themed wristband on the right arm
+  const wristband = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.028, 6, 12), rebarMat());
+  wristband.position.set(0.1, -0.42, 0);
+  wristband.rotation.x = Math.PI / 2;
+  parts.armR.add(wristband);
+  // Rebar necklace — tiny rebar on a string
+  const neckBar = cyl(0.018, 0.018, 0.16, rebarMat(), 5);
+  neckBar.position.set(0, 1.5, 0.5);
+  neckBar.rotation.z = Math.PI / 2;
+  g.add(neckBar);
 
   // Head
   const headG = new THREE.Group();
@@ -109,10 +130,23 @@ export function buildBung() {
     spike.rotation.x = 0.5 + (i % 2) * 0.25;
     headG.add(spike);
   }
+  // Burger crumbs stuck near the mouth (canon)
+  for (const [x, y] of [[0.12, -0.2], [-0.09, -0.24], [0.04, -0.27]]) {
+    const crumb = sphere(0.016, mat(0xe8a755, { roughness: 1 }), 5, 4);
+    crumb.position.set(x, y, 0.29);
+    headG.add(crumb);
+  }
+  // Rosy cheeks for cartoon warmth
+  for (const sx of [-1, 1]) {
+    const cheek = sphere(0.055, mat(0xe89a78, { roughness: 1 }), 7, 5);
+    cheek.position.set(sx * 0.21, -0.06, 0.24); cheek.scale.z = 0.3;
+    headG.add(cheek);
+  }
   g.add(headG);
 
   g.userData.parts = parts;
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
+  addOutline(g, 0.06); // cartoon ink outline — Bung must be iconic
   return g;
 }
 
@@ -172,9 +206,47 @@ export function buildChing() {
   const visor = box(0.3, 0.05, 0.04, mat(0x2ee6ff, { emissive: 0x2ee6ff, emissiveIntensity: 1.5, transparent: true, opacity: 0.85 }));
   visor.position.set(0, 0.13, 0.2);
   headG.add(visor);
+  // Mission-control headset: ear cup + mic boom
+  const earcup = sphere(0.06, mat(0x14151c, { roughness: 0.4, metalness: 0.5 }), 8, 6);
+  earcup.position.set(0.23, 0, 0);
+  headG.add(earcup);
+  const micBoom = cyl(0.012, 0.012, 0.2, mat(0x14151c, { roughness: 0.4 }), 5);
+  micBoom.position.set(0.16, -0.09, 0.12);
+  micBoom.rotation.set(0.4, 0, 1.1);
+  headG.add(micBoom);
+  const micTip = sphere(0.025, mat(0x2ee6ff, { emissive: 0x2ee6ff, emissiveIntensity: 1.5 }), 6, 4);
+  micTip.position.set(0.08, -0.13, 0.2);
+  headG.add(micTip);
   g.add(headG);
+
+  // Shoulder pads — sharper silhouette than Bung's round blob
+  for (const sx of [-1, 1]) {
+    const pad = sphere(0.1, mat(0x148fa0, { metalness: 0.5, roughness: 0.35 }), 8, 6);
+    pad.position.set(sx * 0.3, 1.32, 0); pad.scale.y = 0.6;
+    g.add(pad);
+  }
+  // Wrist tablet (idle animation glances at this)
+  const tablet = box(0.13, 0.02, 0.18, mat(0x14151c, { roughness: 0.3 }));
+  tablet.position.set(-0.4, 0.76, 0.1);
+  tablet.rotation.x = -0.7;
+  g.add(tablet);
+  const tabletScreen = box(0.1, 0.005, 0.14, mat(0x2ee6ff, { emissive: 0x2ee6ff, emissiveIntensity: 1.6 }));
+  tabletScreen.position.set(-0.4, 0.775, 0.1);
+  tabletScreen.rotation.x = -0.7;
+  g.add(tabletScreen);
+  // Rebar accessory: gold rebar clip on the jacket
+  const clip = cyl(0.014, 0.014, 0.16, goldMat(), 5);
+  clip.position.set(0.15, 1.18, 0.24);
+  clip.rotation.z = 0.5;
+  g.add(clip);
+  // Her own tiny golden trolley charm hanging off the belt
+  const charm = box(0.07, 0.05, 0.1, goldMat());
+  charm.position.set(0.2, 0.68, 0.12);
+  g.add(charm);
+
   g.userData.head = headG;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  addOutline(g, 0.055);
   return g;
 }
 
@@ -224,8 +296,32 @@ export function buildGabor() {
   beard.rotation.x = 0.25;
   headG.add(beard);
   g.add(headG);
+
+  // Tiny villain cape — dramatic, slightly too small for him
+  const cape = box(0.42, 0.7, 0.03, mat(0x8f1fff, { roughness: 0.7, emissive: 0x1d0833 }));
+  cape.position.set(0, 1.0, -0.16);
+  cape.rotation.x = 0.12;
+  g.add(cape);
+  g.userData.cape = cape;
+  // Original Gabor emblem on the chest: purple "forehead rhombus"
+  const emblem = box(0.09, 0.09, 0.02, mat(0xc77bff, { emissive: 0x8f1fff, emissiveIntensity: 0.8 }));
+  emblem.position.set(0, 1.18, 0.18);
+  emblem.rotation.z = Math.PI / 4;
+  g.add(emblem);
+  // Bag of FAKE rebars slung on his back (grey, obviously fake)
+  const bag = sphere(0.16, mat(0x4a4438, { roughness: 1 }), 8, 6);
+  bag.position.set(-0.2, 0.95, -0.18); bag.scale.set(1, 1.3, 0.7);
+  g.add(bag);
+  for (let i = 0; i < 3; i++) {
+    const fake = cyl(0.016, 0.016, 0.3, mat(0x8a8a8a, { metalness: 0.3, roughness: 0.8 }), 5);
+    fake.position.set(-0.2 + (i - 1) * 0.05, 1.25, -0.18);
+    fake.rotation.z = (i - 1) * 0.2;
+    g.add(fake);
+  }
+
   g.userData.head = headG;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  addOutline(g, 0.055);
   return g;
 }
 
@@ -257,7 +353,17 @@ export function buildScooter() {
   const light = sphere(0.04, mat(0xff2e5f, { emissive: 0xff2e5f, emissiveIntensity: 2 }), 6, 4);
   light.position.set(0, 0.95, 0.45);
   g.add(light);
+  // Goofy oversized exhaust pipe — comically illegal for a kick scooter
+  const exhaust = cyl(0.045, 0.06, 0.3, mat(0x6a6a72, { metalness: 0.8, roughness: 0.3 }), 8);
+  exhaust.position.set(0.12, 0.22, -0.42);
+  exhaust.rotation.x = 1.25;
+  g.add(exhaust);
+  const exhaustTip = cyl(0.065, 0.065, 0.04, mat(0x2a2a2e, { roughness: 0.9 }), 8);
+  exhaustTip.position.set(0.12, 0.16, -0.55);
+  exhaustTip.rotation.x = 1.25;
+  g.add(exhaustTip);
   g.userData.wheels = wheels;
+  addOutline(g, 0.05);
   return g;
 }
 
@@ -379,8 +485,32 @@ export function buildTrolley() {
   flag.position.set(0.52, 1.55, -0.5);
   g.add(flag);
 
+  // 3.0 decorations — fuel tank, boost vents, strapped rebar cargo
+  const tank = cyl(0.09, 0.09, 0.26, mat(0xd92f2f, { roughness: 0.45, metalness: 0.4 }), 10);
+  tank.position.set(-0.22, 0.5, -0.68);
+  tank.rotation.z = 0.2;
+  g.add(tank);
+  const tankCap = sphere(0.045, mat(0xffc02e, { metalness: 0.8, roughness: 0.3 }), 6, 5);
+  tankCap.position.set(-0.25, 0.64, -0.68);
+  g.add(tankCap);
+  for (const sx of [-1, 1]) { // boost vents flanking the engine
+    const vent = cyl(0.035, 0.05, 0.12, mat(0x2ee6ff, { emissive: 0x1787c9, emissiveIntensity: 0.9, metalness: 0.6 }), 7);
+    vent.position.set(sx * 0.3, 0.36, -0.82);
+    vent.rotation.x = 1.35;
+    g.add(vent);
+  }
+  // A couple of cargo rebars riding in the basket
+  for (let i = 0; i < 2; i++) {
+    const cargo = cyl(0.03, 0.03, 1.0, rebarMat(), 6);
+    cargo.position.set(-0.1 + i * 0.2, 0.78, 0);
+    cargo.rotation.x = Math.PI / 2;
+    cargo.rotation.z = (i - 0.5) * 0.12;
+    g.add(cargo);
+  }
+
   g.userData.wheels = wheels;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  addOutline(g, 0.04); // the icon deserves ink
   return g;
 }
 
@@ -402,6 +532,7 @@ export function buildRebar() {
   inner.rotation.z = 0.5;
   const g = new THREE.Group();
   g.add(inner);
+  addOutline(g, 0.18); // thick ink so rebars pop against any ground
   return g;
 }
 
@@ -410,6 +541,7 @@ export function buildCoin() {
   c.rotation.x = Math.PI / 2;
   const g = new THREE.Group();
   g.add(c);
+  addOutline(g, 0.08);
   return g;
 }
 

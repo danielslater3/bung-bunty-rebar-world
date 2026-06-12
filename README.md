@@ -1,4 +1,4 @@
-# BUNG BUNTY: REBAR WORLD — DOUBLE REBAR REVAMP 2.0
+# BUNG BUNTY: REBAR WORLD — WORLD DETAIL + CARTOON VISUAL REVAMP 3.0
 
 A 3D comedy action-platformer / open-zone adventure / movement score-chaser /
 trolley-racing chaos game. You are **Bung Bunty**, a huge chaotic Aussie legend.
@@ -6,7 +6,29 @@ Save Rebar World from **Gabor Mihala** in **OPERATION REBAR: BLUE TO RED**.
 
 100% Bung-approved. No gore, no real brands, maximum rebar velocity.
 
-### What's new in 2.0
+### What's new in 3.0
+- **Cartoon UI** — Fredoka/Nunito fonts, chunky outlined panels, speech-bubble
+  dialogue, bouncy hover/squashy press buttons, low-fuel meter rattle.
+- **Cartoon ink outlines** (inverted hull) on Bung, Ching, Gabor, the scooter,
+  the Golden Trolley, enemies, rebars and coins.
+- **Character detail pass** — Bung: wristband, rebar necklace, crumbs, rosy
+  cheeks, grease smudge. Ching: headset, wrist tablet, shoulder pads, trolley
+  charm. Gabor: villain cape, emblem, fake-rebar bag, goofy scooter exhaust.
+- **Brisbane Rebar District** rebuilt as a Queen Street Mall-inspired tiled
+  pedestrian mall: shopfronts, McRebar + Burger Bung, shade sails, benches,
+  planters, kiosks, fountain, banners, bollards, lamps, pedestrian NPCs, and
+  fully fictional funny signage.
+- **Sydney Staging Zone** rebuilt as a real terminal: triangular-skylight
+  ceiling, glass curtain wall with parked planes + ground vehicles outside,
+  check-in counters, departure boards, gate signs, seating lounges, security
+  scanners, queue barriers, food court, baggage carts, passenger NPCs.
+- **Hong Kong / Shenzhen** density pass: animated LED glyph billboards, hanging
+  cables, steam vents, street food stalls, elevated neon walkways, distant
+  drone traffic, holographic rebar data, and the colossal **REBAR CORE** tower.
+- Procedural canvas textures (mall paving, terminal floor, skylights, LED
+  glyphs) — still zero asset files.
+
+### What was new in 2.0
 - **RebarChainManager** — one central combo system. Rebars AND portals feed the
   chain; milestones at 5x/10x/20x/50x; chain-expiry warning flash; score tweening.
 - **Swept detection** — portals and rebar pickups test the actor's full travel

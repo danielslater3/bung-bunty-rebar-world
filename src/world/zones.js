@@ -2,7 +2,7 @@
 //   Blue Mode:  Bung Mansion Hub, Brisbane Rebar District, Sydney Staging Zone
 //   Red Mode:   Hong Kong Neon Rain City, Shenzhen Cyber Rebar Core, Rebar Void
 import * as THREE from 'three';
-import { mat, rng, cyl, sphere, box as mkBox } from '../core/utils.js';
+import { mat, rng, cyl, sphere, box as mkBox, texMat, pavingTexture, terminalFloorTexture } from '../core/utils.js';
 import { ZoneKit } from './ZoneKit.js';
 import { state, bus, addCoins } from '../core/state.js';
 import { buildTrolley, buildRebar, buildBurger } from '../entities/models.js';
@@ -191,16 +191,19 @@ function buildBrisbane(game) {
   Z.sky(0x7ec4ea, 0x9ed4ee, 80, 320, 0xcfeaff, 0x6a6a52, 1.0, 0xfff2cf, 1.7, new THREE.Vector3(60, 100, 40));
 
   Z.ground(300, 300, mat(0x8a8f7a, { roughness: 1 }));
-  // Road grid
+  // Perimeter roads (the Gabor chase loop) — asphalt
   const road = mat(0x3a3d42, { roughness: 0.95 });
-  Z.plate(0, 0, 0, 14, 290, road);
-  Z.plate(0, 0, 0, 290, 14, road, 0);
   Z.plate(70, 0, 0, 14, 290, road);
   Z.plate(-70, 0, 0, 14, 290, road);
   Z.plate(0, 0, 70, 290, 14, road);
   Z.plate(0, 0, -70, 290, 14, road);
+  // ---- THE REBAR MALL: Queen Street-inspired pedestrian boulevard ----
+  // Wide tiled walking street running north–south, crossed by a tiled plaza.
+  const paving = texMat('paving', pavingTexture(20), { roughness: 0.75 });
+  Z.plate(0, 0.02, 0, 26, 290, paving);
+  Z.plate(0, 0.02, 0, 290, 22, paving);
 
-  // ---- Buildings ----
+  // ---- CBD towers around the mall (tall, so the mall feels enclosed) ----
   const rand = rng(7707);
   const palette = [0xc9b8a0, 0xa8b8c2, 0xd9c08a, 0x9aa88f, 0xc2a8a0, 0xb8c9d4];
   const blocks = [[-45, -45], [-45, 45], [45, -45], [45, 45], [-110, -40], [-110, 40], [110, -40], [110, 40], [-40, -110], [40, -110], [-40, 110], [40, 110], [110, 110], [-110, -110], [110, -110], [-110, 110]];
@@ -209,13 +212,69 @@ function buildBrisbane(game) {
     const n = 1 + Math.floor(rand() * 2);
     for (let i = 0; i < n; i++) {
       const w = 12 + rand() * 14, d = 12 + rand() * 14;
-      const h = 8 + rand() * 22;
+      const inner = Math.abs(bx) <= 45 && Math.abs(bz) <= 45;
+      const h = inner ? 16 + rand() * 26 : 8 + rand() * 22; // taller near the mall = CBD canyon
       const x = bx + (rand() - 0.5) * 16, z = bz + (rand() - 0.5) * 16;
       Z.building(x, z, w, h, d, palette[bi++ % palette.length], { grapple: h > 14, windowGlow: 0.3 });
       if (rand() < 0.4) Z.coin(x, h, z); // rooftop coins
       if (rand() < 0.3) Z.rebar(x + 3, h, z + 3);
     }
   }
+
+  // ---- QUEEN STREET-INSPIRED MALL DRESSING ----
+  // Shopfront strips lining the walkway (facing inward, leaving road gaps)
+  const shops = [
+    [-17, -52, 'L', 0x44b04a], [-17, -40, 'L', 0xd9763a], [-17, -28, 'L', 0x35588a],
+    [-17, 28, 'L', 0xb04a8f], [-17, 40, 'L', 0xd9a13d], [-17, 52, 'L', 0x4a8fb0],
+    [17, -52, 'R', 0xc0392b], [17, -40, 'R', 0x8a6a48], [17, -28, 'R', 0x3a7d52],
+    [17, 28, 'R', 0xd92f2f], [17, 40, 'R', 0x6b4a8a], [17, 52, 'R', 0x2a9d8f],
+  ];
+  for (const [sx, sz, side, col] of shops) {
+    Z.shopfront(sx, sz, side === 'L' ? Math.PI / 2 : -Math.PI / 2, 10, palette[(sz * 7 & 7) % palette.length], col);
+  }
+  // McRebar + Burger Bung anchor stores (parody fast food, glowing signs)
+  Z.shopfront(-17, 14, Math.PI / 2, 12, 0xd92f2f, 0xffc23d, 9);
+  Z.textSign(-15.6, 5.6, 14, Math.PI / 2, 'McREBAR', { bg: '#d92f2f', fg: '#ffe9a8', w: 6, h: 1.4, glow: true });
+  Z.shopfront(17, 14, -Math.PI / 2, 12, 0xffc23d, 0xd92f2f, 9);
+  Z.textSign(15.6, 5.6, 14, -Math.PI / 2, 'BURGER BUNG', { bg: '#ffc23d', fg: '#1a1d26', w: 6.5, h: 1.4, glow: true });
+  // Golden trolley rental station
+  Z.textSign(-13, 2.6, -14, Math.PI / 2, 'GOLDEN TROLLEY RENTAL\n(BUNG HAS THE ONLY ONE)', { bg: '#ffe9a8', fg: '#7a5230', w: 5, h: 1.6, post: true });
+  const rentalTrolley = buildTrolley();
+  rentalTrolley.position.set(-14.5, 0, -18); rentalTrolley.rotation.y = 0.7;
+  rentalTrolley.scale.setScalar(0.85);
+  Z.group.add(rentalTrolley);
+
+  // Shade sails marching down the centre of the mall (the QSM signature)
+  for (const sz of [-44, -18, 18, 44]) Z.shadeSail(0, sz, 11 + (sz % 3));
+  // Mall furniture: benches, planters, bollards, lamps, bins
+  for (const sz of [-58, -34, -24, 24, 34, 58]) {
+    Z.bench(-9, sz, Math.PI / 2);
+    Z.bench(9, sz, -Math.PI / 2);
+    Z.planterBox(-9, sz + 5);
+    Z.planterBox(9, sz - 5);
+  }
+  for (const sz of [-62, -36, 36, 62]) { Z.streetLamp(-11, sz); Z.streetLamp(11, sz); }
+  for (let i = 0; i < 6; i++) { Z.bollard(-13 + i * 5.2, 64); Z.bollard(-13 + i * 5.2, -64); }
+  Z.binProp(-10, -46); Z.binProp(10, 46); Z.binProp(-10, 20);
+  // Kiosks + banners + directory + fountain plaza at the crossing
+  Z.mallKiosk(-8, -8, 0x44b04a);
+  Z.mallKiosk(8, 8, 0xd9763a);
+  Z.fountain(0, -22);
+  Z.directoryBoard(-6, 30, 0.5);
+  Z.mallBanner(0, -38, 0, 0x2ee6ff);
+  Z.mallBanner(0, 38, 0, 0xffc23d);
+  // Busker corner — tiny stage + speaker
+  Z.box(12, 0, -34, 4, 0.4, 4, mat(0x8a6a48, { roughness: 0.9 }));
+  Z.box(13.4, 0.4, -35.2, 0.7, 1.1, 0.7, mat(0x16181d, { roughness: 0.6 }));
+  // Pedestrian crowd strolling the mall
+  Z.pedestrians(0, -40, 18, 44, 7, 31);
+  Z.pedestrians(0, 40, 18, 44, 7, 32);
+  // Funny canon signage
+  Z.textSign(0, 3.4, 66, 0, 'BUNG-APPROVED WALKWAY', { bg: '#35c5f0', fg: '#1a1d26', w: 6, h: 1, post: true });
+  Z.textSign(-5, 2.8, 44, 0, 'TROLLEY BOOST PROHIBITED\n(BUNG DISAGREES)', { bg: '#f4f1e8', fg: '#d12c47', w: 4.4, h: 1.5, post: true });
+  Z.textSign(13, 2.8, -28, -Math.PI / 2, 'REBAR SALE TODAY', { bg: '#ffc23d', fg: '#1a1d26', w: 4, h: 1, post: true });
+  Z.textSign(0, 2.6, -10, 0, 'DO NOT QUESTION THE TROLLEY', { bg: '#16181d', fg: '#ffc23d', w: 5.5, h: 0.9, post: true, glow: true });
+  Z.textSign(6, 3.2, 30, Math.PI, 'GABOR SCOOTER ACTIVITY REPORTED', { bg: '#d12c47', fg: '#ffffff', w: 6, h: 0.9, post: true, glow: true });
 
   // ---- Construction zone (NE) — rebar heaven ----
   const conMat = mat(0xd9763a, { roughness: 0.8 });
@@ -323,18 +382,34 @@ function buildSydney(game) {
   const Z = new ZoneKit(game, 'sydney', 'sydney');
   Z.sky(0xb8d4e8, 0xc8dcea, 60, 260, 0xe8f4ff, 0x8a8a92, 1.1, 0xffffff, 1.2, new THREE.Vector3(-30, 90, 50));
 
-  // Terminal floor — polished
-  Z.ground(220, 110, mat(0xd8dce2, { roughness: 0.35, metalness: 0.15 }));
-  // Roof beams + glass-feel roof slabs (high)
+  // Terminal floor — polished big-tile floor (Reference Image C)
+  Z.ground(220, 110, texMat('terminalFloor', terminalFloorTexture(24), { roughness: 0.28, metalness: 0.18 }));
+  // Tarmac apron outside the south glass wall — where the planes park
+  Z.plate(0, -0.02, 105, 240, 100, mat(0x565b63, { roughness: 0.9 }));
+  // Columns + the triangular-skylight ceiling
+  const colMat = mat(0xe8ebee, { metalness: 0.3, roughness: 0.45 });
   for (let x = -90; x <= 90; x += 30) {
-    Z.box(x, 0, -52, 2, 16, 2, mat(0x8a929e, { metalness: 0.7, roughness: 0.4 }));
-    Z.box(x, 0, 52, 2, 16, 2, mat(0x8a929e, { metalness: 0.7, roughness: 0.4 }));
-    Z.box(x, 16, 0, 2.4, 1, 106, mat(0xaab4c0, { metalness: 0.6, roughness: 0.5 }), { collide: false });
+    Z.box(x, 0, -50, 1.6, 16, 1.6, colMat);
+    Z.box(x, 0, 50, 1.6, 16, 1.6, colMat);
     Z.grapple(x, 15, 0);
   }
-  // Side walls
-  Z.box(0, 0, -55, 220, 14, 1, mat(0xc2ccd8, { roughness: 0.7 }));
-  Z.box(0, 0, 55, 220, 14, 1, mat(0xc2ccd8, { roughness: 0.7 }));
+  Z.skylightCeiling(0, 0, 224, 112, 16.5);
+  // Big modern roof beams under the ceiling
+  for (const bz of [-30, 0, 30]) Z.box(0, 15.4, bz, 220, 0.7, 1.2, mat(0xc8cdd4, { metalness: 0.5, roughness: 0.4 }), { collide: false });
+  // North wall solid, SOUTH WALL = full glass curtain with planes outside
+  Z.box(0, 0, -55, 220, 16, 1, mat(0xe2e6ea, { roughness: 0.7 }));
+  Z.glassWall(0, 55, 220, 0, 16);
+  // End walls so the hall is enclosed
+  Z.box(-111, 0, 0, 1.5, 16, 110, mat(0xe2e6ea, { roughness: 0.7 }));
+  Z.box(111, 0, 0, 1.5, 16, 110, mat(0xe2e6ea, { roughness: 0.7 }));
+  // Planes parked at the gates (seen through the glass)
+  Z.plane(-60, 85, 0.35, 1);
+  Z.plane(20, 92, -0.2, 1.15);
+  Z.plane(90, 84, 0.5, 0.9);
+  // Ground service vehicles + baggage trains outside
+  Z.box(-30, 0, 70, 3, 1.6, 1.8, mat(0xffc23d, { roughness: 0.7 }));
+  Z.box(50, 0, 72, 3, 1.6, 1.8, mat(0x44b04a, { roughness: 0.7 }));
+  Z.baggageCart(-22, 68, 0.4); Z.baggageCart(58, 69, -0.3);
 
   // ---- Conveyor belts ----
   const beltMat = mat(0x2e3340, { roughness: 0.6, metalness: 0.4 });
@@ -418,6 +493,52 @@ function buildSydney(game) {
   Z.neonArrow(10, 2, 0, -Math.PI / 2, 0xc9d6e3);
   Z.neonArrow(65, 2, 0, -Math.PI / 2, 0xffc23d);
 
+  // ---- 3.0 TERMINAL FURNITURE (Reference Images B + C) ----
+  // Check-in row along the north wall (entry side, near spawn)
+  for (let i = 0; i < 6; i++) Z.checkInCounter(85 - i * 7, -48, 0, i % 2 ? 0x2ee6ff : 0xffc23d);
+  Z.textSign(70, 6.5, -50, 0, 'OPERATION REBAR CHECK-IN', { bg: '#14305a', fg: '#ffe9a8', w: 9, h: 1.4, glow: true });
+  Z.queueBarrier(78, -42, 0, 10); Z.queueBarrier(62, -42, 0, 10);
+  // Departure boards + gate signage hanging in the concourse
+  Z.flightBoard(40, 6, -20, 0.3);
+  Z.flightBoard(-45, 6, 22, Math.PI - 0.3);
+  Z.gateSign(-25, 7.5, -10, 0, 0xffc23d);
+  Z.gateSign(20, 7.5, 10, 0, 0x2ee6ff);
+  Z.gateSign(-70, 7.5, 10, 0, 0xff2e5f);
+  // Gate seating lounges along the glass wall — watch the planes
+  for (const sx of [-95, -75, -45, -15, 15, 45]) {
+    Z.seatRow(sx, 44, 0, 5);
+    Z.seatRow(sx + 5, 48, Math.PI, 5);
+  }
+  Z.binProp(-85, 44); Z.binProp(-5, 44); Z.binProp(35, 44);
+  // Food court cluster around the McRebar hoard
+  Z.textSign(90, 7.4, 28, Math.PI, 'McREBAR FOOD COURT', { bg: '#d92f2f', fg: '#ffe9a8', w: 8, h: 1.3, glow: true });
+  Z.vendingMachine(104, 30, -Math.PI / 2, 0xff2e5f);
+  Z.vendingMachine(104, 33, -Math.PI / 2, 0x2ee6ff);
+  Z.mallKiosk(72, 40, 0xd92f2f); // food kiosk
+  for (const [tx, tz] of [[78, 44], [85, 47], [65, 48]]) {
+    const table = cyl(0.7, 0.08, 1.1, mat(0xd9dde2, { roughness: 0.5 }), 10);
+    table.position.set(tx, 0.55, tz);
+    Z.group.add(table);
+    Z.bench(tx - 1.6, tz, Math.PI / 2);
+  }
+  // Security checkpoint dressing at the Passport (west end)
+  Z.securityScanner(-92, -5, Math.PI / 2);
+  Z.securityScanner(-92, 5, Math.PI / 2);
+  Z.queueBarrier(-86, -8, Math.PI / 2, 8); Z.queueBarrier(-82, 8, Math.PI / 2, 8);
+  Z.textSign(-90, 6.8, 0, Math.PI / 2, 'TROLLEY FUEL NOT ALLOWED\nTHROUGH SECURITY', { bg: '#f4f1e8', fg: '#d12c47', w: 6, h: 2 });
+  Z.textSign(-104, 5, 14, Math.PI / 2, 'NO SCOOTERS BEYOND\nTHIS POINT, GABOR', { bg: '#d12c47', fg: '#ffffff', w: 5, h: 1.8, glow: true });
+  // Service counters: information + currency exchange (it's the kiosk anyway)
+  Z.checkInCounter(105, 24, -Math.PI / 2, 0x43d96b);
+  Z.textSign(103.5, 4.6, 24, -Math.PI / 2, 'REBAR EXCHANGE', { bg: '#1a1d26', fg: '#ffc23d', w: 5, h: 1, glow: true });
+  // More funny canon signage
+  Z.textSign(95, 5.2, -45, 0, 'GOLDEN TROLLEY\nDECLARATION REQUIRED', { bg: '#ffc23d', fg: '#1a1d26', w: 5, h: 1.8 });
+  Z.textSign(-10, 5.2, -50, 0, 'BUNG CLASS PRIORITY BOARDING', { bg: '#35c5f0', fg: '#1a1d26', w: 7, h: 1, glow: true });
+  Z.textSign(-55, 5.2, -50, 0, 'REBAR ITEMS MUST BE DECLARED', { bg: '#f4f1e8', fg: '#1a1d26', w: 7, h: 1 });
+  // Baggage trolleys inside + passengers
+  Z.baggageCart(55, -35, 1.1); Z.baggageCart(-20, 30, -0.6); Z.baggageCart(8, -38, 0.2);
+  Z.pedestrians(0, -30, 150, 25, 8, 71);
+  Z.pedestrians(-30, 38, 110, 14, 6, 72);
+
   Z.spawn.set(100, 0.2, 0);
   Z.spawnYaw = Math.PI / 2; // face down the terminal hall (-x)
   return Z;
@@ -428,7 +549,7 @@ function buildSydney(game) {
 // ============================================================
 function buildHongKong(game) {
   const Z = new ZoneKit(game, 'hongkong', 'hongkong');
-  Z.sky(0x0a0e1a, 0x0d1222, 40, 230, 0x4a6a9a, 0x141420, 1.0, 0x9fc0ff, 0.9, new THREE.Vector3(-40, 90, -30));
+  Z.sky(0x0a0e1a, 0x0d1222, 40, 230, 0x5a7aaa, 0x1a1a2a, 1.3, 0x9fc0ff, 1.1, new THREE.Vector3(-40, 90, -30));
   Z.enableRain(1100, 0x9fd4ff, 130);
 
   // Wet streets
@@ -544,6 +665,54 @@ function buildHongKong(game) {
     Z.neonArrow(first.x, 5, first.z + 8, 0, 0xffc23d);
   }
 
+  // ---- 3.0 STREET CANYON DENSITY PASS ----
+  // Animated LED billboards bolted onto tower faces along the roads
+  let bb = 0;
+  for (const t of towers) {
+    if (bb >= 10) break;
+    if (Math.abs(t.x) > 75 && Math.abs(t.z) > 75) continue;
+    const fx = Math.abs(t.x) < Math.abs(t.z); // face whichever road is closer
+    Z.ledBillboard(
+      fx ? t.x : (t.x > 0 ? t.x - 9 : t.x + 9),
+      8 + (bb % 3) * 7,
+      fx ? (t.z > 0 ? t.z - 9 : t.z + 9) : t.z,
+      fx ? (t.z > 0 ? Math.PI : 0) : (t.x > 0 ? -Math.PI / 2 : Math.PI / 2),
+      3.5, 7, bb + 3, bb % 2 ? '#ff2e5f' : '#2ee6ff');
+    bb++;
+  }
+  // Hanging cables criss-crossing the streets
+  Z.cableSpan(-22, 14, -40, 22, 12, -40);
+  Z.cableSpan(-22, 12, 25, 22, 15, 25);
+  Z.cableSpan(-40, 13, -22, -40, 11, 22);
+  Z.cableSpan(40, 15, -22, 40, 12, 22);
+  // Steam vents + street food row
+  Z.steamVent(-10, 44); Z.steamVent(8, -38); Z.steamVent(-36, -8);
+  Z.foodStall(-14, 52, 0.4, 0xd92f2f);
+  Z.foodStall(-20, 46, 0.9, 0xff8a3d);
+  Z.foodStall(16, 58, -0.5, 0x44ff88);
+  // Elevated neon walkway crossing the main street (extra route + cover)
+  Z.walkway(-30, -52, 30, -52, 7, 3.5);
+  Z.walkway(30, -52, 30, -20, 7, 3.5);
+  Z.ramp(-36, 0, -52, 6, 7, 3, -Math.PI / 2, mat(0x2a2f3a, { roughness: 0.6 }), false);
+  // Distant drone traffic silhouettes circling above the city
+  const traffic = [];
+  for (let i = 0; i < 6; i++) {
+    const d = mkBox(0.8, 0.25, 0.8, mat(0xff2e5f, { emissive: 0xff2e5f, emissiveIntensity: 1.6 }));
+    Z.group.add(d);
+    traffic.push({ d, r: 70 + i * 12, h: 46 + (i % 3) * 8, s: 0.1 + (i % 2) * 0.06, o: i * 1.1 });
+  }
+  Z.updaters.push((dt, t) => {
+    for (const a of traffic) {
+      a.d.position.set(Math.cos(t * a.s + a.o) * a.r, a.h, Math.sin(t * a.s + a.o) * a.r);
+      a.d.rotation.y = -(t * a.s + a.o);
+    }
+  });
+  // Canon signage
+  Z.textSign(0, 4.2, 24, 0, 'RED MODE ACTIVE', { bg: '#d12c47', fg: '#ffffff', w: 5, h: 1, post: true, glow: true });
+  Z.textSign(8, 3.2, -30, Math.PI, 'DO NOT FOLLOW THE SCOOTER', { bg: '#16181d', fg: '#ff4d6a', w: 5.5, h: 0.9, post: true, glow: true });
+  Z.textSign(-12, 3.2, -44, 0, 'REBAR NETWORK UNSTABLE', { bg: '#16181d', fg: '#ffc23d', w: 5, h: 0.9, post: true, glow: true });
+  if (route.length) Z.textSign(route[0].x + 6, 4, route[0].z + 10, 0, 'BUNG TROLLEY NOT RATED\nFOR ROOFTOP FLIGHT', { bg: '#f4f1e8', fg: '#1a1d26', w: 5, h: 1.7, post: true });
+
   Z.spawn.set(0, 0.2, 12);
   return Z;
 }
@@ -553,7 +722,7 @@ function buildHongKong(game) {
 // ============================================================
 function buildShenzhen(game) {
   const Z = new ZoneKit(game, 'shenzhen', 'shenzhen');
-  Z.sky(0x120508, 0x180810, 40, 240, 0x8a3a50, 0x140a10, 1.0, 0xff7a90, 0.9, new THREE.Vector3(30, 80, -40));
+  Z.sky(0x120508, 0x180810, 40, 240, 0x9a4a60, 0x1c1018, 1.25, 0xff7a90, 1.05, new THREE.Vector3(30, 80, -40));
   Z.enableRain(500, 0xff8aa0, 110);
 
   Z.ground(260, 260, mat(0x16080c, { roughness: 0.3, metalness: 0.6 }));
@@ -682,6 +851,58 @@ function buildShenzhen(game) {
   // Arrows pointing into the cyber portal chain
   Z.neonArrow(0, 2, 48, 0, 0xff2e5f);
   Z.neonArrow(10, 4, 70, 0.4, 0xff2e5f);
+
+  // ---- 3.0 CYBER MEGA-CITY PASS ----
+  // THE REBAR CORE — colossal central tower looming behind the boss arena
+  const coreG = new THREE.Group();
+  coreG.position.set(0, 0, -150);
+  const coreBody = cyl(9, 14, 85, mat(0x1a1024, { metalness: 0.7, roughness: 0.3, emissive: 0x2a0a14 }), 10);
+  coreBody.position.y = 42.5;
+  coreBody.castShadow = true;
+  coreG.add(coreBody);
+  for (let i = 0; i < 6; i++) { // glowing data rings climbing the core
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(11 - i * 0.7, 0.5, 6, 24),
+      mat(i % 2 ? 0xff2e5f : 0x2ee6ff, { emissive: i % 2 ? 0xff2e5f : 0x2ee6ff, emissiveIntensity: 1.6 }));
+    ring.position.y = 14 + i * 12;
+    ring.rotation.x = Math.PI / 2;
+    coreG.add(ring);
+    Z.updaters.push((dt, t) => { ring.rotation.z = t * (0.2 + i * 0.07) * (i % 2 ? -1 : 1); });
+  }
+  const coreTip = cyl(0.8, 3, 16, mat(0xff2e5f, { emissive: 0xff2e5f, emissiveIntensity: 2 }), 8);
+  coreTip.position.y = 93;
+  coreG.add(coreTip);
+  Z.group.add(coreG);
+  Z.updaters.push((dt, t) => { coreTip.material.emissiveIntensity = 1.4 + Math.sin(t * 2.4) * 0.8; });
+  // Holographic rebar data orbiting the arena + the core
+  Z.holoBits(0, 8, -95, 38, 14, 0xff2e5f);
+  Z.holoBits(0, 30, -150, 16, 10, 0x2ee6ff);
+  // Animated LED billboards on the approach boulevard
+  Z.ledBillboard(-10, 9, -20, Math.PI / 4, 4, 8, 21, '#ff2e5f');
+  Z.ledBillboard(12, 11, 5, -Math.PI / 3, 4, 8, 22, '#2ee6ff');
+  Z.ledBillboard(-14, 8, 55, Math.PI / 5, 3.5, 7, 23, '#ff2e5f');
+  Z.ledBillboard(16, 10, 75, -Math.PI / 4, 3.5, 7, 24, '#44ff88');
+  // Steam + elevated walkway over the crossroads
+  Z.steamVent(-12, 38); Z.steamVent(14, 22); Z.steamVent(-8, -40);
+  Z.walkway(-28, 30, 28, 30, 8, 4, 0x1f1424);
+  Z.ramp(-34, 0, 30, 6, 8, 3, -Math.PI / 2, mat(0x1f1424, { roughness: 0.6 }), false);
+  Z.portal('cyber', 0, 10.5, 30, Math.PI / 2); // bonus ring over the walkway
+  // Distant drone traffic, tighter and faster than HK (high-tech city)
+  const traffic2 = [];
+  for (let i = 0; i < 8; i++) {
+    const d = mkBox(0.7, 0.2, 0.7, mat(i % 2 ? 0xff2e5f : 0x2ee6ff, { emissive: i % 2 ? 0xff2e5f : 0x2ee6ff, emissiveIntensity: 1.8 }));
+    Z.group.add(d);
+    traffic2.push({ d, r: 55 + i * 10, h: 52 + (i % 4) * 7, s: 0.14 + (i % 3) * 0.05, o: i * 0.8 });
+  }
+  Z.updaters.push((dt, t) => {
+    for (const a of traffic2) {
+      a.d.position.set(Math.cos(t * a.s + a.o) * a.r, a.h, 30 + Math.sin(t * a.s + a.o) * a.r);
+      a.d.rotation.y = -(t * a.s + a.o);
+    }
+  });
+  // Canon signage
+  Z.textSign(0, 5, 18, 0, 'CYBER REBAR CORE ONLINE', { bg: '#16181d', fg: '#ff4d6a', w: 6.5, h: 1, post: true, glow: true });
+  Z.textSign(-10, 4, -38, 0, 'GABOR FIREWALL DETECTED', { bg: '#d12c47', fg: '#ffffff', w: 6, h: 1, post: true, glow: true });
+  Z.textSign(12, 4, -50, Math.PI, 'CHING SYSTEM WARNING:\nFOREHEAD ENERGY CRITICAL', { bg: '#16181d', fg: '#2ee6ff', w: 6, h: 1.7, post: true, glow: true });
 
   Z.spawn.set(0, 0.2, 0);
   Z.spawnYaw = Math.PI; // face the portal field (+z)
