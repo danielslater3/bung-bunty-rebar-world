@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BUNG BUNTY: REBAR WORLD</title>
+<link rel="stylesheet" href="styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- HUD layer -->
+  <div id="hud" class="hidden">
+    <div id="hud-topleft">
+      <div class="bar-wrap"><span class="bar-label">BUNG STABILITY</span><div class="bar"><div id="bar-stability" class="bar-fill stability"></div></div></div>
+      <div class="bar-wrap"><span class="bar-label">REBAR ENERGY</span><div class="bar"><div id="bar-energy" class="bar-fill energy"></div></div></div>
+      <div class="bar-wrap" id="fuel-wrap"><span class="bar-label">TROLLEY FUEL</span><div class="bar"><div id="bar-fuel" class="bar-fill fuel"></div></div></div>
+    </div>
+    <div id="hud-topright">
+      <div id="hud-score"><span class="hud-tag">BUNG SCORE</span><span id="score-val">0</span></div>
+      <div id="hud-combo" class="hidden"><span class="hud-tag">REBAR CHAIN</span><span id="combo-val">x1</span><div class="combo-timer"><div id="combo-timer-fill"></div></div></div>
+    </div>
+    <div id="hud-bottomright">
+      <div class="hud-currency"><span class="cur-icon coin"></span><span id="coins-val">0</span></div>
+      <div class="hud-currency"><span class="cur-icon rebar"></span><span id="rebars-val">0</span></div>
+      <div class="hud-currency"><span class="cur-icon shard"></span><span id="shards-val">0</span></div>
+    </div>
+    <div id="quest-tracker">
+      <div id="quest-title">OPERATION REBAR BRIEFING</div>
+      <div id="quest-name"></div>
+      <ul id="quest-objectives"></ul>
+    </div>
+    <div id="interact-prompt" class="hidden"></div>
+    <div id="boost-hint" class="hidden"></div>
+    <div id="toast-zone"></div>
+    <div id="boss-banner" class="hidden"></div>
+    <div id="zone-banner" class="hidden"></div>
+    <div id="milestone-banner" class="milestone hidden"></div>
+    <div id="quest-banner" class="hidden"></div>
+    <div id="damage-vignette"></div>
+    <div id="reticle" class="hidden">+</div>
+  </div>
+
+  <!-- Dialogue / subtitles -->
+  <div id="dialogue" class="hidden">
+    <div id="dialogue-speaker"></div>
+    <div id="dialogue-text"></div>
+  </div>
+
+  <!-- Menus layer (filled by JS) -->
+  <div id="menus"></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
