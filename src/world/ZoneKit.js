@@ -37,6 +37,118 @@ export class ZoneKit {
     this.bounds = 400;
   }
 
+  withLift(dy, fn) {
+    if (!Number.isFinite(dy) || Math.abs(dy) < 0.001) { fn(); return; }
+    const snap = this._liftSnap();
+    fn();
+    this._liftSince(snap, dy);
+    for (let i = snap.child; i < this.group.children.length; i++) this.group.children[i].userData.abs = true;
+    for (let i = snap.pick; i < this.pickups.length; i++) this.pickups[i]._abs = true;
+    for (let i = snap.inter; i < this.interactables.length; i++) this.interactables[i]._abs = true;
+    for (let i = snap.trig; i < this.triggers.length; i++) this.triggers[i]._abs = true;
+    for (let i = snap.port; i < this.portals.length; i++) this.portals[i]._abs = true;
+  }
+
+  liftFlat(heightOf) {
+    this._liftSince({
+      child: 0, pick: 0, inter: 0, grap: 0, trig: 0, spawn: 0, npc: 0, port: 0, col: 0,
+    }, heightOf);
+  }
+
+  _liftSnap() {
+    return {
+      child: this.group.children.length,
+      pick: this.pickups.length,
+      inter: this.interactables.length,
+      grap: this.grapplePoints.length,
+      trig: this.triggers.length,
+      spawn: this.spawners.length,
+      npc: this.npcs.length,
+      port: this.portals.length,
+      col: this.colliders.length,
+    };
+  }
+
+  _liftSince(s, heightOf) {
+    const dAt = (x, z) => (typeof heightOf === 'function' ? heightOf(x, z) : heightOf);
+    const liftInstances = (o) => {
+      const m = new THREE.Matrix4();
+      const p = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      const sc = new THREE.Vector3();
+      for (let i = 0; i < o.count; i++) {
+        o.getMatrixAt(i, m);
+        m.decompose(p, q, sc);
+        p.y += dAt(p.x, p.z);
+        m.compose(p, q, sc);
+        o.setMatrixAt(i, m);
+      }
+      o.instanceMatrix.needsUpdate = true;
+    };
+    const liftWorldBuffer = (o) => {
+      const geo = o.geometry;
+      if (!geo?.attributes?.position) return false;
+      if (!geo.boundingSphere) geo.computeBoundingSphere();
+      const bs = geo.boundingSphere;
+      if (!bs || (bs.radius < 12 && Math.hypot(bs.center.x, bs.center.z) < 20)) return false;
+      const arr = geo.attributes.position.array;
+      for (let i = 0; i < arr.length; i += 3) arr[i + 1] += dAt(arr[i], arr[i + 2]);
+      geo.attributes.position.needsUpdate = true;
+      geo.computeBoundingSphere();
+      geo.computeBoundingBox();
+      return true;
+    };
+    // Move each placed object once. Children of a moved group stay in local space.
+    // Merged city geometry sits at the origin, so those vertices move on their own.
+    const liftObj = (o, local) => {
+      if (!o || o.isLight || o.isPoints || o.userData?.abs) return;
+      if (o.isInstancedMesh) { liftInstances(o); return; }
+      const placed = !local && (Math.hypot(o.position.x, o.position.z) > 0.4 || Math.abs(o.position.y) > 0.4);
+      if (placed) {
+        o.position.y += dAt(o.position.x, o.position.z);
+        return;
+      }
+      if (o.isMesh && liftWorldBuffer(o)) return;
+      if (o.children) for (const c of o.children) liftObj(c, true);
+    };
+    for (let i = s.child; i < this.group.children.length; i++) liftObj(this.group.children[i], false);
+    const liftV = (v) => { if (v) v.y += dAt(v.x, v.z); };
+    for (let i = s.pick; i < this.pickups.length; i++) {
+      const c = this.pickups[i];
+      if (!c._abs) c.pos.y += dAt(c.pos.x, c.pos.z);
+    }
+    for (let i = s.inter; i < this.interactables.length; i++) {
+      if (!this.interactables[i]._abs) liftV(this.interactables[i].pos);
+    }
+    for (let i = s.grap; i < this.grapplePoints.length; i++) liftV(this.grapplePoints[i]);
+    for (let i = s.trig; i < this.triggers.length; i++) {
+      if (!this.triggers[i]._abs) liftV(this.triggers[i].pos);
+    }
+    for (let i = s.port; i < this.portals.length; i++) {
+      const p = this.portals[i];
+      if (!p._abs) p.pos.y += dAt(p.pos.x, p.pos.z);
+    }
+    for (let i = s.npc; i < this.npcs.length; i++) {
+      const n = this.npcs[i];
+      n.pos.y += dAt(n.pos.x, n.pos.z);
+    }
+    for (let i = s.spawn; i < this.spawners.length; i++) {
+      const sp = this.spawners[i];
+      const d = dAt(sp.center.x, sp.center.z);
+      sp.center.y += d;
+      for (const e of sp.enemies || []) {
+        e.pos.y += d;
+        e.home.y += d;
+      }
+    }
+    for (let i = s.col; i < this.colliders.length; i++) {
+      const b = this.colliders[i];
+      const d = dAt((b.min.x + b.max.x) * 0.5, (b.min.z + b.max.z) * 0.5);
+      b.min.y += d;
+      b.max.y += d;
+    }
+  }
+
   // ---------- Environment ----------
   sky(bgColor, fogColor, fogNear, fogFar, hemiSky, hemiGround, hemiInt, sunColor, sunInt, sunPos) {
     const g = this.game;
@@ -584,6 +696,7 @@ export class ZoneKit {
       this.updaters.push((dt, t) => {
         const dx = ped.tx - ped.g.position.x, dz = ped.tz - ped.g.position.z;
         const dist = Math.hypot(dx, dz);
+        const gy = this.groundAt?.(ped.g.position.x, ped.g.position.z) ?? 0;
         if (dist < 0.3) {
           ped.wait -= dt;
           if (ped.wait <= 0) {
@@ -591,11 +704,12 @@ export class ZoneKit {
             ped.tz = cz + (Math.random() - 0.5) * d;
             ped.wait = 1 + Math.random() * 4;
           }
+          ped.g.position.y = gy;
         } else {
           ped.g.position.x += (dx / dist) * ped.speed * dt;
           ped.g.position.z += (dz / dist) * ped.speed * dt;
           ped.g.rotation.y = Math.atan2(dx, dz);
-          ped.g.position.y = Math.abs(Math.sin(t * 8 + ped.speed * 9)) * 0.05; // little walk bob
+          ped.g.position.y = gy + Math.abs(Math.sin(t * 8 + ped.speed * 9)) * 0.05;
         }
       });
     }
@@ -1115,9 +1229,9 @@ export class ZoneKit {
       const px = playerPos.x, pz = playerPos.z;
       for (let i = 0; i < count; i++) {
         pos[i * 3 + 1] -= dt * 38;
-        if (pos[i * 3 + 1] < 0) {
+        if (pos[i * 3 + 1] < playerPos.y - 8) {
           pos[i * 3] = px + (Math.random() - 0.5) * area;
-          pos[i * 3 + 1] = 45 + Math.random() * 15;
+          pos[i * 3 + 1] = playerPos.y + 45 + Math.random() * 15;
           pos[i * 3 + 2] = pz + (Math.random() - 0.5) * area;
         }
       }

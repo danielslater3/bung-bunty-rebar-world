@@ -1,6 +1,6 @@
 // Subtitle/voice queue. Voice is placeholder beeps via AudioManager — the
 // `say(speaker, text)` API stays identical when real recordings arrive.
-const SPEAKER_NAMES = { bung: 'BUNG BUNTY', ching: 'CHING', gabor: 'GABOR MIHALA', system: 'OPERATION REBAR' };
+const SPEAKER_NAMES = { bung: 'BUNG BUNTY', ching: 'CHUNG', gabor: 'GABOR MIHALA', system: 'OPERATION REBAR' };
 
 export class DialogueSystem {
   constructor(game) {

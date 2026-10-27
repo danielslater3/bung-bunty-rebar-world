@@ -11,9 +11,41 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "/src/entities/models.js": "./src/entities/models.js?v=20261027c",
+    "/src/systems/DialogueSystem.js": "./src/systems/DialogueSystem.js?v=20261027c",
+    "/src/systems/QuestSystem.js": "./src/systems/QuestSystem.js?v=20261027c",
+    "/src/lore/universe.js": "./src/lore/universe.js?v=20261028a",
+    "/src/ui/Menus.js": "./src/ui/Menus.js?v=20261027c",
+    "/src/world/zones.js": "./src/world/zones.js?v=20261027c",
+    "/src/world/rebirthZones.js": "./src/world/rebirthZones.js?v=20261028a",
+    "/src/world/geo/buildCity.js": "./src/world/geo/buildCity.js?v=20261028l",
+    "/src/world/geo/terrain.js": "./src/world/geo/terrain.js?v=20261028i",
+    "/src/world/geo/drape.js": "./src/world/geo/drape.js?v=20261028k",
+    "/src/world/geo/facades.js": "./src/world/geo/facades.js?v=20261028a",
+    "/src/world/ZoneKit.js": "./src/world/ZoneKit.js?v=20261028b",
+    "/src/world/geo/footprints.js": "./src/world/geo/footprints.js?v=20261028a",
+    "/src/world/geo/hongkong.js": "./src/world/geo/hongkong.js?v=20261027c",
+    "/src/world/geo/river.js": "./src/world/geo/river.js?v=20261027e",
+    "/src/world/geo/bridges.js": "./src/world/geo/bridges.js?v=20261028f",
+    "/src/entities/Trolley.js": "./src/entities/Trolley.js?v=20261027d",
+    "/src/entities/Player.js": "./src/entities/Player.js?v=20261028a",
+    "/src/entities/Collectible.js": "./src/entities/Collectible.js?v=20261027f",
+    "/src/core/Game.js": "./src/core/Game.js?v=20261028d",
+    "/src/core/state.js": "./src/core/state.js?v=20261027f",
+    "/src/core/AudioManager.js": "./src/core/AudioManager.js?v=20261027d"
   }
 }
+</script>
+<script>
+window.addEventListener('error', (e) => {
+  if (document.getElementById('boot-error')) return;
+  const box = document.createElement('pre');
+  box.id = 'boot-error';
+  box.textContent = (e.message || 'The game failed to start.');
+  box.style.cssText = 'position:fixed;left:16px;right:16px;top:16px;z-index:20;margin:0;padding:16px 18px;background:#141820;color:#fff;border:3px solid #ffc94d;border-radius:16px;font:15px/1.4 Nunito,sans-serif;white-space:pre-wrap';
+  document.body.appendChild(box);
+});
 </script>
 </head>
 <body>
@@ -28,10 +60,12 @@
     </div>
     <div id="hud-topright">
       <div id="hud-score"><span class="hud-tag">BUNG SCORE</span><span id="score-val">0</span></div>
+      <div id="hud-trolley" class="hidden">JAMES REBAR</div>
       <div id="hud-combo" class="hidden"><span class="hud-tag">REBAR CHAIN</span><span id="combo-val">x1</span><div class="combo-timer"><div id="combo-timer-fill"></div></div></div>
     </div>
     <div id="hud-bottomright">
-      <div class="hud-currency"><span class="cur-icon coin"></span><span id="coins-val">0</span></div>
+      <div class="hud-currency" title="BungBucks"><span class="cur-icon coin"></span><span id="coins-val">0</span></div>
+      <div class="hud-currency" id="yard-wrap" title="Rebar yard"><span class="cur-name">YARD</span><span id="yard-val">0</span></div>
       <div class="hud-currency"><span class="cur-icon rebar"></span><span id="rebars-val">0</span></div>
       <div class="hud-currency"><span class="cur-icon shard"></span><span id="shards-val">0</span></div>
     </div>
@@ -50,6 +84,8 @@
     <div id="damage-vignette"></div>
     <div id="reticle" class="hidden">+</div>
   </div>
+  <div id="photo-frame"><span>PHOTO MODE · V OR ESC TO STEP OUT</span></div>
+  <div id="weather-tint"></div>
 
   <!-- Dialogue / subtitles -->
   <div id="dialogue" class="hidden">
@@ -60,6 +96,6 @@
   <!-- Menus layer (filled by JS) -->
   <div id="menus"></div>
 
-  <script type="module" src="src/main.js"></script>
+  <script type="module" src="src/main.js?v=20261028l"></script>
 </body>
 </html>

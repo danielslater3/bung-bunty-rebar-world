@@ -15,6 +15,8 @@ import { ChainManager } from '../systems/ChainManager.js';
 import { HUD } from '../ui/HUD.js';
 import { Menus } from '../ui/Menus.js';
 import { ZONE_BUILDERS, ZONE_INFO } from '../world/zones.js';
+import { Rebirth } from '../systems/Rebirth.js';
+import { migrateState } from '../lore/universe.js';
 
 export class Game {
   constructor() {
@@ -54,6 +56,8 @@ export class Game {
     this.hud = new HUD(this);
     this.menus = new Menus(this);
     this.chain = new ChainManager(this); // central Rebar Chain manager
+    this.rebirth = new Rebirth(this);
+    this.photo = false;
 
     // ---- World ----
     this.zone = null;
@@ -84,6 +88,15 @@ export class Game {
 
     this.clock = new THREE.Clock();
     this.elapsed = 0;
+    this._autosave = 0;
+    const flush = () => {
+      if (this.mode === 'playing' || this.mode === 'paused') SaveSystem.save(this);
+    };
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', flush);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
     this.renderer.setAnimationLoop(() => this.frame());
   }
 
@@ -93,6 +106,7 @@ export class Game {
     this.audio.resume();
     if (fresh) SaveSystem.reset();
     else SaveSystem.load();
+    migrateState();
     this.audio.applyVolumes();
     this.menus.close();
     this.hud.show();
@@ -104,9 +118,9 @@ export class Game {
     if (fresh) {
       setTimeout(() => {
         this.dialogue.conversation([
-          ['bung', 'OIIII. Beautiful morning in Brisbane. Time to check on me rebars.'],
-          ['ching', 'Bung — the Rebar Network is glitching. Portals everywhere. Gabor energy detected.'],
-          ['bung', 'Say no more. OPERATION REBAR: BLUE TO RED IS OFFICIALLY DEPLOYED.'],
+          ['bung', 'OIIII. 3 March was a long time ago and I am still enormous. Beautiful morning in Brisbane.'],
+          ['ching', 'Gabor is buying rebar he cannot lift. The shipments are wrong. This is a conspiracy, Bung.'],
+          ['bung', 'Say no more. THE GLOBAL REBAR CONSPIRACY IS OFFICIALLY DEPLOYED.'],
         ], () => this.quests.startActiveQuestBriefing());
       }, 1200);
     } else {
@@ -156,6 +170,11 @@ export class Game {
     this.trolley.dismiss();
     this.audio.stopAllLoops();
 
+    const wide = name === 'brisbane' || name === 'hongkong' || name === 'sydney';
+    this.camera.near = wide ? 0.3 : 0.1;
+    this.camera.far = wide ? 8000 : 700;
+    this.camera.updateProjectionMatrix();
+
     const kit = ZONE_BUILDERS[name](this); // ZoneKit registers itself as game.zone
     this.scene.add(kit.group);
 
@@ -166,6 +185,7 @@ export class Game {
     this.camYaw = kit.spawnYaw;
     this.player.facing = kit.spawnYaw + Math.PI;
     this.player.mesh.rotation.y = this.player.facing;
+    if (this.mode === 'playing' || this.mode === 'paused') this.restorePlace(name);
 
     this.audio.playMusic(kit.music);
     if (!silent || true) {
@@ -174,7 +194,64 @@ export class Game {
     }
     bus.emit('qe', { type: 'enter', target: name });
     bus.emit('hud');
-    if (this.mode === 'playing') SaveSystem.save();
+    if (this.mode === 'playing' || this.mode === 'paused') SaveSystem.save(this);
+  }
+
+  restorePlace(name) {
+    const place = state.places?.[name];
+    if (!place || !Number.isFinite(place.x) || !Number.isFinite(place.y) || !Number.isFinite(place.z)) return;
+    const seated = new THREE.Vector3(place.x, place.y, place.z);
+    const gy = this.zone.sampleGround?.(seated.x, seated.z, seated.y);
+    if (gy != null && seated.y < gy - 1) seated.y = gy + 0.5;
+    this.player.teleport(seated);
+    if (Number.isFinite(place.facing)) {
+      this.player.facing = place.facing;
+      this.player.mesh.rotation.y = place.facing;
+    }
+    if (Number.isFinite(place.camYaw)) this.camYaw = place.camYaw;
+    if (Number.isFinite(place.camPitch)) this.camPitch = place.camPitch;
+    this.actorPrev.player.copy(this.player.pos);
+    const t = this.trolley;
+    if (place.summoned && state.flags.trolleyUnlocked && t) {
+      t.pos.set(place.tx, place.ty, place.tz);
+      const tgy = this.zone.sampleGround?.(t.pos.x, t.pos.z, t.pos.y);
+      if (tgy != null && t.pos.y < tgy - 1) t.pos.y = tgy + 0.5;
+      t.heading = place.theading || 0;
+      t.speed = 0;
+      t.vy = 0;
+      t.summoned = true;
+      t.riding = !!place.riding;
+      t.mesh.visible = true;
+      t.mesh.position.copy(t.pos);
+      t.mesh.rotation.y = t.heading;
+      this.actorPrev.trolley.copy(t.pos);
+    }
+  }
+
+  travelTo(zone, x, y, z) {
+    if (!state.unlockedZones.includes(zone)) {
+      this.toast('THAT DISTRICT IS LOCKED', 'red');
+      return;
+    }
+    this.menus.close();
+    this.mode = 'playing';
+    this.input.enabled = true;
+    this.hud.show();
+    if (state.currentZone !== zone) this.loadZone(zone, true);
+    const dest = new THREE.Vector3(x, y, z);
+    const gy = this.zone.sampleGround?.(dest.x, dest.z, dest.y);
+    if (gy != null && dest.y < gy - 1) dest.y = gy + 0.5;
+    this.player.teleport(dest);
+    this.actorPrev.player.copy(this.player.pos);
+    this.input.lock();
+    this.toast(`ARRIVED — ${ZONE_INFO[zone].name}`, 'blue');
+  }
+
+  togglePhoto() {
+    this.photo = !this.photo;
+    document.getElementById('photo-frame')?.classList.toggle('on', this.photo);
+    if (this.photo) this.hud.hide();
+    else this.hud.show();
   }
 
   // ============ COMBAT / SCORE ============
@@ -228,6 +305,13 @@ export class Game {
     if (this.mode === 'playing') {
       this.updatePlaying(dt);
     }
+    if (this.mode === 'playing' || this.mode === 'paused') {
+      this._autosave += dt;
+      if (this._autosave >= 30) {
+        this._autosave = 0;
+        SaveSystem.save(this);
+      }
+    }
     // Subtle menu camera drift
     if (this.mode === 'menu' && this.zone) {
       this.camYaw += dt * 0.06;
@@ -242,6 +326,18 @@ export class Game {
   updatePlaying(dt) {
     const input = this.input;
 
+    if (this.photo) {
+      if (input.pressed['KeyV'] || input.pressed['Escape']) this.togglePhoto();
+      const look = input.consumeMouse();
+      const sens = 0.0024 * state.settings.sensitivity;
+      this.camYaw -= look.dx * sens;
+      this.camPitch = clamp(this.camPitch + look.dy * sens, -0.45, 1.25);
+      if (this.zone) this.zone.update(dt, this.elapsed);
+      this.rebirth.update(dt);
+      this._wasLocked = input.locked;
+      return;
+    }
+
     // Detect pointer-lock loss (Esc) → pause
     if (this._wasLocked && !input.locked && !this.menus.isOpen) {
       this._wasLocked = false;
@@ -254,6 +350,13 @@ export class Game {
     if (input.pressed['Escape'] || input.pressed['KeyP']) {
       this.pauseForMenu();
       this.menus.showPause();
+      return;
+    }
+    if (input.pressed['KeyV']) { this.togglePhoto(); return; }
+    if (input.pressed['KeyR']) { this.trolley.cycle(); return; }
+    if (input.pressed['KeyM']) {
+      this.pauseForMenu();
+      this.menus.showMap(() => this.menus.showPause());
       return;
     }
 
@@ -272,6 +375,7 @@ export class Game {
     this.player.update(dt);
     this.trolley.update(dt);
     if (this.zone) this.zone.update(dt, this.elapsed);
+    this.rebirth.update(dt);
     this.dialogue.update(dt);
     this.hud.update(dt);
 
@@ -370,13 +474,27 @@ export class Game {
 
     // Camera wall collision: raycast from the focus point toward the desired
     // camera spot; if level geometry is in the way, pull the camera in.
-    if (this.zone && this.zone.grounds.length) {
+    if (this.zone && (this.zone.grounds.length || this.zone.blockers?.length)) {
       const dir = offset.clone().normalize();
       this._camRay = this._camRay || new THREE.Raycaster();
       this._camRay.set(targetPos, dir);
       this._camRay.far = dist;
-      const hits = this._camRay.intersectObjects(this.zone.grounds, false);
-      if (hits.length) dist = Math.max(2.0, hits[0].distance * 0.92);
+      const hits = [];
+      if (this.zone.grounds.length) this._camRay.intersectObjects(this.zone.grounds, false, hits);
+      if (this.zone.blockers?.length) this._camRay.intersectObjects(this.zone.blockers, true, hits);
+      if (hits.length) {
+        hits.sort((a, b) => a.distance - b.distance);
+        dist = Math.max(1.6, hits[0].distance * 0.92);
+      }
+      if (this.zone.colliders?.length) {
+        const point = this._camHit || (this._camHit = new THREE.Vector3());
+        for (const box of this.zone.colliders) {
+          const hit = this._camRay.ray.intersectBox(box, point);
+          if (!hit) continue;
+          const d = hit.distanceTo(targetPos);
+          if (d < dist) dist = Math.max(1.6, d * 0.92);
+        }
+      }
     }
     const desired = targetPos.clone().addScaledVector(offset.normalize(), dist);
     // Keep camera above the deck a little

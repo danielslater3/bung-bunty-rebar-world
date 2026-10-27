@@ -16,6 +16,22 @@ import * as THREE from 'three';
 import { state, bus, addCoins, addRebars, addShards, addEnergy, upgLevel } from '../core/state.js';
 import { buildRebar, buildCoin, buildShard, buildBurger, buildFuelCan, buildPhone } from './models.js';
 import { dlog } from '../core/Debug.js';
+import { REBAR_TYPES, unlockArchive } from '../lore/universe.js';
+
+function tintedRebar(kind) {
+  const spec = REBAR_TYPES[kind];
+  const g = buildRebar();
+  const color = new THREE.Color(spec.color);
+  g.traverse((o) => {
+    if (!o.isMesh || o.userData.isOutline) return;
+    o.material = o.material.clone();
+    o.material.color = color;
+    o.material.emissive = color;
+    o.material.emissiveIntensity = kind === 'radioactive' || kind === 'forbidden' || kind === 'obsidian' ? 0.7 : 0.25;
+  });
+  if (kind === 'bent') g.rotation.z = 0.7;
+  return g;
+}
 
 const BUILDERS = {
   rebar: buildRebar,
@@ -26,6 +42,9 @@ const BUILDERS = {
   burger: buildBurger,
   phone: buildPhone,
 };
+for (const kind of Object.keys(REBAR_TYPES)) {
+  if (kind !== 'rebar') BUILDERS[kind] = () => tintedRebar(kind);
+}
 
 const PICKUP_RADIUS_WALK = 1.7;     // generous on-foot trigger
 const PICKUP_RADIUS_TROLLEY = 2.4;  // the basket counts
@@ -47,7 +66,9 @@ export class Collectible {
     this.mesh = BUILDERS[kind]();
     this.mesh.position.copy(pos);
     this.t = Math.random() * 10;
-    this.collected = false;
+    this.key = `${game.zone?.name || 'world'}|${kind}|${this.pos.x.toFixed(1)}|${this.pos.y.toFixed(1)}|${this.pos.z.toFixed(1)}`;
+    this.collected = !!state.picked?.[this.key];
+    this.mesh.visible = !this.collected;
     game.zone.group.add(this.mesh);
   }
 
@@ -85,15 +106,20 @@ export class Collectible {
     if (this.collected) return;          // each collectible collects exactly once
     this.collected = true;
     this.mesh.visible = false;
+    if (!state.picked) state.picked = {};
+    state.picked[this.key] = true;
     const g = this.game;
     dlog('pickup', `collected ${this.kind} at ${this.pos.x.toFixed(1)},${this.pos.y.toFixed(1)},${this.pos.z.toFixed(1)}`);
 
     // ---- 1) STATE + UI first (must never fail) ----
+    if (!state.stock) state.stock = {};
     switch (this.kind) {
       case 'rebar':
         addRebars(1); addEnergy(4);
+        state.stock.rebar = (state.stock.rebar || 0) + 1;
         g.chain.addChain('rebar');                       // rebars feed the Rebar Chain
         g.chain.addScore(10, 'rebar');
+        unlockArchive('rebar-rebar');
         break;
       case 'coin': addCoins(5); break;
       case 'shard': case 'redshard': addShards(1); break;
@@ -110,6 +136,19 @@ export class Collectible {
       case 'phone':
         addCoins(150);
         state.flags.foundPhone = true;
+        unlockArchive('tour');
+        break;
+      default:
+        if (REBAR_TYPES[this.kind]) {
+          const spec = REBAR_TYPES[this.kind];
+          state.stock[this.kind] = (state.stock[this.kind] || 0) + 1;
+          addCoins(spec.value);
+          addEnergy(3);
+          g.chain.addChain(this.kind);
+          g.chain.addScore(spec.value, this.kind);
+          unlockArchive(spec.archive);
+          bus.emit('qe', { type: 'collect', target: this.kind, n: 1 });
+        }
         break;
     }
 
@@ -143,8 +182,16 @@ export class Collectible {
           break;
         case 'phone':
           g.audio.sfx('unlock');
-          g.toast('TITANIUM PHONE RECOVERED! +150 REBAR COINS', 'blue');
-          g.say('bung', 'The Titanium Samsung S24! Bung-approved engineering!');
+          g.toast('TITANIUM PHONE RECOVERED! +150 BUNGBUCKS', 'blue');
+          g.say('bung', 'The Titanium phone! Bung-approved engineering!');
+          break;
+        default:
+          if (REBAR_TYPES[this.kind]) {
+            g.audio.sfx('rebar');
+            g.fx.burst(this.mesh.position, REBAR_TYPES[this.kind].color, 12);
+            g.fx.scorePopup(this.mesh.position, REBAR_TYPES[this.kind].name.toUpperCase(), REBAR_TYPES[this.kind].color);
+            g.toast(`${REBAR_TYPES[this.kind].name.toUpperCase()} — YARD UPDATED`, 'blue');
+          }
           break;
       }
     } catch (e) {

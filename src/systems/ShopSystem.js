@@ -30,9 +30,12 @@ export const UPGRADES = [
   { id: 'map_hongkong', cat: 'MAPS', name: 'Hong Kong Neon Rain City', desc: 'Early Red Mode access.', cost: 1000, max: 1, mapUnlock: 'hongkong' },
   { id: 'map_shenzhen', cat: 'MAPS', name: 'Shenzhen Cyber Rebar Core', desc: 'Skip straight to the endgame zone.', cost: 1500, max: 1, mapUnlock: 'shenzhen' },
   { id: 'map_void',     cat: 'MAPS', name: 'Rebar Void', desc: 'The floating portal dimension. Score attack heaven.', cost: 800, max: 1, mapUnlock: 'void' },
+  // ---- Empire ----
+  { id: 'warehouse', cat: 'EMPIRE', name: 'Brisbane Rebar Yard', desc: 'Pays BungBucks while you play. One shed. A whole personality.', cost: 400, max: 1, flag: 'warehouse' },
+  { id: 'hkdesk', cat: 'EMPIRE', name: 'Hong Kong Exchange Desk', desc: 'Bigger payout. Needs the Brisbane yard first.', cost: 900, max: 1, flag: 'hkdesk', requires: 'warehouse' },
 ];
 
-export const SHOP_CATEGORIES = ['BUNG', 'GRAPPLE', 'TROLLEY', 'FOOD', 'MAPS'];
+export const SHOP_CATEGORIES = ['BUNG', 'GRAPPLE', 'TROLLEY', 'FOOD', 'MAPS', 'EMPIRE'];
 
 export class ShopSystem {
   constructor(game) {
@@ -48,6 +51,8 @@ export class ShopSystem {
   canBuy(upg) {
     if (!upg.consumable && upgLevel(upg.id) >= (upg.max || 1)) return false;
     if (upg.mapUnlock && state.unlockedZones.includes(upg.mapUnlock)) return false;
+    if (upg.flag && state.flags[upg.flag]) return false;
+    if (upg.requires && !state.flags[upg.requires]) return false;
     return state.coins >= this.costOf(upg);
   }
 
@@ -66,6 +71,12 @@ export class ShopSystem {
       if (upg.mapUnlock === 'hongkong' || upg.mapUnlock === 'shenzhen') state.redMode = true;
       g.audio.sfx('unlock');
       g.toast(`${upg.name.toUpperCase()} UNLOCKED`, 'blue');
+    } else if (upg.flag) {
+      state.upgrades[upg.id] = 1;
+      state.flags[upg.flag] = true;
+      g.audio.sfx('unlock');
+      g.toast(`${upg.name.toUpperCase()} — EMPIRE ONLINE`, 'blue');
+      g.say('bung', 'I am now a businessman. The singlet remains non-negotiable.');
     } else {
       state.upgrades[upg.id] = upgLevel(upg.id) + 1;
       g.toast(`UPGRADE: ${upg.name.toUpperCase()} LV.${state.upgrades[upg.id]}`);
@@ -122,8 +133,8 @@ export class ShopSystem {
     g.hud.displayScore = 0; // no slow tween down after a sale
     g.chain.resetChain('sold', true); // intentional chain reset (silent)
     g.audio.sfx('sell');
-    g.toast(`SOLD ${sold} SCORE FOR ${coins} REBAR COINS`);
-    g.say('ching', 'Transaction processed. Try not to spend it all on burgers.');
+    g.toast(`SOLD ${sold} SCORE FOR ${coins} BUNGBUCKS`);
+    g.say('ching', 'BungBucks processed. Try not to spend them all on burgers.');
     bus.emit('hud');
     bus.emit('qe', { type: 'sell', target: 'any' });
     SaveSystem.save();

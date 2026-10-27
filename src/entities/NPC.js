@@ -1,4 +1,4 @@
-// World NPCs: Ching (mission controller / rebar ally) and Gabor (pest).
+// World NPCs: Chung (mission controller / rebar ally) and Gabor (pest).
 import * as THREE from 'three';
 import { buildChing, buildGabor, buildScooter } from './models.js';
 import { dampAngle } from '../core/utils.js';

@@ -2,6 +2,8 @@
 // belly-bouncing chaos. Position is at Bung's feet.
 import * as THREE from 'three';
 import { clamp, damp, dampAngle } from '../core/utils.js';
+import { surfaceY } from '../world/geo/project.js';
+import { pushFootprints } from '/src/world/geo/footprints.js';
 import { state, bus, upgLevel, addEnergy } from '../core/state.js';
 import { buildBung } from './models.js';
 
@@ -34,6 +36,7 @@ export class Player {
     this.pulseCD = 0;
     this.hurtCD = 0;
     this.fallPeak = 0;
+    this.swimming = false;
     this.radius = 0.55;
 
     // Grapple state
@@ -93,10 +96,10 @@ export class Player {
       .addScaledVector(right, ax.x);
     if (move.lengthSq() > 0) move.normalize();
 
-    const sprinting = (input.keys['ShiftLeft'] || input.keys['ShiftRight']) && move.lengthSq() > 0;
+    const sprinting = !this.swimming && (input.keys['ShiftLeft'] || input.keys['ShiftRight']) && move.lengthSq() > 0;
     this.isSprinting = sprinting && this.grounded;
-    const speed = sprinting ? this.sprintSpeed : this.runSpeed;
-    const accel = this.grounded ? 38 : 14 + upgLevel('gair') * 6;
+    const speed = this.swimming ? 3.6 : (sprinting ? this.sprintSpeed : this.runSpeed);
+    const accel = this.swimming ? 12 : (this.grounded ? 38 : 14 + upgLevel('gair') * 6);
     // Snappier stop than start: feels weighty but responsive
     const lambda = move.lengthSq() > 0 ? accel / speed * 2.2 : accel / speed * 3.0;
     this.vel.x = damp(this.vel.x, move.x * speed, lambda, dt);
@@ -109,7 +112,10 @@ export class Player {
     if (input.pressed['Space']) this.jumpBuffer = 0.13;
     else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
 
-    if (this.jumpBuffer > 0 && !this.grappling) {
+    if (this.swimming && this.jumpBuffer > 0 && !this.grappling) {
+      this.vel.y = 4.6;
+      this.jumpBuffer = 0;
+    } else if (this.jumpBuffer > 0 && !this.grappling) {
       // Walking off a ledge consumes the ground jump
       if (this.coyote <= 0 && this.jumpsLeft === this.maxJumps) this.jumpsLeft = this.maxJumps - 1;
       if (this.coyote > 0 || this.jumpsLeft > 0) {
@@ -128,7 +134,8 @@ export class Player {
     this.updateGrapple(dt);
 
     // ---- Gravity ----
-    if (!this.grappling) this.vel.y -= GRAVITY * dt;
+    const grav = this.swimming ? GRAVITY * 0.22 : GRAVITY;
+    if (!this.grappling) this.vel.y -= grav * dt;
     if (!this.grounded) this.fallPeak = Math.max(this.fallPeak, this.pos.y);
 
     // ---- Integrate ----
@@ -262,11 +269,37 @@ export class Player {
     this._ray.set(this.pos.clone().add(new THREE.Vector3(0, 1.2, 0)), this._down);
     this._ray.far = 1.2 + Math.max(0.3, -this.vel.y * dt + 0.3);
     const hits = this._ray.intersectObjects(zone.grounds, false);
-    let groundY = -Infinity;
-    if (hits.length > 0) groundY = hits[0].point.y;
+    const swim = zone.swimInfo?.(this.pos.x, this.pos.z, this.pos.y);
+    const groundY = surfaceY(zone, this.pos.x, this.pos.z, this.pos.y, hits);
+    const step = zone.stepHeight ?? 0.18;
+    const deckUnder = swim && groundY > swim.surface + 0.45;
 
-    const wasGrounded = this.grounded;
-    if (this.vel.y <= 0 && this.pos.y <= groundY + 0.18) {
+    if (swim && !deckUnder && this.pos.y < swim.surface + 0.7) {
+      if (!this.swimming) {
+        this.game.fx.burst(new THREE.Vector3(this.pos.x, swim.surface, this.pos.z), 0x8ea36a, 18, 3.2);
+        this.fallPeak = this.pos.y;
+      }
+      this.swimming = true;
+      // Head is about 1.8 m above the feet. Holding the feet 1.05 m under the
+      // surface leaves the face clear. The spring cancels swim gravity so the
+      // body settles on that line instead of sinking through it.
+      const floatY = swim.surface - 1.05;
+      this.vel.y += GRAVITY * 0.22 * dt;
+      this.vel.y += (floatY - this.pos.y) * 12 * dt;
+      this.vel.y *= Math.exp(-3.6 * dt);
+      if (this.pos.y < swim.surface - 2.5) {
+        this.pos.y = swim.surface - 2.5;
+        if (this.vel.y < 0) this.vel.y = 0;
+      }
+      this.grounded = false;
+    } else {
+      this.swimming = false;
+      const wasGrounded = this.grounded;
+      if (this.vel.y <= 0 && this.pos.y <= groundY + step) {
+      const climb = groundY - this.pos.y;
+      if (climb > 0.2 && zone.slopeAt?.(this.pos.x, this.pos.z) > 1.15) {
+        this.grounded = false;
+      } else {
       this.pos.y = groundY;
       if (!wasGrounded) {
         const fall = this.fallPeak - this.pos.y;
@@ -284,8 +317,10 @@ export class Player {
       }
       this.vel.y = 0;
       this.grounded = true;
-    } else {
-      this.grounded = false;
+      }
+      } else {
+        this.grounded = false;
+      }
     }
 
     // Wall push-out vs box colliders (XZ circle test)
@@ -314,6 +349,7 @@ export class Player {
         }
       }
     }
+    pushFootprints(this.pos, this.radius, this.pos.y, zone);
   }
 
   animate(dt, moving, sprinting) {

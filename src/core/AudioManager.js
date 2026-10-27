@@ -208,6 +208,7 @@ export class AudioManager {
       case 'jump':        this._note(G, 300, t, 0.16, 'sine', 0.1, 280); break;
       case 'doubleJump':  this._note(G, 420, t, 0.18, 'square', 0.08, 380); break;
       case 'land':        this._noise(G, t, 0.08, 400, 0.07); this._kick(G, t, 0.12); break;
+      case 'splash':     this._noise(G, t, 0.22, 700, 0.12); this._note(G, 180, t, 0.2, 'sine', 0.08, -40); break;
       case 'bigLand':     this._kick(G, t, 0.3); this._noise(G, t, 0.18, 200, 0.12); break;
       case 'belly':       this._kick(G, t, 0.22); this._note(G, 180, t, 0.18, 'sine', 0.14, -80); break;
       case 'pulse':       this._note(G, 220, t, 0.45, 'sawtooth', 0.13, 500); this._noise(G, t, 0.3, 1500, 0.08); break;

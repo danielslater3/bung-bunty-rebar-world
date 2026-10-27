@@ -6,13 +6,17 @@ import { mat, rng, cyl, sphere, box as mkBox, texMat, pavingTexture, terminalFlo
 import { ZoneKit } from './ZoneKit.js';
 import { state, bus, addCoins } from '../core/state.js';
 import { buildTrolley, buildRebar, buildBurger } from '../entities/models.js';
-import { GaborChase, MegaForeheadMachine } from '../systems/BossEvents.js';
+import { MegaForeheadMachine } from '../systems/BossEvents.js';
+import { dressMansion, dressSydney, dressHongKong } from './rebirthZones.js';
+import { buildOsmBrisbane } from '/src/world/geo/buildCity.js';
+import { buildOsmHongKong } from './geo/hongkong.js';
+import { buildOsmSydney } from './geo/sydney.js';
 
 export const ZONE_INFO = {
-  mansion:  { name: 'BUNG MANSION HUB',          mode: 'BLUE MODE', desc: 'Home base. Garage, Rebar Lab, Ching, shop, trophy room.' },
-  brisbane: { name: 'BRISBANE REBAR DISTRICT',   mode: 'BLUE MODE', desc: 'Sunny construction playground. First portals, first pests.' },
-  sydney:   { name: 'SYDNEY STAGING ZONE',       mode: 'BLUE MODE', desc: 'Airport terminal. Travel gates, conveyors, the Passport.' },
-  hongkong: { name: 'HONG KONG NEON RAIN CITY',  mode: 'RED MODE',  desc: 'Rainy vertical cyber city. Rooftop chains, Typhoon Blobs.' },
+  mansion:  { name: 'BUNG MANSION HUB',          mode: 'BLUE MODE', desc: 'Home base. Garage, Rebar Lab, Chung, shop, trophy room.' },
+  brisbane: { name: 'BRISBANE', mode: 'BLUE MODE', desc: 'OpenStreetMap, 1 metre = 1 metre. © OpenStreetMap contributors.' },
+  sydney:   { name: 'SYDNEY AIRPORT', mode: 'BLUE MODE', desc: 'OpenStreetMap, 1 metre = 1 metre. T1, runways, aprons. © OpenStreetMap contributors. Interior not mapped.' },
+  hongkong: { name: 'HONG KONG', mode: 'RED MODE', desc: 'OpenStreetMap, 1 metre = 1 metre. Central, the harbour, Tsim Sha Tsui. © OpenStreetMap contributors.' },
   shenzhen: { name: 'SHENZHEN CYBER REBAR CORE', mode: 'RED MODE',  desc: 'Endgame LED megacity. Corruption towers. THE FOREHEAD.' },
   void:     { name: 'REBAR VOID',                mode: 'RED MODE',  desc: 'Floating portal dimension. Score attack heaven.' },
 };
@@ -119,7 +123,7 @@ function buildMansion(game) {
 
   // ---- NPCs & services ----
   Z.npc('ching', 6, 0, 6, Math.PI);
-  Z.interact(6, 0, 6, '<b>[E]</b> Talk to Ching', () => {
+  Z.interact(6, 0, 6, '<b>[E]</b> Talk to Chung', () => {
     bus.emit('qe', { type: 'talk', target: 'ching' });
     const lines = [
       [['ching', 'Bung, stop eating burgers and collect the rebars.'],
@@ -179,6 +183,7 @@ function buildMansion(game) {
     ]);
   }, 4);
 
+  dressMansion(Z, game);
   Z.spawn.set(0, 0.7, 22);
   return Z;
 }
@@ -187,192 +192,7 @@ function buildMansion(game) {
 // 2. BRISBANE REBAR DISTRICT
 // ============================================================
 function buildBrisbane(game) {
-  const Z = new ZoneKit(game, 'brisbane', 'brisbane');
-  Z.sky(0x7ec4ea, 0x9ed4ee, 80, 320, 0xcfeaff, 0x6a6a52, 1.0, 0xfff2cf, 1.7, new THREE.Vector3(60, 100, 40));
-
-  Z.ground(300, 300, mat(0x8a8f7a, { roughness: 1 }));
-  // Perimeter roads (the Gabor chase loop) — asphalt
-  const road = mat(0x3a3d42, { roughness: 0.95 });
-  Z.plate(70, 0, 0, 14, 290, road);
-  Z.plate(-70, 0, 0, 14, 290, road);
-  Z.plate(0, 0, 70, 290, 14, road);
-  Z.plate(0, 0, -70, 290, 14, road);
-  // ---- THE REBAR MALL: Queen Street-inspired pedestrian boulevard ----
-  // Wide tiled walking street running north–south, crossed by a tiled plaza.
-  const paving = texMat('paving', pavingTexture(20), { roughness: 0.75 });
-  Z.plate(0, 0.02, 0, 26, 290, paving);
-  Z.plate(0, 0.02, 0, 290, 22, paving);
-
-  // ---- CBD towers around the mall (tall, so the mall feels enclosed) ----
-  const rand = rng(7707);
-  const palette = [0xc9b8a0, 0xa8b8c2, 0xd9c08a, 0x9aa88f, 0xc2a8a0, 0xb8c9d4];
-  const blocks = [[-45, -45], [-45, 45], [45, -45], [45, 45], [-110, -40], [-110, 40], [110, -40], [110, 40], [-40, -110], [40, -110], [-40, 110], [40, 110], [110, 110], [-110, -110], [110, -110], [-110, 110]];
-  let bi = 0;
-  for (const [bx, bz] of blocks) {
-    const n = 1 + Math.floor(rand() * 2);
-    for (let i = 0; i < n; i++) {
-      const w = 12 + rand() * 14, d = 12 + rand() * 14;
-      const inner = Math.abs(bx) <= 45 && Math.abs(bz) <= 45;
-      const h = inner ? 16 + rand() * 26 : 8 + rand() * 22; // taller near the mall = CBD canyon
-      const x = bx + (rand() - 0.5) * 16, z = bz + (rand() - 0.5) * 16;
-      Z.building(x, z, w, h, d, palette[bi++ % palette.length], { grapple: h > 14, windowGlow: 0.3 });
-      if (rand() < 0.4) Z.coin(x, h, z); // rooftop coins
-      if (rand() < 0.3) Z.rebar(x + 3, h, z + 3);
-    }
-  }
-
-  // ---- QUEEN STREET-INSPIRED MALL DRESSING ----
-  // Shopfront strips lining the walkway (facing inward, leaving road gaps)
-  const shops = [
-    [-17, -52, 'L', 0x44b04a], [-17, -40, 'L', 0xd9763a], [-17, -28, 'L', 0x35588a],
-    [-17, 28, 'L', 0xb04a8f], [-17, 40, 'L', 0xd9a13d], [-17, 52, 'L', 0x4a8fb0],
-    [17, -52, 'R', 0xc0392b], [17, -40, 'R', 0x8a6a48], [17, -28, 'R', 0x3a7d52],
-    [17, 28, 'R', 0xd92f2f], [17, 40, 'R', 0x6b4a8a], [17, 52, 'R', 0x2a9d8f],
-  ];
-  for (const [sx, sz, side, col] of shops) {
-    Z.shopfront(sx, sz, side === 'L' ? Math.PI / 2 : -Math.PI / 2, 10, palette[(sz * 7 & 7) % palette.length], col);
-  }
-  // McRebar + Burger Bung anchor stores (parody fast food, glowing signs)
-  Z.shopfront(-17, 14, Math.PI / 2, 12, 0xd92f2f, 0xffc23d, 9);
-  Z.textSign(-15.6, 5.6, 14, Math.PI / 2, 'McREBAR', { bg: '#d92f2f', fg: '#ffe9a8', w: 6, h: 1.4, glow: true });
-  Z.shopfront(17, 14, -Math.PI / 2, 12, 0xffc23d, 0xd92f2f, 9);
-  Z.textSign(15.6, 5.6, 14, -Math.PI / 2, 'BURGER BUNG', { bg: '#ffc23d', fg: '#1a1d26', w: 6.5, h: 1.4, glow: true });
-  // Golden trolley rental station
-  Z.textSign(-13, 2.6, -14, Math.PI / 2, 'GOLDEN TROLLEY RENTAL\n(BUNG HAS THE ONLY ONE)', { bg: '#ffe9a8', fg: '#7a5230', w: 5, h: 1.6, post: true });
-  const rentalTrolley = buildTrolley();
-  rentalTrolley.position.set(-14.5, 0, -18); rentalTrolley.rotation.y = 0.7;
-  rentalTrolley.scale.setScalar(0.85);
-  Z.group.add(rentalTrolley);
-
-  // Shade sails marching down the centre of the mall (the QSM signature)
-  for (const sz of [-44, -18, 18, 44]) Z.shadeSail(0, sz, 11 + (sz % 3));
-  // Mall furniture: benches, planters, bollards, lamps, bins
-  for (const sz of [-58, -34, -24, 24, 34, 58]) {
-    Z.bench(-9, sz, Math.PI / 2);
-    Z.bench(9, sz, -Math.PI / 2);
-    Z.planterBox(-9, sz + 5);
-    Z.planterBox(9, sz - 5);
-  }
-  for (const sz of [-62, -36, 36, 62]) { Z.streetLamp(-11, sz); Z.streetLamp(11, sz); }
-  for (let i = 0; i < 6; i++) { Z.bollard(-13 + i * 5.2, 64); Z.bollard(-13 + i * 5.2, -64); }
-  Z.binProp(-10, -46); Z.binProp(10, 46); Z.binProp(-10, 20);
-  // Kiosks + banners + directory + fountain plaza at the crossing
-  Z.mallKiosk(-8, -8, 0x44b04a);
-  Z.mallKiosk(8, 8, 0xd9763a);
-  Z.fountain(0, -22);
-  Z.directoryBoard(-6, 30, 0.5);
-  Z.mallBanner(0, -38, 0, 0x2ee6ff);
-  Z.mallBanner(0, 38, 0, 0xffc23d);
-  // Busker corner — tiny stage + speaker
-  Z.box(12, 0, -34, 4, 0.4, 4, mat(0x8a6a48, { roughness: 0.9 }));
-  Z.box(13.4, 0.4, -35.2, 0.7, 1.1, 0.7, mat(0x16181d, { roughness: 0.6 }));
-  // Pedestrian crowd strolling the mall
-  Z.pedestrians(0, -40, 18, 44, 7, 31);
-  Z.pedestrians(0, 40, 18, 44, 7, 32);
-  // Funny canon signage
-  Z.textSign(0, 3.4, 66, 0, 'BUNG-APPROVED WALKWAY', { bg: '#35c5f0', fg: '#1a1d26', w: 6, h: 1, post: true });
-  Z.textSign(-5, 2.8, 44, 0, 'TROLLEY BOOST PROHIBITED\n(BUNG DISAGREES)', { bg: '#f4f1e8', fg: '#d12c47', w: 4.4, h: 1.5, post: true });
-  Z.textSign(13, 2.8, -28, -Math.PI / 2, 'REBAR SALE TODAY', { bg: '#ffc23d', fg: '#1a1d26', w: 4, h: 1, post: true });
-  Z.textSign(0, 2.6, -10, 0, 'DO NOT QUESTION THE TROLLEY', { bg: '#16181d', fg: '#ffc23d', w: 5.5, h: 0.9, post: true, glow: true });
-  Z.textSign(6, 3.2, 30, Math.PI, 'GABOR SCOOTER ACTIVITY REPORTED', { bg: '#d12c47', fg: '#ffffff', w: 6, h: 0.9, post: true, glow: true });
-
-  // ---- Construction zone (NE) — rebar heaven ----
-  const conMat = mat(0xd9763a, { roughness: 0.8 });
-  Z.box(95, 0, 95, 30, 1, 30, mat(0x9a8468, { roughness: 1 }));
-  // Crane
-  Z.box(95, 1, 95, 3, 34, 3, mat(0xe8b820, { roughness: 0.6 }));
-  Z.box(95, 33, 107, 2, 2, 28, mat(0xe8b820, { roughness: 0.6 }), { collide: false });
-  Z.grapple(95, 36, 112);
-  // Scaffold platforms
-  Z.box(85, 1, 85, 10, 6, 4, conMat);
-  Z.box(105, 1, 88, 8, 12, 6, conMat);
-  Z.box(88, 1, 108, 12, 18, 5, conMat);
-  Z.grapple(88, 21, 108);
-  // Rebar piles (decorative + collectible)
-  for (let i = 0; i < 6; i++) {
-    const r = buildRebar();
-    r.position.set(82 + rand() * 24, 1.4, 82 + rand() * 24);
-    r.rotation.y = rand() * Math.PI;
-    Z.group.add(r);
-  }
-  for (const [x, y, z] of [[85, 7, 85], [105, 13, 88], [88, 19, 108], [100, 1, 100], [92, 1, 84], [110, 1, 104]]) Z.rebar(x, y, z);
-
-  // Scattered street rebars + fuel
-  for (let i = 0; i < 14; i++) {
-    const a = rand() * Math.PI * 2, r = 30 + rand() * 100;
-    Z.rebar(Math.cos(a) * r, 0, Math.sin(a) * r);
-  }
-  for (const [x, z] of [[35, 0], [-35, 0], [0, 35], [0, -35], [70, 35], [-70, -35]]) Z.addCollectible('fuel', new THREE.Vector3(x, 0.8, z));
-  for (let i = 0; i < 10; i++) {
-    const a = rand() * Math.PI * 2, r = 20 + rand() * 110;
-    Z.coin(Math.cos(a) * r, 0, Math.sin(a) * r);
-  }
-
-  // ---- Portals ----
-  Z.portal('bronze', 0, 3, 30, 0);
-  Z.portal('bronze', 0, 3.5, -30, 0);
-  Z.portal('bronze', 30, 3, 0, Math.PI / 2);
-  Z.portal('bronze', -32, 4, 16, Math.PI / 2);
-  Z.portal('silver', 0, 8, 70, 0);
-  Z.portal('silver', 70, 9, 30, Math.PI / 2);
-  Z.portal('silver', -70, 8, -30, Math.PI / 2);
-  Z.portal('silver', 45, 14, 45, 0.8);
-  Z.portal('gold', -45, 18, -45, 0.6);
-  Z.portal('gold', 95, 24, 95, 0.4);
-  Z.portal('gold', 0, 26, 0, 0, Math.PI / 2); // horizontal portal high above the intersection
-  Z.portal('cyber', 110, 30, 110, 0.7);
-  Z.portal('glitch', -20, 3, -50, 0.3);
-
-  // Ramps on the roads
-  Z.ramp(0, 0, 50, 9, 5, 3.5, 0, mat(0xd9763a, { roughness: 0.7 }), true);
-  Z.ramp(50, 0, 0, 9, 5, 3.5, Math.PI / 2, mat(0xd9763a, { roughness: 0.7 }), true);
-  Z.ramp(-50, 0, -8, 9, 5, 3.5, -Math.PI / 2, mat(0xd9763a, { roughness: 0.7 }), true);
-
-  // ---- Services ----
-  Z.exchangeKiosk(10, 0, 16, -0.5);
-  Z.deploymentBoard(-10, 0, 18, 0.4);
-  Z.npc('ching', 14, 0, 22, Math.PI);
-  Z.interact(14, 0, 22, '<b>[E]</b> Talk to Ching', () => {
-    bus.emit('qe', { type: 'talk', target: 'ching' });
-    game.dialogue.conversation([
-      ['ching', 'Portal field is live. Chain them without missing for combo multipliers.'],
-      ['ching', 'And sell your score at the Exchange before an enemy bonks it out of you.'],
-    ]);
-  }, 3.5);
-
-  // ---- Props: construction-city dressing + portal route arrows ----
-  for (let i = 0; i < 6; i++) Z.cone(78 + i * 2.2, 78);          // construction perimeter
-  Z.rebarStack(100, 1, 92, 0.5);
-  Z.rebarStack(86, 1, 96, 1.3);
-  Z.warnSign(80, 80, 0.8);
-  Z.warnSign(8, 44, 0);                                          // before the road ramp
-  for (let i = 0; i < 4; i++) Z.cone(-3 + i * 2, 44);
-  Z.fuelStation(12, -12, 0.8);
-  Z.fuelStation(74, 64, -0.5);
-  // Neon arrows tracing the bronze→silver portal route
-  Z.neonArrow(0, 1.8, 20, 0, 0x2ee6ff);
-  Z.neonArrow(0, 1.8, 48, 0, 0x2ee6ff);
-  Z.neonArrow(16, 1.8, 4, Math.PI / 2, 0x2ee6ff);
-  Z.neonArrow(0, 4, 60, 0, 0xc9d6e3);                            // up to the silver
-
-  // ---- Enemies ----
-  Z.spawner('drone', 95, 4, 95, 18, 3);     // construction zone
-  Z.spawner('drone', 0, 4, -60, 20, 2);
-  Z.spawner('gremlin', -60, 0, 60, 24, 2);
-  Z.spawner('leech', 45, 4, 45, 16, 1);
-
-  // ---- Boss 1: Gabor Scooter Chase ----
-  const wps = [
-    new THREE.Vector3(0, 0.4, 70), new THREE.Vector3(70, 0.4, 70),
-    new THREE.Vector3(70, 0.4, 0), new THREE.Vector3(70, 0.4, -70),
-    new THREE.Vector3(0, 0.4, -70), new THREE.Vector3(-70, 0.4, -70),
-    new THREE.Vector3(-70, 0.4, 0), new THREE.Vector3(-70, 0.4, 70),
-  ];
-  const chase = new GaborChase(game, wps);
-  Z.updaters.push((dt) => chase.update(dt));
-
-  Z.spawn.set(0, 0.2, 8);
-  return Z;
+  return buildOsmBrisbane(game);
 }
 
 // ============================================================
@@ -539,6 +359,7 @@ function buildSydney(game) {
   Z.pedestrians(0, -30, 150, 25, 8, 71);
   Z.pedestrians(-30, 38, 110, 14, 6, 72);
 
+  dressSydney(Z, game);
   Z.spawn.set(100, 0.2, 0);
   Z.spawnYaw = Math.PI / 2; // face down the terminal hall (-x)
   return Z;
@@ -600,15 +421,15 @@ function buildHongKong(game) {
   Z.portal('glitch', 20, 4, -20, 0.4);
   Z.portal('glitch', -55, 8, 55, 0.9);
 
-  // ---- Rooftop checkpoint with Ching (on the tallest route tower) ----
+  // ---- Rooftop checkpoint with Chung (on the tallest route tower) ----
   const top = route[route.length - 1] || { x: 45, z: 45, h: 40 };
   Z.box(top.x, top.h, top.z, 8, 0.5, 8, mat(0x2ee6ff, { emissive: 0x0a4a55, metalness: 0.5, roughness: 0.4 }));
   Z.npc('ching', top.x, top.h + 0.5, top.z, 0);
-  Z.interact(top.x, top.h + 0.5, top.z, '<b>[E]</b> Rooftop checkpoint — Ching', () => {
+  Z.interact(top.x, top.h + 0.5, top.z, '<b>[E]</b> Rooftop checkpoint — Chung', () => {
     bus.emit('qe', { type: 'talk', target: 'ching-rooftop' });
     game.dialogue.conversation([
       ['ching', 'You actually made it up here. The rain has not even slowed you down.'],
-      ['bung', 'Hong Kong rain mode activated, Ching. Nothing can stop the singlet.'],
+      ['bung', 'Hong Kong rain mode activated, Chung. Nothing can stop the singlet.'],
       ['ching', 'Gabor is moving his machine to Shenzhen. The Cyber Rebar Core opens next.'],
     ]);
   }, 4);
@@ -713,6 +534,7 @@ function buildHongKong(game) {
   Z.textSign(-12, 3.2, -44, 0, 'REBAR NETWORK UNSTABLE', { bg: '#16181d', fg: '#ffc23d', w: 5, h: 0.9, post: true, glow: true });
   if (route.length) Z.textSign(route[0].x + 6, 4, route[0].z + 10, 0, 'BUNG TROLLEY NOT RATED\nFOR ROOFTOP FLIGHT', { bg: '#f4f1e8', fg: '#1a1d26', w: 5, h: 1.7, post: true });
 
+  dressHongKong(Z, game);
   Z.spawn.set(0, 0.2, 12);
   return Z;
 }
@@ -902,7 +724,7 @@ function buildShenzhen(game) {
   // Canon signage
   Z.textSign(0, 5, 18, 0, 'CYBER REBAR CORE ONLINE', { bg: '#16181d', fg: '#ff4d6a', w: 6.5, h: 1, post: true, glow: true });
   Z.textSign(-10, 4, -38, 0, 'GABOR FIREWALL DETECTED', { bg: '#d12c47', fg: '#ffffff', w: 6, h: 1, post: true, glow: true });
-  Z.textSign(12, 4, -50, Math.PI, 'CHING SYSTEM WARNING:\nFOREHEAD ENERGY CRITICAL', { bg: '#16181d', fg: '#2ee6ff', w: 6, h: 1.7, post: true, glow: true });
+  Z.textSign(12, 4, -50, Math.PI, 'CHUNG SYSTEM WARNING:\nFOREHEAD ENERGY CRITICAL', { bg: '#16181d', fg: '#2ee6ff', w: 6, h: 1.7, post: true, glow: true });
 
   Z.spawn.set(0, 0.2, 0);
   Z.spawnYaw = Math.PI; // face the portal field (+z)
@@ -1005,8 +827,8 @@ function buildVoid(game) {
 export const ZONE_BUILDERS = {
   mansion: buildMansion,
   brisbane: buildBrisbane,
-  sydney: buildSydney,
-  hongkong: buildHongKong,
+  sydney: buildOsmSydney,
+  hongkong: buildOsmHongKong,
   shenzhen: buildShenzhen,
   void: buildVoid,
 };

@@ -1,0 +1,11 @@
+Brisbane City Hall view from King George Square, Brisbane
+File: city-hall-square.jpg
+Author: Kgbo
+Date: 30 July 2017
+Source: https://commons.wikimedia.org/wiki/File:Brisbane_City_Hall_view_from_King_George_Square,_Brisbane.jpg
+Licence: Creative Commons Attribution-ShareAlike 4.0 International
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The photograph is kept as the architectural and colour reference for the City Hall model.
+It is not mapped onto a wall. Sandstone #e9c99a and plaza stone #a59d90 were sampled from it.
+The model geometry is drawn in this project. Share-alike applies to the photograph file.

@@ -151,7 +151,7 @@ export function buildBung() {
 }
 
 // ============================================================
-// CHING — organised, strategic, futuristic travel outfit
+// CHUNG — organised, strategic, futuristic travel outfit
 // ============================================================
 export function buildChing() {
   const g = new THREE.Group();
@@ -370,9 +370,23 @@ export function buildScooter() {
 // ============================================================
 // GOLDEN JAMES REBAR TROLLEY — humanity's greatest invention
 // ============================================================
-export function buildTrolley() {
+export const TROLLEY_FLEET = [
+  { id: 'james', name: 'JAMES REBAR', blurb: 'The original. Balanced, golden, and not a recognised aircraft.', speed: 1, accel: 1, turn: 1, fuel: 1, trail: 0xffd96a, metal: 0xffc94d, trim: 0xc0392b, flag: 0xff2e5f, glow: 0xffeaa0 },
+  { id: 'ferry', name: 'RIVER FERRY', blurb: 'White deck, one leaning mast. Long, quick, and terrible in a car park.', speed: 1.16, accel: 0.92, turn: 0.84, fuel: 1.15, trail: 0x9fd4ff, metal: 0xf4f7fb, trim: 0x1d4e89, flag: 0x1d4e89, glow: 0xd6ecff },
+  { id: 'night', name: 'NIGHT MARKET', blurb: 'Neon panels. Turns sharp. Drinks the tank.', speed: 1.04, accel: 1.12, turn: 1.18, fuel: 0.78, trail: 0xff4ad8, metal: 0x221428, trim: 0xff3d9a, flag: 0x2ee6ff, glow: 0xff4ad8 },
+  { id: 'bun', name: 'BURGER BARROW', blurb: 'Wide, greasy, and happy to drift.', speed: 0.94, accel: 1.06, turn: 1.22, fuel: 1.05, trail: 0xffc23d, metal: 0xf3e0b8, trim: 0xd9232a, flag: 0xffc23d, glow: 0xffe08a },
+  { id: 'iron', name: 'GIRDERFACE', blurb: 'Heavy iron. Slow off the mark. The curb loses.', speed: 0.86, accel: 0.82, turn: 0.9, fuel: 1.28, trail: 0xff6a2a, metal: 0x4a515a, trim: 0xb85a32, flag: 0xff6a2a, glow: 0xffb080 },
+];
+
+export function trolleySpec(id) {
+  return TROLLEY_FLEET.find((t) => t.id === id) || TROLLEY_FLEET[0];
+}
+
+export function buildTrolley(id = 'james') {
+  const spec = trolleySpec(id);
   const g = new THREE.Group();
-  const gold = goldMat();
+  const gold = id === 'james' ? goldMat() : mat(spec.metal, { metalness: 0.62, roughness: 0.38 });
+  const trim = mat(spec.trim, { roughness: 0.45, metalness: 0.4 });
 
   // Basket — flared open box made of slats
   const basket = new THREE.Group();
@@ -414,7 +428,7 @@ export function buildTrolley() {
   const handleStemR = handleStemL.clone();
   handleStemR.position.x = 0.32;
   g.add(handleStemR);
-  const handle = cyl(0.035, 0.035, 0.72, mat(0xc0392b, { roughness: 0.5 }), 8);
+  const handle = cyl(0.035, 0.035, 0.72, id === 'james' ? mat(0xc0392b, { roughness: 0.5 }) : trim, 8);
   handle.position.set(0, 1.42, -0.7);
   handle.rotation.z = Math.PI / 2;
   g.add(handle);
@@ -474,14 +488,14 @@ export function buildTrolley() {
   exhaust.rotation.x = 1.2;
   g.add(exhaust);
   // Headlight
-  const lamp = sphere(0.07, mat(0xfff6c9, { emissive: 0xffeaa0, emissiveIntensity: 1.6 }), 8, 6);
+  const lamp = sphere(0.07, mat(0xfff6c9, { emissive: spec.glow, emissiveIntensity: 1.6 }), 8, 6);
   lamp.position.set(0, 0.75, 0.66);
   g.add(lamp);
   // Little flag: "JAMES REBAR"
   const flagPole = cyl(0.012, 0.012, 0.7, mat(0x9a9aa5, { metalness: 0.8 }), 5);
   flagPole.position.set(0.36, 1.3, -0.5);
   g.add(flagPole);
-  const flag = box(0.32, 0.18, 0.01, mat(0xff2e5f, { emissive: 0x661226, roughness: 0.6 }));
+  const flag = box(0.32, 0.18, 0.01, mat(spec.flag, { emissive: spec.flag, emissiveIntensity: id === 'james' ? 0.25 : 0.45, roughness: 0.55 }));
   flag.position.set(0.52, 1.55, -0.5);
   g.add(flag);
 
@@ -508,10 +522,53 @@ export function buildTrolley() {
     g.add(cargo);
   }
 
+  dressFleet(g, id);
   g.userData.wheels = wheels;
+  g.userData.fleet = id;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   addOutline(g, 0.04); // the icon deserves ink
   return g;
+}
+
+function dressFleet(g, id) {
+  if (id === 'ferry') {
+    const mast = cyl(0.035, 0.025, 2.2, mat(0xf7f9fb, { roughness: 0.4 }), 8);
+    mast.position.set(0.02, 1.7, 0.05);
+    mast.rotation.z = 0.22;
+    g.add(mast);
+    const stay = cyl(0.012, 0.012, 1.5, mat(0xd5dde6, { metalness: 0.6 }), 5);
+    stay.position.set(0.28, 1.35, 0.35);
+    stay.rotation.z = 0.9;
+    stay.rotation.x = 0.3;
+    g.add(stay);
+  } else if (id === 'night') {
+    for (const y of [0.78, 1.02]) {
+      const neon = box(0.86, 0.035, 0.02, mat(0xff3d9a, { emissive: 0xff3d9a, emissiveIntensity: 1.4 }));
+      neon.position.set(0, y, 0.62);
+      g.add(neon);
+    }
+    const cyan = box(0.02, 0.4, 0.9, mat(0x2ee6ff, { emissive: 0x2ee6ff, emissiveIntensity: 1.1 }));
+    cyan.position.set(0.46, 0.9, 0);
+    g.add(cyan);
+  } else if (id === 'bun') {
+    const patty = cyl(0.16, 0.16, 0.06, mat(0x6b3a1f, { roughness: 1 }), 10);
+    patty.position.set(0, 1.15, 0.15);
+    g.add(patty);
+    const cheese = box(0.28, 0.025, 0.28, mat(0xffc23d, { roughness: 0.6 }));
+    cheese.position.set(0, 1.2, 0.15);
+    g.add(cheese);
+    const top = sphere(0.16, mat(0xe8a755, { roughness: 0.8 }), 10, 8);
+    top.scale.y = 0.55;
+    top.position.set(0, 1.28, 0.15);
+    g.add(top);
+  } else if (id === 'iron') {
+    const beam = box(0.12, 0.1, 1.3, mat(0x2a2e33, { metalness: 0.7, roughness: 0.4 }));
+    beam.position.set(0, 1.05, 0);
+    g.add(beam);
+    const plate = box(0.7, 0.04, 0.18, mat(0xb85a32, { metalness: 0.5, roughness: 0.45 }));
+    plate.position.set(0, 0.7, 0.62);
+    g.add(plate);
+  }
 }
 
 // ============================================================

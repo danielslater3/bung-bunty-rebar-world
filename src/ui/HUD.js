@@ -1,6 +1,7 @@
 // HUD: Bung Stability, Rebar Energy, Trolley Fuel, Bung Score, Rebar Chain,
 // currencies, the Operation Rebar Briefing quest tracker, prompts and toasts.
 import { state, bus } from '../core/state.js';
+import { yardCount } from '../lore/universe.js';
 
 export class HUD {
   constructor(game) {
@@ -39,6 +40,8 @@ export class HUD {
     this.$('fuel-wrap').classList.toggle('fuel-low',
       state.flags.trolleyUnlocked && state.fuel < state.maxFuel * 0.18);
     this.$('coins-val').textContent = state.coins.toLocaleString();
+    const yard = this.$('yard-val');
+    if (yard) yard.textContent = yardCount();
     this.$('rebars-val').textContent = state.rebars;
     this.$('shards-val').textContent = state.shards;
     const comboEl = this.$('hud-combo');
@@ -49,6 +52,12 @@ export class HUD {
     } else comboEl.classList.add('hidden');
     // Trolley fuel bar only matters once the trolley exists
     this.$('fuel-wrap').style.display = state.flags.trolleyUnlocked ? '' : 'none';
+    const trolleyEl = this.$('hud-trolley');
+    if (trolleyEl) {
+      trolleyEl.classList.toggle('hidden', !state.flags.trolleyUnlocked);
+      const names = { james: 'JAMES REBAR', ferry: 'RIVER FERRY', night: 'NIGHT MARKET', bun: 'BURGER BARROW', iron: 'GIRDERFACE' };
+      trolleyEl.textContent = names[state.trolley] || 'JAMES REBAR';
+    }
   }
 
   refreshQuest() {
@@ -58,9 +67,11 @@ export class HUD {
     const list = this.$('quest-objectives');
     list.innerHTML = '';
     if (!q) {
+      this.$('quest-title').textContent = 'GLOBAL REBAR CONSPIRACY';
       nameEl.textContent = 'ALL OPERATIONS COMPLETE. FREE ROAM, LEGEND.';
       return;
     }
+    this.$('quest-title').textContent = q.chapter || 'OPERATION REBAR BRIEFING';
     nameEl.textContent = q.name;
     q.objectives.forEach((obj, oi) => {
       const li = document.createElement('li');

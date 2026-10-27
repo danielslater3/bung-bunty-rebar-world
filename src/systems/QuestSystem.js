@@ -5,12 +5,12 @@ import { state, bus, SaveSystem } from '../core/state.js';
 
 export const QUESTS = [
   {
-    id: 'q1', name: 'Wake Up, Bung', zone: 'mansion',
-    brief: [['ching', 'Bung. Bung! The Rebar Network is glitching all over Brisbane.'],
+    id: 'q1', name: 'Wake Up, Bung', chapter: 'CHAPTER 1 — A TYPICAL BRISBANE CATASTROPHE', zone: 'mansion',
+    brief: [['ching', 'Bung. Bung! Someone is buying Brisbane\'s rebar with scooter money.'],
             ['bung', 'OIIII. Say no more. Operation Rebar is officially deployed.'],
             ['ching', 'You have not even put pants on. Collect some rebars first.']],
     objectives: [
-      { text: 'Talk to Ching', type: 'talk', target: 'ching', count: 1 },
+      { text: 'Talk to Chung', type: 'talk', target: 'ching', count: 1 },
       { text: 'Collect 5 rebars around the mansion', type: 'collect', target: 'rebar', count: 5 },
       { text: 'Enter the Rebar Lab (basement)', type: 'reach', target: 'rebarlab', count: 1 },
     ],
@@ -18,9 +18,9 @@ export const QUESTS = [
     onComplete: (g) => g.say('ching', 'Good. Now get to the garage. It is trolley time.'),
   },
   {
-    id: 'q2', name: 'Golden Trolley Test', zone: 'mansion',
+    id: 'q2', name: 'Golden Trolley Test', chapter: 'CHAPTER 1 — A TYPICAL BRISBANE CATASTROPHE', zone: 'mansion',
     brief: [['ching', 'Golden trolley systems online. Try not to drift it inside the mansion again.'],
-            ['bung', 'The trolley never lies, Ching. THE TROLLEY NEVER LIES.']],
+            ['bung', 'The trolley never lies, Chung. THE TROLLEY NEVER LIES.']],
     objectives: [
       { text: 'Summon the James Rebar Trolley in the garage (T)', type: 'mount', target: 'trolley', count: 1 },
       { text: 'Drive through 5 trolley rings on the lawn', type: 'ring', target: 'trolley', count: 5 },
@@ -33,7 +33,7 @@ export const QUESTS = [
     },
   },
   {
-    id: 'q3', name: 'Portal Situation, Mate', zone: 'brisbane',
+    id: 'q3', name: 'Portal Situation, Mate', chapter: 'CHAPTER 1 — A TYPICAL BRISBANE CATASTROPHE', zone: 'brisbane',
     brief: [['ching', 'Portals are opening across the Brisbane Rebar District. The field is unstable. Aim properly this time.'],
             ['bung', 'Blue to Red mode activated. Let\'s cook.']],
     objectives: [
@@ -46,8 +46,8 @@ export const QUESTS = [
     onComplete: (g) => g.say('ching', 'Not bad. I can hear Gabor\'s scooter from here though...'),
   },
   {
-    id: 'q4', name: 'Gabor Has Entered the District', zone: 'brisbane',
-    brief: [['gabor', 'BUNG BUNTY! Your rebars are MINE! Behold my scooter-based genius!'],
+    id: 'q4', name: 'Gabor Has Entered the District', chapter: 'CHAPTER 2 — THE RETURN OF GABOR', zone: 'brisbane',
+    brief: [['gabor', 'BUNG BUNTY! I am cornering the global rebar market! Behold my scooter-based monopoly!'],
             ['bung', 'Gabor, you absolute pest!'],
             ['ching', 'Gabor has entered the zone. He stole a Cyber Rebar Shard. Get it back.']],
     objectives: [
@@ -63,9 +63,9 @@ export const QUESTS = [
     },
   },
   {
-    id: 'q5', name: 'Blue to Red Deployment', zone: 'sydney',
-    brief: [['ching', 'The Sydney Staging Zone is our gateway. Blue Mode is stable. Red Mode is not.'],
-            ['bung', 'Operation Rebar Passport, activate. I am basically an international rebar diplomat.']],
+    id: 'q5', name: 'Blue to Red Deployment', chapter: 'CHAPTER 3 — THE INTERNATIONAL TERMINAL', zone: 'sydney',
+    brief: [            ['ching', 'The clue is a boarding pass. Sydney first. Hong Kong if the passport stamp holds.'],
+            ['bung', 'Operation Rebar Passport, activate. I am an international rebar diplomat with a trolley.']],
     objectives: [
       { text: 'Travel to Sydney Staging Zone', type: 'enter', target: 'sydney', count: 1 },
       { text: 'Complete the travel gate portal challenge (8 portals)', type: 'portal', target: 'any', count: 8 },
@@ -80,14 +80,14 @@ export const QUESTS = [
     },
   },
   {
-    id: 'q6', name: 'Rain, Rebars, and Rooftops', zone: 'hongkong',
-    brief: [['ching', 'Hong Kong Neon Rain City. Vertical routes, corrupted portals, Typhoon Blobs. Stay sharp.'],
+    id: 'q6', name: 'Rain, Rebars, and Rooftops', chapter: 'CHAPTER 4 — DIGITECH BLUE MODE', zone: 'hongkong',
+    brief: [['ching', 'Hong Kong. Gabor\'s supply line runs under the neon. DIGITECH BLUE MODE is on, and the streets are not optional.'],
             ['bung', 'I can smell the Rebar Coins through the rain.']],
     objectives: [
       { text: 'Travel to Hong Kong Neon Rain City', type: 'enter', target: 'hongkong', count: 1 },
-      { text: 'Complete the rooftop portal chain (12 portals)', type: 'portal', target: 'any', count: 12 },
+      { text: 'Complete the harbourfront portal chain (12 portals)', type: 'portal', target: 'any', count: 12 },
       { text: 'Bonk 3 Typhoon Blobs', type: 'defeat', target: 'blob', count: 3 },
-      { text: 'Meet Ching at the rooftop checkpoint', type: 'talk', target: 'ching-rooftop', count: 1 },
+      { text: 'Meet Chung at the Central Star Ferry Pier', type: 'talk', target: 'ching-rooftop', count: 1 },
     ],
     reward: { coins: 400, unlock: 'shenzhen' },
     onComplete: (g) => {
@@ -97,7 +97,7 @@ export const QUESTS = [
     },
   },
   {
-    id: 'q7', name: 'The Cyber Rebar Core', zone: 'shenzhen',
+    id: 'q7', name: 'The Cyber Rebar Core', chapter: 'CHAPTER 5 — SIR GIRDERFACE STIRS', zone: 'shenzhen',
     brief: [['ching', 'Shenzhen Cyber Rebar Core. Gabor has corruption towers draining the Rebar Network.'],
             ['gabor', 'The Rebar Network belongs to GABOR! I am not annoying. I am INEVITABLE.']],
     objectives: [
@@ -114,7 +114,7 @@ export const QUESTS = [
     },
   },
   {
-    id: 'q8', name: 'Mega Forehead Shutdown', zone: 'shenzhen',
+    id: 'q8', name: 'Mega Forehead Shutdown', chapter: 'CHAPTER 6 — THE ULTIMATE REBAR SHOWDOWN', zone: 'shenzhen',
     brief: [['gabor', 'BEHOLD! THE MEGA FOREHEAD REBAR MACHINE! Powered by pure forehead strategy!'],
             ['bung', 'That is the dumbest thing I have ever seen. I love it. Time to break it.'],
             ['ching', 'Destroy the corruption nodes, then pulse the core. Rebar World needs you. Somehow.']],

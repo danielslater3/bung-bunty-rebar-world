@@ -43,7 +43,16 @@ export const DEFAULT_STATE = () => ({
   quests: { activeIndex: 0, completed: [], progress: {} },
   flags: {}, // misc story flags (foundPhone, gaborDefeated, etc.)
 
+  // Rebirth: graded rebar yard + unlocked lore cards. Coins are BungBucks.
+  stock: {},
+  archive: ['bung', 'ching', 'gabor', 'james', 'conspiracy'],
+
   settings: { music: 0.6, sfx: 0.8, sensitivity: 1.0 },
+  trolley: 'james',
+
+  // Where Bung was in each district, and which world pickups are already gone.
+  places: {},
+  picked: {},
 });
 
 export let state = DEFAULT_STATE();
@@ -54,9 +63,31 @@ export const SaveSystem = {
   hasSave() {
     try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
   },
-  save() {
+  save(game) {
     try {
-      const s = { ...state, combo: 0, comboTimer: 0 };
+      if (game?.player && (game.mode === 'playing' || game.mode === 'paused')) {
+        const p = game.player;
+        const t = game.trolley;
+        if (!state.places || typeof state.places !== 'object') state.places = {};
+        state.places[state.currentZone] = {
+          x: p.pos.x, y: p.pos.y, z: p.pos.z,
+          facing: p.facing,
+          camYaw: game.camYaw,
+          camPitch: game.camPitch,
+          riding: !!t?.riding,
+          summoned: !!t?.summoned,
+          tx: t?.pos.x ?? p.pos.x,
+          ty: t?.pos.y ?? p.pos.y,
+          tz: t?.pos.z ?? p.pos.z,
+          theading: t?.heading || 0,
+        };
+      }
+      const s = {
+        ...state,
+        combo: 0,
+        comboTimer: 0,
+        buffs: { strength: 0, speed: 0, cyber: 0, fuelregen: 0 },
+      };
       localStorage.setItem(SAVE_KEY, JSON.stringify(s));
       bus.emit('saved');
     } catch (e) { console.warn('Save failed', e); }
@@ -67,6 +98,11 @@ export const SaveSystem = {
       if (!raw) return false;
       const data = JSON.parse(raw);
       Object.assign(state, DEFAULT_STATE(), data);
+      if (!state.stock || typeof state.stock !== 'object') state.stock = {};
+      if (!Array.isArray(state.archive)) state.archive = ['bung', 'ching', 'gabor', 'james', 'conspiracy'];
+      if (!state.trolley) state.trolley = 'james';
+      if (!state.places || typeof state.places !== 'object') state.places = {};
+      if (!state.picked || typeof state.picked !== 'object') state.picked = {};
       // Never resume mid-buff / mid-combo
       state.buffs = { strength: 0, speed: 0, cyber: 0, fuelregen: 0 };
       state.stability = state.maxStability;

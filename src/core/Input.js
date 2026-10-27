@@ -13,7 +13,7 @@ export class Input {
       if (e.repeat) return;
       this.keys[e.code] = true;
       this.pressed[e.code] = true;
-      if (this.enabled && ['Space', 'Tab', 'KeyE', 'KeyQ', 'KeyF', 'KeyG', 'KeyT'].includes(e.code)) e.preventDefault();
+      if (this.enabled && ['Space', 'Tab', 'KeyE', 'KeyQ', 'KeyF', 'KeyG', 'KeyT', 'KeyR', 'KeyM', 'KeyV'].includes(e.code)) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
     window.addEventListener('blur', () => { this.keys = {}; });

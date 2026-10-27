@@ -4,8 +4,10 @@
 // and a golden particle trail. The trolley never lies.
 import * as THREE from 'three';
 import { clamp, damp } from '../core/utils.js';
+import { surfaceY } from '../world/geo/project.js';
+import { pushFootprints } from '../world/geo/footprints.js';
 import { state, bus, upgLevel } from '../core/state.js';
-import { buildTrolley } from './models.js';
+import { buildTrolley, trolleySpec } from './models.js';
 import { dlog } from '../core/Debug.js';
 
 const GRAVITY = 26;
@@ -18,9 +20,15 @@ const BOOST_MIN_START_FUEL = 8;
 export class Trolley {
   constructor(game) {
     this.game = game;
-    this.mesh = buildTrolley();
+    this.mesh = buildTrolley(state.trolley || 'james');
     this.mesh.visible = false;
     game.scene.add(this.mesh);
+    this.head = new THREE.SpotLight(0xfff1c9, 0, 18, 0.55, 0.45, 1.2);
+    this.head.castShadow = false;
+    this.headTarget = new THREE.Object3D();
+    game.scene.add(this.head);
+    game.scene.add(this.headTarget);
+    this.head.target = this.headTarget;
     this.wheels = this.mesh.userData.wheels;          // [{steer, spin, front}]
     this.wheelRadius = this.mesh.userData.wheelRadius;
     this.wheelSpinAxis = this.mesh.userData.wheelSpinAxis;
@@ -54,17 +62,18 @@ export class Trolley {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.trailPositions, 3));
     this.trail = new THREE.Points(geo, new THREE.PointsMaterial({
-      color: 0xffd96a, size: 0.35, transparent: true, opacity: 0.85,
+      color: trolleySpec(state.trolley).trail, size: 0.35, transparent: true, opacity: 0.85,
       blending: THREE.AdditiveBlending, depthWrite: false,
     }));
     this.trail.frustumCulled = false;
     game.scene.add(this.trail);
   }
 
-  get maxSpeed() { return (18 + upgLevel('turbo') * 2.5) * (this.boosting ? 1.55 : 1); }
-  get accel() { return 16 + upgLevel('turbo') * 2; }
-  get turnRate() { return 1.9 + upgLevel('handling') * 0.35; }
-  get fuelMax() { return 60 + upgLevel('tank') * 30; }
+  get spec() { return trolleySpec(state.trolley); }
+  get maxSpeed() { return (18 + upgLevel('turbo') * 2.5) * this.spec.speed * (this.boosting ? 1.55 : 1); }
+  get accel() { return (16 + upgLevel('turbo') * 2) * this.spec.accel; }
+  get turnRate() { return (1.9 + upgLevel('handling') * 0.35) * this.spec.turn; }
+  get fuelMax() { return (60 + upgLevel('tank') * 30) * this.spec.fuel; }
 
   // ============ BOOST STATE MACHINE ============
   // Transitions (the ONLY place boost audio/FX start or stop):
@@ -91,6 +100,38 @@ export class Trolley {
       // FOV recovery + camera shake decay are handled by Game.updateCamera,
       // which reads this.boosting — nothing else to reset manually.
     }
+  }
+
+  applyFleet(id) {
+    const spec = trolleySpec(id);
+    state.trolley = spec.id;
+    const next = buildTrolley(spec.id);
+    next.visible = this.summoned;
+    next.position.copy(this.mesh.position);
+    next.rotation.copy(this.mesh.rotation);
+    this.game.scene.remove(this.mesh);
+    this.mesh = next;
+    this.wheels = next.userData.wheels;
+    this.wheelRadius = next.userData.wheelRadius;
+    this.wheelSpinAxis = next.userData.wheelSpinAxis;
+    this.game.scene.add(this.mesh);
+    this.trail.material.color.setHex(spec.trail);
+    this.head.color.setHex(spec.glow);
+    bus.emit('hud');
+    this.game.toast(spec.name);
+    if (this.game.mode === 'playing') this.game.say('bung', spec.blurb);
+  }
+
+  cycle() {
+    if (!state.flags.trolleyUnlocked) {
+      this.game.toast('TROLLEY NOT UNLOCKED — VISIT THE GARAGE', 'red');
+      this.game.audio.sfx('denied');
+      return;
+    }
+    const order = ['james', 'ferry', 'night', 'bun', 'iron'];
+    const i = order.indexOf(this.spec.id);
+    this.applyFleet(order[(i + 1) % order.length]);
+    this.game.audio.sfx('trolleyStart');
   }
 
   summon() {
@@ -141,16 +182,27 @@ export class Trolley {
     this.speed *= 0.3;
   }
 
+  overWater() {
+    const zone = this.game.zone;
+    if (!zone?.swimInfo) return null;
+    const swim = zone.swimInfo(this.pos.x, this.pos.z, this.pos.y);
+    if (!swim) return null;
+    const deck = surfaceY(zone, this.pos.x, this.pos.z, this.pos.y);
+    if (deck > swim.surface + 0.45) return null;
+    return swim;
+  }
+
   update(dt) {
     if (!this.summoned) return;
     const g = this.game, input = g.input;
     let steer = 0;
+    const afloat = this.overWater();
 
     if (this.riding) {
       // ---- Driving input ----
       const ax = input.axis();
-      const throttle = ax.y;
-      steer = -ax.x;
+      const throttle = afloat ? 0 : ax.y;
+      steer = -ax.x * (afloat ? 0.25 : 1);
 
       // ---- Boost evaluation (state transitions only — no per-frame audio) ----
       const shiftHeld = input.keys['ShiftLeft'] || input.keys['ShiftRight'];
@@ -165,7 +217,7 @@ export class Trolley {
           this.setBoosting(false, 'fuel empty');
           g.toast('TROLLEY FUEL DEPLETED', 'red');
         } else if (throttle <= 0) this.setBoosting(false, 'no throttle');
-      } else if (shiftHeld && !this.boostLockout && throttle > 0 && state.fuel >= BOOST_MIN_START_FUEL) {
+      } else if (!afloat && shiftHeld && !this.boostLockout && throttle > 0 && state.fuel >= BOOST_MIN_START_FUEL) {
         this.setBoosting(true, 'shift pressed with fuel');
       }
 
@@ -219,8 +271,27 @@ export class Trolley {
     this._ray.set(this.pos.clone().add(new THREE.Vector3(0, 1.5, 0)), this._down);
     this._ray.far = 30;
     const hits = this._ray.intersectObjects(this.game.zone.grounds, false);
-    const groundY = hits.length ? hits[0].point.y : -Infinity;
+    const groundY = surfaceY(this.game.zone, this.pos.x, this.pos.z, this.pos.y, hits);
+    const wet = this.overWater();
 
+    if (wet) {
+      if (!this.inWater) {
+        this.inWater = true;
+        g.fx.burst(new THREE.Vector3(this.pos.x, wet.surface, this.pos.z), 0x8ea36a, 24, 4.2);
+        g.audio.sfx('splash');
+      }
+      if (this.boosting) this.setBoosting(false, 'water');
+      const floatY = wet.surface - 0.5;
+      this.vy += (floatY - this.pos.y) * 10 * dt;
+      this.vy *= Math.exp(-2.6 * dt);
+      this.pos.y += this.vy * dt;
+      this.pos.x += 0.65 * dt;
+      this.pos.z += 0.2 * dt;
+      this.speed *= Math.exp(-4.8 * dt);
+      this.grounded = false;
+      this.drifting = false;
+    } else {
+      this.inWater = false;
     if (this.grounded) {
       if (this.pos.y - groundY > 0.6 || groundY === -Infinity) {
         this.grounded = false; // drove off an edge
@@ -246,6 +317,7 @@ export class Trolley {
         this.vy = 0;
       }
     }
+    }
 
     // Wall collisions — soft bounce
     for (const b of this.game.zone.colliders) {
@@ -267,6 +339,10 @@ export class Trolley {
         this.speed *= -0.25;
       }
     }
+    const trolleyPos = { x: this.pos.x, z: this.pos.z };
+    pushFootprints(trolleyPos, 0.8, this.pos.y, this.game.zone);
+    this.pos.x = trolleyPos.x;
+    this.pos.z = trolleyPos.z;
 
     // Fell off the world
     if (this.pos.y < -40) {
@@ -314,6 +390,16 @@ export class Trolley {
       }
     }
     this.trail.geometry.attributes.position.needsUpdate = true;
+
+    if (!this._fwd) {
+      this._fwd = new THREE.Vector3();
+      this._headPos = new THREE.Vector3();
+    }
+    this._fwd.set(Math.sin(this.heading), 0, Math.cos(this.heading));
+    const lit = this.summoned && (this.riding || this.boosting);
+    this.head.intensity = lit ? (this.boosting ? 6 : 2.4) : 0;
+    this.head.position.copy(this.pos).add(this._headPos.set(0, 0.9, 0)).addScaledVector(this._fwd, 0.7);
+    this.headTarget.position.copy(this.pos).add(this._headPos.set(0, 0.4, 0)).addScaledVector(this._fwd, 8);
 
     // Riding Bung pose
     if (this.riding) {
