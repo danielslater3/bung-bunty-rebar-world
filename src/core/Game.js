@@ -14,7 +14,7 @@ import { ShopSystem } from '../systems/ShopSystem.js';
 import { ChainManager } from '../systems/ChainManager.js';
 import { HUD } from '../ui/HUD.js';
 import { Menus } from '../ui/Menus.js';
-import { ZONE_BUILDERS, ZONE_INFO } from '../world/zones.js';
+import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
 
@@ -97,11 +97,17 @@ export class Game {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flush();
     });
-    this.renderer.setAnimationLoop(() => this.frame());
+    this.renderer.setAnimationLoop(() => {
+      try { this.frame(); }
+      catch (err) {
+        this.renderer.setAnimationLoop(null);
+        window.bungFail(err);
+      }
+    });
   }
 
   // ============ FLOW ============
-  startGame(fresh) {
+  async startGame(fresh) {
     this.audio.init();
     this.audio.resume();
     if (fresh) SaveSystem.reset();
@@ -114,7 +120,8 @@ export class Game {
     this.mode = 'playing';
     this.input.enabled = true;
     this.input.lock();
-    this.loadZone(state.currentZone, true);
+    await this.loadZone(state.currentZone, true);
+    if (!this.zone) return;
     if (fresh) {
       setTimeout(() => {
         this.dialogue.conversation([
@@ -163,19 +170,37 @@ export class Game {
   }
 
   // ============ ZONES ============
-  loadZone(name, silent = false) {
+  async loadZone(name, silent = false) {
+    const seq = (this._zoneSeq = (this._zoneSeq || 0) + 1);
+    const heavy = name === 'brisbane' || name === 'hongkong' || name === 'sydney';
+    if (heavy) this.toast('LOADING ' + (ZONE_INFO[name]?.name || name), 'blue');
+    let build;
+    try {
+      build = await resolveBuilder(name);
+    } catch (err) {
+      window.bungFail(err);
+      return;
+    }
+    if (seq !== this._zoneSeq) return;
+
     if (this.zone) this.zone.dispose();
     this.allEnemies = [];
     this.scoreAttack = null;
     this.trolley.dismiss();
     this.audio.stopAllLoops();
 
-    const wide = name === 'brisbane' || name === 'hongkong' || name === 'sydney';
-    this.camera.near = wide ? 0.3 : 0.1;
-    this.camera.far = wide ? 8000 : 700;
+    this.camera.near = heavy ? 0.3 : 0.1;
+    this.camera.far = heavy ? 8000 : 700;
     this.camera.updateProjectionMatrix();
 
-    const kit = ZONE_BUILDERS[name](this); // ZoneKit registers itself as game.zone
+    let kit;
+    try {
+      kit = build(this); // ZoneKit registers itself as game.zone
+    } catch (err) {
+      window.bungFail(err);
+      return;
+    }
+    if (seq !== this._zoneSeq) return;
     this.scene.add(kit.group);
 
     state.currentZone = name;
@@ -228,7 +253,7 @@ export class Game {
     }
   }
 
-  travelTo(zone, x, y, z) {
+  async travelTo(zone, x, y, z) {
     if (!state.unlockedZones.includes(zone)) {
       this.toast('THAT DISTRICT IS LOCKED', 'red');
       return;
@@ -237,7 +262,9 @@ export class Game {
     this.mode = 'playing';
     this.input.enabled = true;
     this.hud.show();
-    if (state.currentZone !== zone) this.loadZone(zone, true);
+    this.input.lock();
+    if (state.currentZone !== zone) await this.loadZone(zone, true);
+    if (state.currentZone !== zone || !this.zone) return;
     const dest = new THREE.Vector3(x, y, z);
     const gy = this.zone.sampleGround?.(dest.x, dest.z, dest.y);
     if (gy != null && dest.y < gy - 1) dest.y = gy + 0.5;

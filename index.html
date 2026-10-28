@@ -7,17 +7,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:ital,wght@0,700;0,800;0,900;1,800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="styles.css?v=20261028n" />
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three": "./vendor/three.module.js?v=20261028n",
     "/src/entities/models.js": "./src/entities/models.js?v=20261027c",
     "/src/systems/DialogueSystem.js": "./src/systems/DialogueSystem.js?v=20261027c",
     "/src/systems/QuestSystem.js": "./src/systems/QuestSystem.js?v=20261027c",
     "/src/lore/universe.js": "./src/lore/universe.js?v=20261028a",
     "/src/ui/Menus.js": "./src/ui/Menus.js?v=20261027c",
-    "/src/world/zones.js": "./src/world/zones.js?v=20261027c",
+    "/src/world/zones.js": "./src/world/zones.js?v=20261028n",
     "/src/world/rebirthZones.js": "./src/world/rebirthZones.js?v=20261028a",
     "/src/world/geo/buildCity.js": "./src/world/geo/buildCity.js?v=20261028l",
     "/src/world/geo/terrain.js": "./src/world/geo/terrain.js?v=20261028i",
@@ -31,24 +31,43 @@
     "/src/entities/Trolley.js": "./src/entities/Trolley.js?v=20261027d",
     "/src/entities/Player.js": "./src/entities/Player.js?v=20261028a",
     "/src/entities/Collectible.js": "./src/entities/Collectible.js?v=20261027f",
-    "/src/core/Game.js": "./src/core/Game.js?v=20261028d",
+    "/src/core/Game.js": "./src/core/Game.js?v=20261028n",
     "/src/core/state.js": "./src/core/state.js?v=20261027f",
     "/src/core/AudioManager.js": "./src/core/AudioManager.js?v=20261027d"
   }
 }
 </script>
 <script>
-window.addEventListener('error', (e) => {
+window.bungFail = (err) => {
   if (document.getElementById('boot-error')) return;
+  const e = err || {};
+  const message = e.message || (typeof err === 'string' ? err : '') || 'The game failed to start.';
+  const where = e.filename ? '\n' + e.filename + ':' + (e.lineno || '') : '';
+  const stack = e.stack && e.stack !== message ? '\n' + e.stack : '';
   const box = document.createElement('pre');
   box.id = 'boot-error';
-  box.textContent = (e.message || 'The game failed to start.');
-  box.style.cssText = 'position:fixed;left:16px;right:16px;top:16px;z-index:20;margin:0;padding:16px 18px;background:#141820;color:#fff;border:3px solid #ffc94d;border-radius:16px;font:15px/1.4 Nunito,sans-serif;white-space:pre-wrap';
+  box.textContent = message + where + stack + '\n\nClick to dismiss.';
+  box.style.cssText = 'position:fixed;left:16px;right:16px;top:16px;z-index:80;margin:0;padding:16px 18px;background:#141820;color:#fff;border:3px solid #ffc94d;border-radius:16px;font:15px/1.4 Nunito,sans-serif;white-space:pre-wrap;cursor:pointer';
+  box.onclick = () => box.remove();
   document.body.appendChild(box);
+};
+window.addEventListener('error', (e) => {
+  if (e.target && e.target !== window) return;
+  window.bungFail({
+    message: e.message,
+    filename: e.filename,
+    lineno: e.lineno,
+    stack: e.error && e.error.stack,
+  });
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  window.bungFail(r instanceof Error ? r : { message: String(r && r.stack || r) });
 });
 </script>
 </head>
 <body>
+  <div id="boot"><b>BUNG BUNTY</b><span>LOADING REBAR WORLD</span></div>
   <div id="app"></div>
 
   <!-- HUD layer -->
@@ -96,6 +115,6 @@ window.addEventListener('error', (e) => {
   <!-- Menus layer (filled by JS) -->
   <div id="menus"></div>
 
-  <script type="module" src="src/main.js?v=20261028l"></script>
+  <script type="module" src="src/main.js?v=20261028n"></script>
 </body>
 </html>

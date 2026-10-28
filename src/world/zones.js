@@ -8,9 +8,6 @@ import { state, bus, addCoins } from '../core/state.js';
 import { buildTrolley, buildRebar, buildBurger } from '../entities/models.js';
 import { MegaForeheadMachine } from '../systems/BossEvents.js';
 import { dressMansion, dressSydney, dressHongKong } from './rebirthZones.js';
-import { buildOsmBrisbane } from '/src/world/geo/buildCity.js';
-import { buildOsmHongKong } from './geo/hongkong.js';
-import { buildOsmSydney } from './geo/sydney.js';
 
 export const ZONE_INFO = {
   mansion:  { name: 'BUNG MANSION HUB',          mode: 'BLUE MODE', desc: 'Home base. Garage, Rebar Lab, Chung, shop, trophy room.' },
@@ -188,11 +185,24 @@ function buildMansion(game) {
   return Z;
 }
 
-// ============================================================
-// 2. BRISBANE REBAR DISTRICT
-// ============================================================
-function buildBrisbane(game) {
-  return buildOsmBrisbane(game);
+// Brisbane, Sydney and Hong Kong bring in the big map files. They load when
+// you enter them, so the menu can appear before those downloads finish.
+const cityLoader = {
+  brisbane: () => import('/src/world/geo/buildCity.js').then((m) => m.buildOsmBrisbane),
+  sydney: () => import('./geo/sydney.js').then((m) => m.buildOsmSydney),
+  hongkong: () => import('./geo/hongkong.js').then((m) => m.buildOsmHongKong),
+};
+const cityReady = {};
+
+export async function resolveBuilder(name) {
+  if (cityReady[name]) return cityReady[name];
+  if (cityLoader[name]) {
+    cityReady[name] = await cityLoader[name]();
+    return cityReady[name];
+  }
+  const fn = ZONE_BUILDERS[name];
+  if (!fn) throw new Error('Unknown zone ' + name);
+  return fn;
 }
 
 // ============================================================
@@ -826,9 +836,6 @@ function buildVoid(game) {
 
 export const ZONE_BUILDERS = {
   mansion: buildMansion,
-  brisbane: buildBrisbane,
-  sydney: buildOsmSydney,
-  hongkong: buildOsmHongKong,
   shenzhen: buildShenzhen,
   void: buildVoid,
 };
