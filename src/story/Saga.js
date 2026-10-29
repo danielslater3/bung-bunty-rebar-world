@@ -1,17 +1,19 @@
 // The Brisbane chronicle. Act I and Acts II–VI play on the existing map.
 import * as THREE from 'three';
 import { state, bus, SaveSystem } from '../core/state.js';
-import { mat } from '../core/utils.js';
+import { mat, damp, dampAngle } from '../core/utils.js';
 import { unlockArchive } from '../lore/universe.js?v=20261029a';
-import { buildChing, buildGabor, buildScooter, setBungKit } from '../entities/models.js?v=20261029b';
-import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js?v=20261029b';
-import { buildHouse } from './house.js?v=20261029w';
-import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029w';
-import { buildGuide, updateGuide } from './guide.js?v=20261029r';
+import { buildChing, buildGabor, buildScooter, setBungKit } from '../entities/models.js?v=20261029x';
+import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js?v=20261029x';
+import { buildHouse } from './house.js?v=20261029x';
+import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029x';
+import { buildGuide, updateGuide } from './guide.js?v=20261030d';
+import { pathLength, pointAlong, projectAlong, dropTrail, tickTrail, clearTrail } from './chase.js?v=20261030d';
+import { frameDialogue as directDialogue, resetTalk as clearTalk } from './dialogueCam.js?v=20261030c';
 import {
   bootMission, tickMission, poseMission, missionMarker, missionLabel, onInteract,
   closePlay, prepSnow, driftSnow,
-} from './missions.js?v=20261029b';
+} from './missions.js?v=20261029x';
 
 export { createSaga, CHAPTERS, ACTS };
 
@@ -23,6 +25,10 @@ export class Saga {
     this._ui = 0;
     this._caughtLine = 0;
     this.gaborT = 0;
+    this.gaborDist = 0;
+    this.gaborSpeed = 0;
+    this.gaborHead = 0;
+    this.gaborHold = null;
     this.guardAng = 0;
     this.dressed = false;
     this.mission = null;
@@ -41,6 +47,8 @@ export class Saga {
   onZone() {
     this.dressed = false;
     this.actors = null;
+    this._trail = null;
+    this._revChase = null;
     this._groundWrapped = false;
     this._mansionBuilt = false;
     this._floors = null;
@@ -101,7 +109,9 @@ export class Saga {
     driftSnow(this, dt);
     if (this.game.mode === 'cutscene') {
       if (this.actors?.guide) this.actors.guide.visible = false;
+      this.game.hud?.chaseHud(null);
       this.aimCamera(dt);
+      tickTrail(this, dt);
       if (this.game.input.pressed['Escape']) this.game.dialogue.skip();
       return;
     }
@@ -129,6 +139,8 @@ export class Saga {
     const live = this.currentStep();
     if (!live) return;
     if (live.kind === 'follow' || live.kind === 'catch') this.moveGabor(dt, live);
+    else this.game.hud?.chaseHud(null);
+    tickTrail(this, dt);
     this.moveGuard(dt, live);
     this.check(live);
     this.poseActors();
@@ -522,8 +534,9 @@ export class Saga {
         at = this.point('garage').add(new THREE.Vector3(2.2, 0, 1.4));
         y = this.ground(at.x, at.z);
       } else if (chase) {
-        at = this.pathAt(this.gaborT);
-        y = at.y;
+        const spot = this.gaborSpot();
+        at = spot;
+        y = spot.y;
       } else if (a.bar) {
         at = new THREE.Vector3(a.bar.spot.x, a.bar.y, a.bar.spot.z);
         y = a.bar.y;
@@ -532,8 +545,17 @@ export class Saga {
         y = this.ground(at.x, at.z);
       }
       show(a.gabor, at.x, y, at.z);
-      show(a.scooter, at.x + 1.1, y, at.z + 0.4);
-      if (chase || step?.id === 'bag' || step?.id === 'relic') show(a.bag, at.x - 0.8, y + 0.4, at.z);
+      if (chase) {
+        const head = this.gaborHead || Math.atan2(at.tx || 0, at.tz || 1);
+        show(a.scooter, at.x, y, at.z);
+        a.scooter.rotation.y = head;
+        a.gabor.rotation.y = head;
+        const fx = Math.sin(head);
+        const fz = Math.cos(head);
+        if (step.kind !== 'follow') show(a.bag, at.x - fx * 0.75, y + 0.42, at.z - fz * 0.75);
+      } else {
+        show(a.scooter, at.x + 1.1, y, at.z + 0.4);
+      }
     }
     if (step?.kind === 'escape' || step?.id === 'swap' || step?.id === 'disguise' || step?.id === 'scan') {
       const c = PLACE.event;
@@ -557,6 +579,55 @@ export class Saga {
   }
 
   pathAt(t) { return this.pathOn(CHASE_PATH, t); }
+
+  chasePts() {
+    const step = this.currentStep();
+    if (state.saga.chapter === 1 && step?.kind === 'catch') {
+      if (!this._revChase) this._revChase = CHASE_PATH.slice().reverse();
+      return this._revChase;
+    }
+    return CHASE_PATH;
+  }
+
+  chaseLength() {
+    const pts = this.chasePts();
+    if (pts !== this._lenPts) {
+      this._lenPts = pts;
+      this._len = pathLength(pts);
+    }
+    return this._len;
+  }
+
+  gaborSpot() {
+    const step = this.currentStep();
+    if (step && (step.kind === 'follow' || step.kind === 'catch')) {
+      const p = pointAlong(this.chasePts(), this.gaborDist || 0);
+      return { x: p.x, y: this.ground(p.x, p.z), z: p.z, tx: p.tx, tz: p.tz };
+    }
+    if (this.gaborHold) {
+      return {
+        x: this.gaborHold.x,
+        y: this.gaborHold.y,
+        z: this.gaborHold.z,
+        tx: Math.sin(this.gaborHead || 0),
+        tz: Math.cos(this.gaborHead || 0),
+      };
+    }
+    const end = pointAlong(CHASE_PATH, pathLength(CHASE_PATH));
+    return { x: end.x, y: this.ground(end.x, end.z), z: end.z, tx: end.tx, tz: end.tz };
+  }
+
+  inCollider(x, y, z) {
+    const list = this.game.zone?.colliders;
+    if (!list) return false;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (x <= b.min.x || x >= b.max.x || z <= b.min.z || z >= b.max.z) continue;
+      if (y + 1.5 < b.min.y || y > b.max.y) continue;
+      return true;
+    }
+    return false;
+  }
 
   pathOn(pts, t) {
     const world = pts.map(([x, z]) => this.pointXY(x, z));
@@ -610,16 +681,20 @@ export class Saga {
     if (this.game.mode === 'cutscene') {
       this.game.mode = 'playing';
       this.game.input.enabled = true;
-      this.snapCamera();
     }
     if (this.currentStep()?.kind === 'scene') this.advance();
   }
 
   aimCamera(dt) {
-    const look = this.sceneLook || this.game.player.pos;
-    const dest = look.clone().add(new THREE.Vector3(9, 6, 12));
-    this.game.camera.position.lerp(dest, 1 - Math.exp(-1.5 * dt));
-    this.game.camera.lookAt(look.x, look.y + 1.2, look.z);
+    directDialogue(this, dt);
+  }
+
+  frameDialogue(dt) {
+    directDialogue(this, dt);
+  }
+
+  resetTalk() {
+    clearTalk(this);
   }
 
   snapCamera() {
@@ -657,10 +732,15 @@ export class Saga {
       const flat = Math.hypot(here.x - p.x, here.z - p.z);
       if (flat < (step.radius || 6) && Math.abs(here.y - floor) < 2.4) this.advance();
     } else if (step.kind === 'follow') {
-      if (this.gaborT > 0.96 && here.distanceTo(this.actors.gabor.position) < 6) this.advance();
+      const len = this.chaseLength();
+      if (this.gaborDist > len - 5 && here.distanceTo(this.actors.gabor.position) < 6) this.advance();
     } else if (step.kind === 'catch') {
       if (!this.game.trolley.riding) return;
-      if (here.distanceTo(this.actors.gabor.position) < 4.2) this.advance();
+      const gap = here.distanceTo(this.actors.gabor.position);
+      if (this.gaborDist > 8 && gap < 4.5) {
+        this.game.toast(`GABOR CAUGHT — ${Math.max(1, Math.round(gap))} m`, 'gold');
+        this.advance();
+      }
     } else if (step.kind === 'rings') {
       const have = state.saga.stepState.rings || (state.saga.stepState.rings = {});
       if (!this.game.trolley.riding) return;
@@ -685,27 +765,70 @@ export class Saga {
   moveGabor(dt, step) {
     if (!this.actors) return;
     if (step.kind !== 'follow' && step.kind !== 'catch') return;
-    const pos = this.actors.gabor.position;
+    const pts = this.chasePts();
+    const len = this.chaseLength();
     const player = this.here();
-    const lead = step.kind === 'catch' ? 22 : 16;
-    if (player.distanceTo(pos) < lead) {
-      const rate = step.kind === 'catch' ? 0.16 : 0.07;
-      this.gaborT = Math.min(0.99, this.gaborT + dt * rate);
+    const ride = projectAlong(pts, player.x, player.z);
+    let guard = 0;
+    while (guard < 4) {
+      const peek = pointAlong(pts, Math.min(len, this.gaborDist));
+      const py = this.ground(peek.x, peek.z);
+      if (!this.inCollider(peek.x, py, peek.z)) break;
+      this.gaborDist = Math.min(len, this.gaborDist + 1.4);
+      guard += 1;
     }
-    const at = this.pathAt(this.gaborT);
-    this.actors.gabor.position.lerp(at, 1 - Math.exp(-6 * dt));
-    this.actors.scooter.position.set(pos.x + 1.1, pos.y, pos.z + 0.4);
-    this.actors.bag.position.set(pos.x - 0.8, pos.y + 0.45, pos.z);
-    this.actors.gabor.visible = true;
-    this.actors.scooter.visible = true;
-    this.actors.bag.visible = step.kind !== 'follow';
-    this.stickInteract('gabor', pos);
-    this.stickInteract('bag', this.actors.bag.position);
-    const mark = this.markerPoint();
-    if (mark) {
-      this.actors.marker.visible = true;
-      this.actors.marker.position.set(mark.x, mark.y + 2.4 + Math.sin(this.game.elapsed * 3) * 0.15, mark.z);
+    const at = pointAlong(pts, Math.min(len, this.gaborDist));
+    const straight = Math.hypot(player.x - at.x, player.z - at.z);
+    const ahead = ride.off > 22 ? straight : this.gaborDist - ride.dist;
+    let want = step.kind === 'catch' ? 9 : 4.4;
+    if (straight < 9) want *= step.kind === 'catch' ? 1.22 : 1.28;
+    if (ahead > 36 || this.gaborDist >= len - 0.3) want = 0;
+    const accel = want > this.gaborSpeed ? 2.4 : 3.6;
+    this.gaborSpeed = damp(this.gaborSpeed, want, accel, dt);
+    this.gaborDist = Math.min(len, this.gaborDist + this.gaborSpeed * dt);
+    const moved = pointAlong(pts, Math.min(len, this.gaborDist));
+    at.x = moved.x;
+    at.z = moved.z;
+    at.tx = moved.tx;
+    at.tz = moved.tz;
+    const heading = Math.atan2(at.tx, at.tz);
+    this.gaborHead = dampAngle(this.gaborHead || heading, heading, 6, dt);
+    const yNow = this.ground(at.x, at.z);
+    this.gaborT = len > 0 ? this.gaborDist / len : 0;
+    this.gaborHold = { x: at.x, y: yNow, z: at.z };
+    this.actors.gabor.position.set(at.x, yNow, at.z);
+    if (this.gaborSpeed > 0.4) dropTrail(this, at.x, yNow, at.z);
+    const wheels = this.actors.scooter.userData.wheels;
+    if (wheels) {
+      for (let i = 0; i < wheels.length; i++) wheels[i].rotation.x += this.gaborSpeed * dt / 0.1;
     }
+    if (ride.dist > 18 && this.gaborDist > 24) this._chaseAway = true;
+    if (this._chaseAway && ride.off < 8 && ride.dist < 7 && this.gaborDist > 40) {
+      this.gaborDist = 0;
+      this.gaborSpeed = 0;
+      this.gaborT = 0;
+      this._chaseAway = false;
+      clearTrail(this);
+      const home = pointAlong(pts, 0);
+      at.x = home.x;
+      at.z = home.z;
+      const y0 = this.ground(home.x, home.z);
+      this.gaborHold = { x: home.x, y: y0, z: home.z };
+      this.actors.gabor.position.set(home.x, y0, home.z);
+      this.game.toast('Chase restarted. Gabor is back on Queen Street.', 'gold');
+    }
+    const live = Math.hypot(player.x - at.x, player.z - at.z);
+    const metres = ride.off < 12 ? Math.max(live, Math.abs(this.gaborDist - ride.dist)) : live;
+    let note = '';
+    if (want === 0 && ahead > 20 && this.gaborDist < len - 1) note = 'HE IS WAITING ON QUEEN STREET';
+    else if (step.kind === 'catch' && live < 4.5) note = 'IN CATCH RANGE';
+    else if (step.kind === 'catch' && live < 12) note = 'CLOSING IN';
+    else if (this.gaborDist > len - 8) note = 'APPLE STORE AHEAD';
+    this.game.hud?.chaseHud({
+      metres: Math.max(0, Math.round(metres)),
+      note,
+      target: this.actors.gabor.position,
+    });
   }
 
   moveGuard(dt) {
@@ -1035,8 +1158,19 @@ export class Saga {
     this.freeze = false;
     closePlay();
     const ch = this.chapter();
+    const leaving = this.currentStep()?.kind;
     state.saga.step += 1;
-    this.gaborT = 0;
+    const next = this.currentStep();
+    const hold = ['bag', 'confront', 'relic'].includes(next?.id);
+    if (!hold) {
+      this.gaborT = 0;
+      if (leaving === 'follow' || leaving === 'catch' || next?.kind === 'follow' || next?.kind === 'catch') {
+        this.gaborDist = 0;
+        this.gaborSpeed = 0;
+        this._chaseAway = false;
+        clearTrail(this);
+      }
+    }
     this._booted = '';
     if (state.saga.step >= ch.steps.length) this.finishChapter();
     else {
@@ -1044,7 +1178,6 @@ export class Saga {
       this.poseActors();
       this.refresh();
       SaveSystem.save(this.game);
-      const next = this.currentStep();
       if (next?.kind === 'scene') this.beginScene(next);
       else this.ensureStep();
     }
@@ -1094,6 +1227,9 @@ export class Saga {
     state.saga.stepState = {};
     state.saga.intermission = false;
     this.gaborT = 0;
+    this.gaborDist = 0;
+    this.gaborSpeed = 0;
+    this._chaseAway = false;
     this._booted = '';
     this.syncDamage();
     if (state.saga.chapter >= 15) this.ensureMansion();

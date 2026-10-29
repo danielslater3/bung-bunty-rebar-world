@@ -2,7 +2,7 @@
 // kitchen, rebar cupboard and a workshop garage. Furniture is geometry he can use.
 import * as THREE from 'three';
 import { mat } from '../core/utils.js';
-import { PLACE } from './sagaData.js?v=20261029b';
+import { PLACE } from './sagaData.js?v=20261029x';
 
 function woodTex() {
   const c = document.createElement('canvas');

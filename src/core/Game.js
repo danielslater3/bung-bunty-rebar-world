@@ -6,18 +6,18 @@ import { state, bus, SaveSystem } from './state.js';
 import { Input } from './Input.js';
 import { AudioManager } from './AudioManager.js';
 import { FX } from './FX.js';
-import { Player } from '../entities/Player.js?v=20261029b';
+import { Player } from '../entities/Player.js?v=20261029y';
 import { Trolley } from '../entities/Trolley.js?v=20261029r';
-import { DialogueSystem } from '../systems/DialogueSystem.js?v=20261029a';
+import { DialogueSystem } from '../systems/DialogueSystem.js?v=20261029x';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { ShopSystem } from '../systems/ShopSystem.js';
 import { ChainManager } from '../systems/ChainManager.js';
-import { HUD } from '../ui/HUD.js';
-import { Menus } from '../ui/Menus.js?v=20261029b';
+import { HUD } from '../ui/HUD.js?v=20261029x';
+import { Menus } from '../ui/Menus.js?v=20261029x';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
-import { Saga, createSaga } from '../story/Saga.js?v=20261029w';
+import { Saga, createSaga } from '../story/Saga.js?v=20261030d';
 
 export class Game {
   constructor() {
@@ -362,7 +362,15 @@ export class Game {
       this.camYaw += dt * 0.06;
     }
 
-    if (this.mode !== 'cutscene') this.updateCamera(dt);
+    const cine = this.dialogue.cinematic;
+    if (this.mode !== 'cutscene' && !cine) this.updateCamera(dt);
+    if (cine && this.mode !== 'cutscene') this.saga?.frameDialogue?.(dt);
+    if (cine) {
+      if (this.saga) this.saga._dialOn = true;
+    } else if (this.saga?._dialOn) {
+      this.saga._dialOn = false;
+      this.saga.resetTalk?.();
+    }
     this.fx.update(dt);
     this.input.endFrame();
     this.renderer.render(this.scene, this.camera);
@@ -494,6 +502,21 @@ export class Game {
       ];
       this.say('bung', barks[Math.floor(Math.random() * barks.length)]);
     }
+  }
+
+  indoorRoom(x, y, z) {
+    const rooms = this.saga?.actors?.house?.rooms;
+    if (rooms) {
+      for (let i = 0; i < rooms.length; i++) {
+        const r = rooms[i];
+        if (x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ && y > r.floor - 1 && y < r.ceil + 0.6) return r;
+      }
+    }
+    const bar = this.saga?.actors?.bar;
+    if (bar?.inside && y > bar.y - 1.2 && y < bar.y + 3.3 && bar.inside(x, z)) {
+      return { kind: 'bar', floor: bar.y, ceil: bar.ceil };
+    }
+    return null;
   }
 
   indoorCeiling(x, y, z) {

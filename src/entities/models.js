@@ -138,6 +138,7 @@ export function buildBung() {
   mouth.position.set(0, -0.13, 0.3);
   mouth.rotation.set(0, 0, Math.PI);
   headG.add(mouth);
+  parts.mouth = mouth;
 
   // FOUR THIN SPIKY REBAR HAIRS
   for (let i = 0; i < 4; i++) {
@@ -210,6 +211,8 @@ export function buildChing() {
     arm.position.set(sx * 0.32, 1.05, 0);
     arm.rotation.z = sx * 0.18;
     g.add(arm);
+    if (sx < 0) g.userData.armL = arm;
+    else g.userData.armR = arm;
     const hand = sphere(0.075, SKIN(), 8, 6);
     hand.position.set(sx * 0.38, 0.74, 0);
     g.add(hand);
@@ -249,6 +252,11 @@ export function buildChing() {
   const micTip = sphere(0.025, mat(0x2ee6ff, { emissive: 0x2ee6ff, emissiveIntensity: 1.5 }), 6, 4);
   micTip.position.set(0.08, -0.13, 0.2);
   headG.add(micTip);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 5, 8, Math.PI), mat(0x7a3b2e, { roughness: 0.8 }));
+  mouth.position.set(0, -0.08, 0.2);
+  mouth.rotation.set(0, 0, Math.PI);
+  headG.add(mouth);
+  g.userData.mouth = mouth;
   g.add(headG);
 
   // Shoulder pads — sharper silhouette than Bung's round blob
@@ -299,6 +307,8 @@ export function buildGabor() {
     arm.position.set(sx * 0.24, 1.05, 0);
     arm.rotation.z = sx * 0.3;
     g.add(arm);
+    if (sx < 0) g.userData.armL = arm;
+    else g.userData.armR = arm;
   }
   // Head — THE FOREHEAD
   const headG = new THREE.Group();
@@ -333,6 +343,11 @@ export function buildGabor() {
   beard.position.set(0, -0.27, 0.13);
   beard.rotation.x = 0.25;
   headG.add(beard);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.014, 5, 8, Math.PI), mat(0x6a3030, { roughness: 0.8 }));
+  mouth.position.set(0, -0.12, 0.2);
+  mouth.rotation.set(0, 0, Math.PI);
+  headG.add(mouth);
+  g.userData.mouth = mouth;
   g.add(headG);
 
   // Tiny villain cape — dramatic, slightly too small for him

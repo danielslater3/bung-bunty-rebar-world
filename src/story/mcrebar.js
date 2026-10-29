@@ -3,7 +3,7 @@
 // laid out from the supplied plan: front seating, dining, order, collect, kitchen.
 import * as THREE from 'three';
 import { mat } from '../core/utils.js';
-import { PLACE } from './sagaData.js?v=20261029b';
+import { PLACE } from './sagaData.js?v=20261029x';
 
 const AX = 151.3, AZ = 81.4, BX = 137.3, BZ = 93.7;
 const LEN = Math.hypot(BX - AX, BZ - AZ);
@@ -24,6 +24,15 @@ export function mcrebarPoint(along, depth) {
     x: MID[0] + TX * along - OUTX * depth,
     z: MID[1] + TZ * along - OUTZ * depth,
   };
+}
+
+// Keep a dialogue camera inside the tenancy. along/depth match insideMcRebar.
+export function clampMcRebar(x, z, margin = 0.6) {
+  const dx = x - MID[0];
+  const dz = z - MID[1];
+  const along = Math.max(-8.1 + margin, Math.min(8.1 - margin, dx * TX + dz * TZ));
+  const depth = Math.max(-1.2 + margin, Math.min(11.8 - margin, -(dx * OUTX + dz * OUTZ)));
+  return mcrebarPoint(along, depth);
 }
 
 function yaw() {

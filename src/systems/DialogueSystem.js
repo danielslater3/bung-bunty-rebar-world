@@ -23,7 +23,13 @@ export class DialogueSystem {
 
   // Scripted conversation: array of [speaker, text]
   conversation(lines, onEnd = null) {
-    this.queue = lines.map(([speaker, text]) => ({ speaker, text, dur: Math.max(2.4, text.length * 0.05) }));
+    this.queue = lines.map(([speaker, text], i) => ({
+      speaker,
+      text,
+      dur: Math.max(2.4, text.length * 0.05),
+      cinematic: true,
+      i,
+    }));
     this.onEnd = onEnd;
     this._next(true);
   }
@@ -58,4 +64,5 @@ export class DialogueSystem {
   }
 
   get busy() { return !!this.current; }
+  get cinematic() { return !!this.current?.cinematic; }
 }

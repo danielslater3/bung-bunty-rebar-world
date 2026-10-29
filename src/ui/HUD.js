@@ -165,4 +165,40 @@ export class HUD {
     el.classList.add('hurt');
     setTimeout(() => el.classList.remove('hurt'), 220);
   }
+
+  chaseHud(info) {
+    const el = this.$('chase-hud');
+    const pin = this.$('chase-pin');
+    if (!el || !pin) return;
+    if (!info) {
+      el.classList.add('hidden');
+      pin.classList.add('hidden');
+      return;
+    }
+    el.classList.remove('hidden');
+    this.$('chase-dist').textContent = `${info.metres} m AWAY`;
+    const note = this.$('chase-note');
+    note.textContent = info.note || '';
+    note.classList.toggle('hot', info.note === 'IN CATCH RANGE');
+    const target = info.target;
+    const cam = this.game.camera;
+    if (!target || !cam) { pin.classList.add('hidden'); return; }
+    const v = target.clone();
+    v.y += 1.6;
+    v.project(cam);
+    const behind = v.z > 1;
+    let x = behind ? -v.x : v.x;
+    let y = behind ? -v.y : v.y;
+    const onScreen = !behind && v.x > -0.9 && v.x < 0.9 && v.y > -0.85 && v.y < 0.85;
+    if (onScreen || info.metres < 5) { pin.classList.add('hidden'); return; }
+    const ax = Math.abs(x);
+    const ay = Math.abs(y);
+    const s = Math.max(ax, ay, 0.001);
+    x = (x / s) * 0.86;
+    y = (y / s) * 0.78;
+    pin.classList.remove('hidden');
+    pin.style.left = `${(x * 0.5 + 0.5) * 100}%`;
+    pin.style.top = `${(-y * 0.5 + 0.5) * 100}%`;
+    pin.style.transform = `translate(-50%, -50%) rotate(${Math.atan2(x, y)}rad)`;
+  }
 }

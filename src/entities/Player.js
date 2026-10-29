@@ -5,7 +5,7 @@ import { clamp, damp, dampAngle } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
 import { pushFootprints } from '/src/world/geo/footprints.js';
 import { state, bus, upgLevel, addEnergy } from '../core/state.js';
-import { buildBung } from './models.js?v=20261029b';
+import { buildBung } from './models.js?v=20261029x';
 
 const GRAVITY = 26;
 
@@ -64,6 +64,7 @@ export class Player {
 
   teleport(v) {
     this.pos.copy(v);
+    this.mesh.position.copy(v);
     this.vel.set(0, 0, 0);
     this.grappling = false;
     this.grappleLine.visible = false;

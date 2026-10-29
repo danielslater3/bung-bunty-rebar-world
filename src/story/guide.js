@@ -3,8 +3,9 @@
 import * as THREE from 'three';
 import { mat, dampAngle } from '../core/utils.js';
 import { state } from '../core/state.js';
-import { PLACE } from './sagaData.js?v=20261029b';
+import { PLACE } from './sagaData.js?v=20261029x';
 import { ROUTES } from './routes.js?v=20261029b';
+import { projectAlong } from './chase.js?v=20261030d';
 
 const DEST = { mcrebar: 'door', event: 'lawn', hall: 'hall', bank: 'bank', mallBolt: 'bolt' };
 
@@ -93,8 +94,27 @@ export function updateGuide(saga) {
   const here = saga.here();
   const dest = show ? destination(step) : null;
   let heading = null;
+  const chase = show && (step?.kind === 'follow' || step?.kind === 'catch') ? saga.chasePts() : null;
 
-  if (dest) {
+  if (chase && chase.length > 1) {
+    arrow.userData.dest = 'chase';
+    const on = projectAlong(chase, here.x, here.z);
+    const gDist = saga.gaborDist || 0;
+    let dir = arrow.userData.chaseDir || 1;
+    if (gDist > on.dist + 4) dir = 1;
+    else if (gDist < on.dist - 4) dir = -1;
+    arrow.userData.chaseDir = dir;
+    const seg = on.i;
+    const ax = chase[seg][0];
+    const az = chase[seg][1];
+    const bx = chase[Math.min(seg + 1, chase.length - 1)][0];
+    const bz = chase[Math.min(seg + 1, chase.length - 1)][1];
+    const gpos = saga.actors.gabor.position;
+    if (Math.hypot(gpos.x - here.x, gpos.z - here.z) < 3.2) { arrow.visible = false; return; }
+    if (on.off > 14) heading = Math.atan2(on.x - here.x, on.z - here.z);
+    else if (dir > 0) heading = Math.atan2(bx - ax, bz - az);
+    else heading = Math.atan2(ax - bx, az - bz);
+  } else if (dest) {
     if (arrow.userData.dest !== dest || !arrow.userData.route) {
       arrow.userData.dest = dest;
       arrow.userData.route = pickRoute(dest, here);
@@ -146,11 +166,13 @@ export function updateGuide(saga) {
   arrow.visible = true;
   arrow.position.set(
     here.x + Math.sin(heading) * ahead,
-    here.y + lift,
+    here.y + (chase ? lift + 0.85 : lift),
     here.z + Math.cos(heading) * ahead,
   );
   const dt = saga.game._dt || 0.016;
   if (arrow.userData.yaw == null) arrow.userData.yaw = heading + Math.PI;
-  arrow.userData.yaw = dampAngle(arrow.userData.yaw, heading + Math.PI, 10, dt);
-  arrow.rotation.y = arrow.userData.yaw;
+  const spin = chase ? 4 : 10;
+  arrow.userData.yaw = dampAngle(arrow.userData.yaw, heading + Math.PI, spin, dt);
+  arrow.rotation.set(chase ? -0.72 : 0, arrow.userData.yaw, 0);
+  arrow.scale.setScalar(chase ? 1.55 : 1);
 }
