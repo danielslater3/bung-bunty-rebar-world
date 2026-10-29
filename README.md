@@ -1,5 +1,7 @@
 # BUNG BUNTY: REBAR WORLD — WORLD DETAIL + CARTOON VISUAL REVAMP 3.0
 
+The current development handover for OpenAI Codex is in [`docs/handover/START_HERE.md`](docs/handover/START_HERE.md) and [`AGENTS.md`](AGENTS.md). The notes below describe the older sandbox campaign and are not the chapter-1–4 source of truth. Three.js is vendored at `vendor/three.module.js` (revision 160). The live site is GitHub Pages from `main`.
+
 A 3D comedy action-platformer / open-zone adventure / movement score-chaser /
 trolley-racing chaos game. You are **Bung Bunty**, a huge chaotic Aussie legend.
 Save Rebar World from **Gabor Mihala** in **OPERATION REBAR: BLUE TO RED**.
