@@ -23,6 +23,99 @@ function yaw() {
   return Math.atan2(-OUTX, -OUTZ);
 }
 
+function buildPodium(Z, y, ry, add) {
+  const black = mat(0x141414, { roughness: 0.48, metalness: 0.22 });
+  const gold = mat(0xf2c14b, { metalness: 0.85, roughness: 0.28, emissive: 0x5a3c08, emissiveIntensity: 0.55 });
+  const deck = mat(0xb08968, { roughness: 0.78 });
+  const rail = mat(0xd5eef5, { roughness: 0.05, metalness: 0.15, transparent: true, opacity: 0.38, side: THREE.DoubleSide });
+  const lit = mat(0xffe2b8, { emissive: 0xffb45a, emissiveIntensity: 0.7, roughness: 0.32 });
+  const steel = mat(0xc5ccd4, { metalness: 0.7, roughness: 0.25 });
+
+  // Sills either side of the door, then a head that runs the full mall front.
+  // The skin sits out past the mall's own signs so those signs do not show through the windows.
+  add(-5.0, -1.45, 7.2, 0.22, 2.7, black, { dy: -0.08, collide: false, ground: false });
+  add(5.0, -1.45, 7.2, 0.22, 2.7, black, { dy: -0.08, collide: false, ground: false });
+  add(9.05, -4.3, 0.42, 6.2, 3.3, black, { dy: 0.02, collide: false, ground: false });
+  add(9.32, -4.5, 0.06, 2.05, 1.35, lit, { dy: 0.5, collide: false, ground: false });
+  add(9.32, -4.5, 0.06, 1.85, 1.35, lit, { dy: 3.25, collide: false, ground: false });
+  add(-5.05, -2.72, 7.5, 0.38, 0.32, black, { dy: 0.02, collide: false, ground: false });
+  add(5.05, -2.72, 7.5, 0.38, 0.32, black, { dy: 0.02, collide: false, ground: false });
+  add(0, -2.72, 17.6, 0.46, 0.36, black, { dy: 2.68, collide: false, ground: false });
+
+  const lower = [[-7.5, 1.9], [-5.35, 1.9], [-3.2, 1.9], [3.2, 1.9], [5.35, 1.9], [7.55, 1.95]];
+  for (const [a, w] of lower) {
+    add(a, -2.6, w, 2.15, 0.08, lit, { dy: 0.46, collide: false, ground: false });
+    add(a, -2.82, 0.05, 2.15, 0.1, black, { dy: 0.46, collide: false, ground: false });
+  }
+  for (const a of [-8.55, -6.4, -4.25, -2.1, 2.1, 4.25, 6.45, 8.6]) {
+    add(a, -2.75, 0.24, 2.66, 0.4, black, { dy: 0.02, collide: false, ground: false });
+  }
+
+  // Upper row of windows, including the bay over the entrance, then the parapet.
+  for (const a of [-7.5, -5.35, -3.2, -1.05, 1.1, 3.25, 5.4, 7.55]) {
+    add(a, -2.6, 1.75, 1.95, 0.08, lit, { dy: 3.22, collide: false, ground: false });
+    add(a, -2.82, 0.05, 1.95, 0.1, black, { dy: 3.22, collide: false, ground: false });
+  }
+  for (const a of [-8.55, -6.4, -4.25, -2.1, 0.05, 2.2, 4.35, 6.5, 8.6]) {
+    add(a, -2.75, 0.2, 2.15, 0.38, black, { dy: 3.14, collide: false, ground: false });
+  }
+  add(0, -2.82, 18.2, 0.72, 0.42, black, { dy: 5.32, collide: false, ground: false });
+  add(0, -2.98, 18.4, 0.05, 0.08, gold, { dy: 5.28, collide: false, ground: false });
+  add(0, -2.9, 18.6, 0.14, 0.55, mat(0x0c0c0c, { roughness: 0.6 }), { dy: 6.04, collide: false, ground: false });
+  Z.textSign(mcrebarPoint(0, -3.05).x, y + 5.68, mcrebarPoint(0, -3.05).z, ry + Math.PI, 'McREBAR\n130 QUEEN STREET', { w: 3.4, h: 0.7, bg: '#141414', fg: '#f2c14b' });
+
+  // Corner return. The mall edge ends at B and the block turns down the side street.
+  const CX = 109.8, CZ = 61.8;
+  const sideLen = Math.hypot(CX - BX, CZ - BZ) || 1;
+  const ux = (CX - BX) / sideLen, uz = (CZ - BZ) / sideLen;
+  const nx = uz, nz = -ux;
+  const sideYaw = Math.atan2(nx, nz);
+  const side = (s, out, w, h, d, dy, material) => {
+    Z.box(BX + ux * s + nx * out, y + dy, BZ + uz * s + nz * out, w, h, d, material, { collide: false, ground: false, ry: sideYaw });
+  };
+  side(4.4, 0.22, 7.6, 6.15, 0.28, 0.02, black);
+  for (const s of [1.7, 4.0, 6.3]) {
+    side(s, 0.42, 1.55, 2.1, 0.06, 0.48, lit);
+    side(s, 0.42, 1.55, 1.9, 0.06, 3.24, lit);
+  }
+  side(4.2, 0.18, 8.0, 0.42, 0.32, 2.7, black);
+  side(4.2, 0.18, 8.2, 0.7, 0.4, 5.32, black);
+  const corner = mcrebarPoint(9.15, -2.7);
+  Z.box(corner.x, y + 0.02, corner.z, 0.85, 6.3, 0.85, black, { collide: false, ground: false });
+
+  // Gold rebar arch in the corner window, facing the mall.
+  const archAt = mcrebarPoint(7.55, -3.05);
+  const arch = new THREE.Group();
+  const tube = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.11, 12, 28, Math.PI), gold);
+  tube.position.y = 0.95;
+  arch.add(tube);
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.95, 10), gold);
+  legL.position.set(-0.95, 0.48, 0);
+  const legR = legL.clone();
+  legR.position.x = 0.95;
+  arch.add(legL, legR);
+  arch.position.set(archAt.x, y + 0.62, archAt.z);
+  arch.rotation.y = ry + Math.PI;
+  Z.group.add(arch);
+
+  // Terrace decks either side of the stair, with a glass balustrade.
+  for (const [a, w] of [[-5.15, 6.5], [4.2, 3.8]]) {
+    add(a, -3.55, w, 0.14, 1.55, deck, { dy: -0.02 });
+    add(a, -4.25, w, 1.05, 0.04, rail, { dy: 0.12, collide: false, ground: false });
+    add(a, -4.25, w, 0.05, 0.05, steel, { dy: 1.12, collide: false, ground: false });
+    const posts = w > 5 ? [-2.4, -0.8, 0.8, 2.4] : [-1.3, 0, 1.3];
+    for (const da of posts) {
+      add(a + da, -4.25, 0.06, 1.05, 0.06, steel, { dy: 0.12, collide: false, ground: false });
+    }
+    const pot = mcrebarPoint(a + (a < 0 ? 1.4 : -1.4), -3.2);
+    const planter = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.28, 8), mat(0x2a3038, { roughness: 0.6 }));
+    planter.position.set(pot.x, y + 0.28, pot.z);
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), mat(0x2f6b3a, { roughness: 0.8 }));
+    leaf.position.set(pot.x, y + 0.52, pot.z);
+    Z.group.add(planter, leaf);
+  }
+}
+
 export function buildMcRebar(saga) {
   const Z = saga.game.zone;
   const door = mcrebarPoint(0, -1.15);
@@ -71,29 +164,9 @@ export function buildMcRebar(saga) {
   add(0, 11.25, 15.4, 3.05, 0.14, black);
   add(-4.4, 0.15, 6.4, 3.05, 0.12, black);
   add(4.4, 0.15, 6.4, 3.05, 0.12, black);
-  // Glazed shopfront in the door opening and along the front.
+  // Glazed shopfront in the door opening.
   add(0, -0.02, 2.55, 2.7, 0.04, glass, { dy: 0, collide: false, ground: false });
-  add(-5.2, -0.05, 4.2, 2.2, 0.04, glass, { dy: 0.4, collide: false, ground: false });
-  add(5.2, -0.05, 4.2, 2.2, 0.04, glass, { dy: 0.4, collide: false, ground: false });
-  // Black fascia above the glass, the colour of the photographed podium.
-  add(0, -0.35, 15.8, 1.15, 0.2, black, { dy: 2.55, collide: false, ground: false });
-
-  // Lit window in the glass above the street shops, clear of the mall sign.
-  add(5.4, -0.62, 2.35, 1.7, 0.1, black, { dy: 2.45, collide: false, ground: false });
-  add(5.4, -0.52, 1.65, 1.1, 0.05, mat(0xffe2b0, { emissive: 0xffc56a, emissiveIntensity: 0.9, roughness: 0.35 }), { dy: 2.72, collide: false, ground: false });
-  const archAt = mcrebarPoint(5.4, -0.95);
-  const arch = new THREE.Group();
-  const tube = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.1, 12, 28, Math.PI), gold);
-  tube.position.y = 0.72;
-  arch.add(tube);
-  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.72, 10), gold);
-  legL.position.set(-0.72, 0.36, 0);
-  const legR = legL.clone();
-  legR.position.x = 0.72;
-  arch.add(legL, legR);
-  arch.position.set(archAt.x, y + 2.55, archAt.z);
-  arch.rotation.y = ry + Math.PI;
-  Z.group.add(arch);
+  buildPodium(Z, y, ry, add);
 
   // Landing in the doorway, then a stair the player can climb one tread at a time.
   add(0, -0.9, 2.7, 0.16, 2.1, mat(0xd9d4cc, { roughness: 0.8 }), { dy: -0.16, collide: false });
@@ -106,11 +179,13 @@ export function buildMcRebar(saga) {
     const top = y - i * tread;
     Z.box(p.x, top - tread, p.z, 2.4, tread, 0.42, mat(0xd9d4cc, { roughness: 0.8 }), { collide: false, ry });
   }
-  // Handrails
-  for (const side of [-1.15, 1.15]) {
-    const a = mcrebarPoint(side, -1.2);
-    const b = mcrebarPoint(side, -1.85 - steps * 0.42);
-    Z.box((a.x + b.x) / 2, street + 0.9, (a.z + b.z) / 2, 0.08, 0.08, steps * 0.42 + 0.4, steel, { collide: false, ground: false, ry });
+  for (const side of [-1.25, 1.25]) {
+    for (let i = 0; i < steps; i += 2) {
+      const depth = -1.85 - i * 0.42;
+      const p = mcrebarPoint(side, depth);
+      const top = y - i * tread;
+      Z.box(p.x, top, p.z, 0.06, 0.95, 0.06, steel, { collide: false, ground: false });
+    }
   }
 
   // Perforated timber ceiling reads as a grid of battens, not a flat slab only.
@@ -143,8 +218,12 @@ export function buildMcRebar(saga) {
   for (const a of [-5.4, -3.8, -2.3]) table(a, 2.1);
   for (const a of [2.4, 4.1, 5.6]) table(a, 2.15);
   add(6.5, 1.3, 0.45, 0.7, 0.45, mat(0x3e6b45, { roughness: 0.85 }), { collide: false, ground: false });
-  // Main floor and the young-adult tables.
+  // Main floor, the young-adult tables, and the long communal table from the plan.
   for (const [a, d] of [[-1.2, 4.3], [1.4, 4.5], [-3.6, 4.6], [3.6, 4.4]]) table(a, d);
+  add(0.2, 5.15, 2.6, 0.08, 0.9, timber, { dy: 0.74, collide: false, ground: false });
+  add(0.2, 5.15, 0.1, 0.74, 0.1, mat(0x22262e, { roughness: 0.5 }), { collide: false, ground: false });
+  add(-0.7, 5.15, 0.4, 0.42, 0.9, seat, { dy: 0.42, collide: false, ground: false });
+  add(1.1, 5.15, 0.4, 0.42, 0.9, seat, { dy: 0.42, collide: false, ground: false });
   // Private dining, a closed glass room on the left.
   add(-6.3, 6.4, 2.3, 2.4, 0.06, glass, { collide: false, ground: false });
   add(-5.2, 7.3, 0.06, 2.4, 2.2, glass, { collide: false, ground: false });

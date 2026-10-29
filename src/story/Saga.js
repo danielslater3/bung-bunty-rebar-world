@@ -5,9 +5,9 @@ import { mat } from '../core/utils.js';
 import { unlockArchive } from '../lore/universe.js?v=20261029a';
 import { buildChing, buildGabor, buildScooter, setBungKit } from '../entities/models.js?v=20261029b';
 import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js?v=20261029b';
-import { buildHouse } from './house.js?v=20261029i';
-import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029i';
-import { buildGuide, updateGuide } from './guide.js?v=20261029k';
+import { buildHouse } from './house.js?v=20261029v';
+import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029q';
+import { buildGuide, updateGuide } from './guide.js?v=20261029r';
 import {
   bootMission, tickMission, poseMission, missionMarker, missionLabel, onInteract,
   closePlay, prepSnow, driftSnow,
@@ -108,6 +108,7 @@ export class Saga {
     if (this.game.mode !== 'playing') return;
     this.syncKit();
     updateGuide(this);
+    this.tickGarage(dt);
     this.tickPose(dt);
     if (state.saga.intermission) {
       this.poseActors();
@@ -214,6 +215,9 @@ export class Saga {
     this.interact('wardrobe', PLACE.wardrobe, hy, '<b>[E]</b> Wardrobe', () => this.onWardrobe());
     this.interact('shelf', PLACE.shelf, hy, '<b>[E]</b> Rebar shelf', () => this.onShelf());
     this.interact('garage', PLACE.garage, hy, '<b>[E]</b> Trolley pad', () => this.onGarage());
+    if (house.garage) {
+      this.interact('garage-door', { x: house.garage.doorX, z: house.garage.doorZ }, hy, '<b>[E]</b> Garage door', () => this.toggleGarage());
+    }
     this.interact('mcrebar', PLACE.mcrebar, my, '<b>[E]</b> McRebar counter', () => this.onCounter());
     this.interact('gabor', { x: 0, z: 0 }, 0, '<b>[E]</b> Gabor', () => this.onGabor(), 3.4);
     this.interact('bag', { x: 0, z: 0 }, 0, '<b>[E]</b> The scanned meal', () => this.onBag(), 3.2);
@@ -635,7 +639,7 @@ export class Saga {
   go(id) {
     const p = this.point(id);
     if (id === 'mcrebar' && this.actors?.bar) p.y = this.actors.bar.y;
-    if (['home', 'bed', 'wardrobe', 'shelf'].includes(id) && this.actors?.house) p.y = this.actors.house.y;
+    if (['home', 'bed', 'wardrobe', 'shelf', 'garage'].includes(id) && this.actors?.house) p.y = this.actors.house.y;
     this.game.trolley.dismiss();
     this.game.player.teleport(new THREE.Vector3(p.x, p.y + 0.55, p.z));
     this.snapCamera();
@@ -854,10 +858,52 @@ export class Saga {
     this.game.say('bung', list.length ? `On the shelf: ${list.join(', ')}.` : 'The shelf is ready for a legend and is currently ready for dust.');
   }
 
+  openGarage() {
+    const g = this.actors?.house?.garage;
+    if (!g || g.target > 0.4) return;
+    g.target = 1.2;
+    g.moving = true;
+    this.game.audio.sfx('unlock');
+  }
+
+  closeGarage() {
+    const g = this.actors?.house?.garage;
+    if (!g || g.target < 0.4) return;
+    g.target = 0;
+    g.moving = true;
+    this.game.audio.sfx('unlock');
+  }
+
+  toggleGarage() {
+    const g = this.actors?.house?.garage;
+    if (!g) return;
+    if (g.target > 0.4) this.closeGarage();
+    else this.openGarage();
+  }
+
+  tickGarage(dt) {
+    const g = this.actors?.house?.garage;
+    if (!g?.moving) return;
+    const cur = g.hinge.rotation.x;
+    g.hinge.rotation.x = cur + (g.target - cur) * Math.min(1, dt * 3);
+    if (g.hinge.rotation.x > 0.75) {
+      const list = this.game.zone.colliders;
+      const i = list.indexOf(g.blocker);
+      if (i >= 0) list.splice(i, 1);
+    }
+    if (Math.abs(g.hinge.rotation.x - g.target) < 0.02) {
+      g.hinge.rotation.x = g.target;
+      g.moving = false;
+      g.open = g.target > 0.4;
+      if (!g.open && !this.game.zone.colliders.includes(g.blocker)) this.game.zone.colliders.push(g.blocker);
+    }
+  }
+
   onGarage() {
     if (this.stepIs('garage')) {
       state.flags.trolleyUnlocked = true;
       this.game.hud.refresh();
+      this.openGarage();
       this.game.trolley.summon();
       this.game.dialogue.conversation([['bung', 'Golden trolley, online. Queen Street is that way, and so is dinner.']], () => this.advance());
       return;

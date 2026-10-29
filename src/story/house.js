@@ -1,5 +1,5 @@
 // Bung's West End house. A real plan: verandah, bedroom, living room,
-// kitchen, rebar cupboard and a carport. Furniture is geometry he can use.
+// kitchen, rebar cupboard and a workshop garage. Furniture is geometry he can use.
 import * as THREE from 'three';
 import { mat } from '../core/utils.js';
 import { PLACE } from './sagaData.js?v=20261029b';
@@ -25,6 +25,24 @@ function woodTex() {
   return t;
 }
 
+function boardTex(dark) {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 128;
+  const g = c.getContext('2d');
+  for (let row = 0; row < 128; row += 8) {
+    g.fillStyle = dark ? (row % 16 ? '#d9cdb4' : '#cfc2a6') : (row % 16 ? '#f4ecdc' : '#e7dcc4');
+    g.fillRect(0, row, 64, 7);
+    g.fillStyle = 'rgba(80,60,30,.4)';
+    g.fillRect(0, row + 7, 64, 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 2);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.88 });
+}
+
 function hinge(group, x, y, z) {
   const h = new THREE.Group();
   h.position.set(x, y, z);
@@ -45,8 +63,9 @@ export function buildHouse(saga) {
     }
   }
   const y = peak + 0.04;
-  const board = mat(0xf3ead8, { roughness: 0.86 });
-  const boardD = mat(0xe2d3b8, { roughness: 0.9 });
+  const board = boardTex(false);
+  const boardD = boardTex(true);
+  const plaster = mat(0xf7f2e8, { roughness: 0.94 });
   const trim = mat(0xf7f4ee, { roughness: 0.7 });
   const timber = mat(0x8a5a32, { roughness: 0.72 });
   const floorMat = new THREE.MeshStandardMaterial({ map: woodTex(), roughness: 0.78, metalness: 0.02 });
@@ -69,9 +88,25 @@ export function buildHouse(saga) {
   // Weatherboards. North wall keeps a front door.
   Z.box(cx, y, Z1, W, 2.7, 0.16, board);
   Z.box(X0, y, cz, 0.16, 2.7, D, board);
-  Z.box(X1, y, cz, 0.16, 2.7, D, boardD);
+  // East wall, split for the door into the garage.
+  const sideDoorZ = home.z + 1.6;
+  const sideHalf = 0.82;
+  const eastNorthLen = (sideDoorZ - sideHalf) - Z0;
+  const eastSouthLen = Z1 - (sideDoorZ + sideHalf);
+  Z.box(X1, y, Z0 + eastNorthLen / 2, 0.16, 2.7, eastNorthLen, boardD);
+  Z.box(X1, y, Z1 - eastSouthLen / 2, 0.16, 2.7, eastSouthLen, boardD);
+  Z.box(X1, y, sideDoorZ - sideHalf, 0.2, 2.2, 0.1, trim);
+  Z.box(X1, y, sideDoorZ + sideHalf, 0.2, 2.2, 0.1, trim);
+  Z.box(X1, y + 2.15, sideDoorZ, 0.2, 0.12, sideHalf * 2 + 0.16, trim);
   Z.box(cx - 3.7, y, Z0, 5.0, 2.7, 0.16, board);
   Z.box(cx + 3.7, y, Z0, 5.0, 2.7, 0.16, board);
+  // Plaster lining so the weatherboards stay on the outside.
+  Z.box(cx, y, Z1 - 0.1, W - 0.35, 2.58, 0.04, plaster, { collide: false, ground: false });
+  Z.box(X0 + 0.1, y, cz, 0.04, 2.58, D - 0.35, plaster, { collide: false, ground: false });
+  Z.box(X1 - 0.1, y, Z0 + eastNorthLen / 2, 0.04, 2.58, Math.max(0.2, eastNorthLen - 0.3), plaster, { collide: false, ground: false });
+  Z.box(X1 - 0.1, y, Z1 - eastSouthLen / 2, 0.04, 2.58, Math.max(0.2, eastSouthLen - 0.2), plaster, { collide: false, ground: false });
+  Z.box(cx - 3.7, y, Z0 + 0.1, 4.7, 2.58, 0.04, plaster, { collide: false, ground: false });
+  Z.box(cx + 3.7, y, Z0 + 0.1, 4.7, 2.58, 0.04, plaster, { collide: false, ground: false });
   // Door frame and a half-glazed door, left open.
   Z.box(cx - 1.15, y, Z0, 0.1, 2.35, 0.18, trim);
   Z.box(cx + 1.15, y, Z0, 0.1, 2.35, 0.18, trim);
@@ -106,17 +141,32 @@ export function buildHouse(saga) {
   const skirting = mat(0xf7f4ee, { roughness: 0.7 });
   Z.box(cx, y, Z1 - 0.12, W - 0.3, 0.12, 0.04, skirting, { collide: false, ground: false });
   Z.box(X0 + 0.12, y, cz, 0.04, 0.12, D - 0.3, skirting, { collide: false, ground: false });
-  Z.box(X1 - 0.12, y, cz, 0.04, 0.12, D - 0.3, skirting, { collide: false, ground: false });
+  Z.box(X1 - 0.12, y, Z0 + eastNorthLen / 2, 0.04, 0.12, Math.max(0.2, eastNorthLen - 0.4), skirting, { collide: false, ground: false });
+  Z.box(X1 - 0.12, y, Z1 - eastSouthLen / 2, 0.04, 0.12, Math.max(0.2, eastSouthLen - 0.3), skirting, { collide: false, ground: false });
   Z.box(cx, y + 2.55, cz, W - 0.2, 0.06, 0.06, skirting, { collide: false, ground: false });
 
-  // Windows
-  for (const [x, z, ry] of [[X0 - 0.02, home.z - 2.2, Math.PI / 2], [X1 + 0.02, home.z + 2.4, Math.PI / 2], [cx + 3.2, Z1 + 0.02, 0]]) {
-    const win = new THREE.Mesh(new THREE.BoxGeometry(1.15, 1.05, 0.05), glass);
-    win.position.set(x, y + 1.45, z);
-    win.rotation.y = ry;
-    Z.group.add(win);
-    Z.box(x, y + 1.45, z, ry ? 0.08 : 1.25, 1.15, ry ? 1.25 : 0.08, trim, { collide: false, ground: false });
-  }
+  // Windows: jambs, sill, head and a mullion, with the glass in the opening.
+  const windowAt = (x, z, ry) => {
+    const frame = new THREE.Group();
+    frame.position.set(x, y + 1.45, z);
+    frame.rotation.y = ry;
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.95, 0.03), glass);
+    frame.add(pane);
+    const bar = (bx, by, bw, bh) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, 0.08), trim);
+      m.position.set(bx, by, 0);
+      frame.add(m);
+    };
+    bar(0, 0.55, 1.28, 0.08);
+    bar(0, -0.55, 1.28, 0.08);
+    bar(-0.58, 0, 0.08, 1.02);
+    bar(0.58, 0, 0.08, 1.02);
+    bar(0, 0, 0.045, 0.95);
+    Z.group.add(frame);
+  };
+  windowAt(X0 - 0.02, home.z - 2.2, Math.PI / 2);
+  windowAt(X1 + 0.02, home.z + 2.4, Math.PI / 2);
+  windowAt(cx + 3.2, Z1 + 0.02, 0);
 
   // Bed, where the chapter starts. Frame, mattress, pillow and a folded blanket.
   const bed = PLACE.bed;
@@ -130,6 +180,7 @@ export function buildHouse(saga) {
   Z.box(bed.x, y + 0.32, bed.z + 0.05, 1.28, 0.08, 1.9, timber, { collide: false, ground: false });
   Z.box(bed.x, y + 0.4, bed.z + 0.02, 1.32, 0.18, 1.95, mat(0xf7f4ee, { roughness: 0.9 }), { collide: false });
   Z.box(bed.x, y + 0.56, bed.z + 0.55, 1.22, 0.06, 0.85, mat(0xc45a4a, { roughness: 0.85 }), { collide: false, ground: false });
+  Z.box(bed.x, y + 0.02, bed.z, 1.9, 0.02, 2.5, mat(0x8d4a3a, { roughness: 0.95 }), { collide: false, ground: false });
   const pillow = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), mat(0xf4f1ea, { roughness: 0.9 }));
   pillow.scale.set(1.3, 0.45, 0.85);
   pillow.position.set(bed.x, y + 0.68, headZ - 0.28);
@@ -222,6 +273,19 @@ export function buildHouse(saga) {
   Z.box(cx + 0.25, y + 0.94, Z1 - 0.55, 0.22, 0.02, 0.22, mat(0x2a3038, { metalness: 0.6, roughness: 0.3 }), { collide: false, ground: false });
   Z.box(cx + 1.7, y, Z1 - 0.85, 0.7, 1.7, 0.65, mat(0xe7e4dc, { roughness: 0.45 }));
   Z.box(cx + 1.32, y + 0.85, Z1 - 0.5, 0.04, 0.55, 0.04, mat(0xc9ccd4, { metalness: 0.75, roughness: 0.25 }), { collide: false, ground: false });
+  Z.box(cx - 0.4, y + 1.45, Z1 - 0.52, 2.8, 0.62, 0.32, mat(0xf4f0e6, { roughness: 0.55 }), { collide: false, ground: false });
+  const tap = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.2, 6), mat(0xc9ccd4, { metalness: 0.8, roughness: 0.2 }));
+  tap.position.set(cx - 1.5, y + 1.1, Z1 - 0.62);
+  Z.group.add(tap);
+  for (const dx of [-0.15, 0.25]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.012, 6, 14), mat(0x2a3038, { metalness: 0.65, roughness: 0.3 }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(cx + dx, y + 0.98, Z1 - 0.55);
+    Z.group.add(ring);
+  }
+  const pend = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.12, 10, 1, true), mat(0xfff1c4, { side: THREE.DoubleSide, emissive: 0xffe2a0, emissiveIntensity: 0.45 }));
+  pend.position.set(cx, y + 2.22, Z1 - 1.35);
+  Z.group.add(pend);
   const kitchenLight = new THREE.PointLight(0xfff4e0, 1.8, 8, 2);
   kitchenLight.position.set(cx, y + 2.4, Z1 - 1.3);
   Z.group.add(kitchenLight);
@@ -234,22 +298,138 @@ export function buildHouse(saga) {
   Z.box(cx + 0.88, y + 0.4, couchZ - 0.02, 0.14, 0.26, 0.78, cloth, { collide: false, ground: false });
   Z.box(cx, y + 0.4, couchZ - 0.02, 0.03, 0.05, 0.62, mat(0x556270, { roughness: 0.9 }), { collide: false, ground: false });
   Z.box(cx, y + 0.01, home.z + 1.5, 2.4, 0.02, 1.6, mat(0x8d3b3b, { roughness: 0.95 }), { collide: false, ground: false });
+  Z.box(cx, y, home.z + 1.05, 0.85, 0.34, 0.48, timber, { collide: false });
 
-  // Carport over the trolley pad.
-  const g = PLACE.garage;
-  const gy = saga.ground(g.x, g.z);
-  for (const [dx, dz] of [[-1.3, -1.1], [1.3, -1.1], [-1.3, 1.1], [1.3, 1.1]]) {
-    Z.box(g.x + dx, gy, g.z + dz, 0.12, 2.5, 0.12, trim);
-  }
-  Z.box(g.x, gy + 2.45, g.z, 3.1, 0.1, 2.7, mat(0xc4552a, { roughness: 0.7 }), { collide: false, ground: false });
-  Z.box(g.x, gy, g.z, 2.2, 0.08, 1.3, mat(0xe0b15a, { metalness: 0.75, roughness: 0.28, emissive: 0x5a3c08 }), { collide: false });
   Z.textSign(home.x, y + 2.35, Z0 - 2.5, Math.PI, "BUNG'S PLACE\nWEST END", { w: 3.4, h: 0.85, bg: '#ffc02e', fg: '#1a1d26' });
 
-  // Gate posts where the yard meets the street.
-  const gate = PLACE.gate;
-  const qy = saga.ground(gate.x, gate.z);
-  Z.box(gate.x - 1.4, qy, gate.z, 0.16, 1.3, 0.16, trim);
-  Z.box(gate.x + 1.4, qy, gate.z, 0.16, 1.3, 0.16, trim);
+  // Workshop garage on the east side. Wide enough for the trolley to reverse,
+  // turn and leave by the north door onto the driveway.
+  const concrete = mat(0xb7b2a8, { roughness: 0.92 });
+  const steel = mat(0x8d939c, { metalness: 0.72, roughness: 0.35 });
+  const minX = X1 + 0.35;
+  const maxX = minX + 7.6;
+  const minZ = Z0 - 6.8;
+  const maxZ = sideDoorZ + 2.4;
+  const gcx = (minX + maxX) / 2;
+  const gcz = (minZ + maxZ) / 2;
+  const gFloor = y + 0.16;
+  Z.box(gcx, y, gcz, maxX - minX, 0.16, maxZ - minZ, concrete);
+  Z.box((X1 + minX) / 2, y, sideDoorZ, minX - X1 + 0.2, 0.16, sideHalf * 2, concrete);
+  const gapX = (X1 + 0.08 + minX) / 2;
+  const gapW = Math.max(0.12, minX - (X1 + 0.08));
+  Z.box(gapX, y, (Z0 + sideDoorZ - sideHalf) / 2, gapW, 2.7, (sideDoorZ - sideHalf) - Z0, boardD);
+  Z.box(gapX, y, (sideDoorZ + sideHalf + maxZ) / 2, gapW, 2.7, maxZ - (sideDoorZ + sideHalf), boardD);
+  Z.box(maxX, y, gcz, 0.16, 2.75, maxZ - minZ, boardD);
+  Z.box(gcx, y, maxZ, maxX - minX, 2.75, 0.16, boardD);
+  // North wall stays solid. The real building north of the yard blocks that way.
+  Z.box(gcx, y, minZ, maxX - minX, 2.75, 0.16, boardD);
+  const opening = 3.6;
+  const doorZ = minZ + 2.4;
+  const southOfDoor = Z0 - (doorZ + opening / 2);
+  const northOfDoor = (doorZ - opening / 2) - minZ;
+  if (southOfDoor > 0.2) Z.box(minX, y, Z0 - southOfDoor / 2, 0.16, 2.75, southOfDoor, boardD);
+  if (northOfDoor > 0.2) Z.box(minX, y, minZ + northOfDoor / 2, 0.16, 2.75, northOfDoor, boardD);
+  Z.box(minX, y + 2.45, doorZ, 0.2, 0.3, opening + 0.2, trim);
+  Z.box(gcx, y + 2.72, gcz, maxX - minX + 0.3, 0.14, maxZ - minZ + 0.3, mat(0x6e4b32, { roughness: 0.8 }), { collide: false, ground: false });
+  const doorMount = new THREE.Group();
+  doorMount.position.set(minX - 0.02, y + 2.42, doorZ);
+  doorMount.rotation.y = Math.PI / 2;
+  Z.group.add(doorMount);
+  const doorHinge = new THREE.Group();
+  doorMount.add(doorHinge);
+  const panelMat = mat(0xd9d3c8, { roughness: 0.55, metalness: 0.12 });
+  for (let i = 0; i < 5; i++) {
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(opening - 0.18, 0.4, 0.05), panelMat);
+    panel.position.set(0, -0.26 - i * 0.42, 0);
+    doorHinge.add(panel);
+  }
+  const blocker = new THREE.Box3(
+    new THREE.Vector3(minX - 0.22, y, doorZ - opening / 2 + 0.05),
+    new THREE.Vector3(minX + 0.22, y + 2.3, doorZ + opening / 2 - 0.05),
+  );
+  Z.colliders.push(blocker);
 
-  return { y, door, wardL, wardR, cupL, cupR, hanging, bars, emerald };
+  const benchX = maxX - 0.7;
+  Z.box(benchX, y, gcz + 1.2, 0.7, 0.92, 2.4, timber);
+  Z.box(benchX, y + 0.92, gcz + 1.2, 0.78, 0.06, 2.5, mat(0x6d5138, { roughness: 0.7 }), { collide: false, ground: false });
+  Z.colliders.push(new THREE.Box3(
+    new THREE.Vector3(benchX - 0.4, y, gcz - 0.1),
+    new THREE.Vector3(benchX + 0.4, y + 1.05, gcz + 2.5),
+  ));
+  for (let i = 0; i < 4; i++) {
+    const tool = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.04), steel);
+    tool.position.set(benchX - 0.2, y + 1.15, gcz + 0.3 + i * 0.4);
+    tool.rotation.z = i % 2 ? 0.4 : -0.2;
+    Z.group.add(tool);
+  }
+  const rackZ = maxZ - 0.55;
+  Z.box(gcx - 0.4, y, rackZ, 2.2, 1.35, 0.35, steel);
+  for (let i = 0; i < 5; i++) {
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.15, 6), rust);
+    rod.rotation.z = Math.PI / 2;
+    rod.position.set(gcx - 1.15 + i * 0.38, y + 0.85, rackZ);
+    Z.group.add(rod);
+  }
+  Z.box(maxX - 0.5, y, gcz - 2.4, 0.62, 1.15, 0.5, mat(0x3e4a44, { roughness: 0.6 }));
+  const bayLight = new THREE.PointLight(0xfff1d2, 2.0, 14, 2);
+  bayLight.position.set(gcx, y + 2.45, gcz);
+  Z.group.add(bayLight);
+  const bayLamp = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.28), mat(0xfff1c9, { emissive: 0xffe2a0, emissiveIntensity: 0.8 }));
+  bayLamp.position.set(gcx, y + 2.55, gcz);
+  Z.group.add(bayLamp);
+  Z.textSign(minX - 0.16, y + 2.15, doorZ, -Math.PI / 2, 'JAMES REBAR', { w: 2.4, h: 0.36, bg: '#1a1d26', fg: '#ffc02e' });
+
+  // Drive west, clear of the building that sits immediately north of the yard,
+  // then north onto the street the route already uses.
+  PLACE.gate.x = -844.3;
+  PLACE.gate.z = 877.1;
+  const gate = PLACE.gate;
+  const street = saga.ground(gate.x, gate.z);
+  const westRun = minX - (gate.x + 1.5);
+  const westSlabs = 8;
+  for (let i = 0; i < westSlabs; i++) {
+    const t = (i + 0.5) / westSlabs;
+    const x = minX - t * westRun;
+    const ramp = gFloor * (1 - t) + street * t;
+    const top = Math.max(ramp, saga.ground(x, doorZ) + 0.03);
+    Z.box(x, top - 0.12, doorZ, westRun / westSlabs + 0.15, 0.12, 4.4, concrete);
+  }
+  const northRun = doorZ - gate.z;
+  const northSlabs = 6;
+  for (let i = 0; i < northSlabs; i++) {
+    const t = (i + 0.5) / northSlabs;
+    const z = doorZ - t * northRun;
+    const top = Math.max(street + 0.04, saga.ground(gate.x, z) + 0.03);
+    Z.box(gate.x, top - 0.12, z, 4.4, 0.12, northRun / northSlabs + 0.15, concrete);
+  }
+
+  PLACE.garage.x = gcx + 1.4;
+  PLACE.garage.z = gcz + 1.6;
+  const garage = {
+    minX, maxX, minZ, maxZ,
+    cx: gcx + 0.8, cz: doorZ,
+    heading: -Math.PI / 2,
+    doorX: minX, doorZ,
+    hinge: doorHinge, blocker, target: 0, moving: false, open: false,
+  };
+
+  const qy = street;
+  Z.box(gate.x - 2.7, qy, gate.z, 0.16, 1.3, 0.16, trim);
+  Z.box(gate.x + 2.7, qy, gate.z, 0.16, 1.3, 0.16, trim);
+  const lane = mat(0xf0c14b, { roughness: 0.55, emissive: 0x5a3c08, emissiveIntensity: 0.15 });
+  for (let i = 0; i < 5; i++) {
+    Z.box(minX + 1.1 + i * 1.15, y + 0.165, doorZ, 0.55, 0.015, 0.14, lane, { collide: false, ground: false });
+  }
+  Z.box(gcx + 2.15, y + 1.2, minZ + 0.28, 1.7, 0.62, 0.32, steel, { collide: false, ground: false });
+  Z.colliders.push(new THREE.Box3(
+    new THREE.Vector3(gcx + 1.2, y, minZ),
+    new THREE.Vector3(gcx + 3.1, y + 1.9, minZ + 0.55),
+  ));
+  for (const [dx, col] of [[1.6, 0x8a3b2a], [2.15, 0x2a3a4a]]) {
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.55, 10), mat(col, { roughness: 0.45, metalness: 0.35 }));
+    drum.position.set(maxX - 0.55, y + 0.44, maxZ - 1.3 - dx);
+    Z.group.add(drum);
+  }
+
+  return { y, door, wardL, wardR, cupL, cupR, hanging, bars, emerald, garage };
 }

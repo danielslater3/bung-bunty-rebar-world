@@ -152,10 +152,18 @@ export class Trolley {
       return;
     }
     const p = g.player;
-    const dir = new THREE.Vector3(Math.sin(p.facing), 0, Math.cos(p.facing));
-    this.pos.copy(p.pos).addScaledVector(dir, 2.2);
-    this.pos.y = p.pos.y + 0.5;
-    this.heading = p.facing;
+    const bay = g.saga?.actors?.house?.garage;
+    const inside = bay && p.pos.x > bay.minX && p.pos.x < bay.maxX && p.pos.z > bay.minZ && p.pos.z < bay.maxZ;
+    if (inside) {
+      this.pos.set(bay.cx, p.pos.y + 0.15, bay.cz);
+      this.heading = bay.heading;
+      g.saga.openGarage?.();
+    } else {
+      const dir = new THREE.Vector3(Math.sin(p.facing), 0, Math.cos(p.facing));
+      this.pos.copy(p.pos).addScaledVector(dir, 2.2);
+      this.pos.y = p.pos.y + 0.5;
+      this.heading = p.facing;
+    }
     this.speed = 0; this.vy = 0;
     this.summoned = true;
     this.mesh.visible = true;

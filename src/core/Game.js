@@ -7,7 +7,7 @@ import { Input } from './Input.js';
 import { AudioManager } from './AudioManager.js';
 import { FX } from './FX.js';
 import { Player } from '../entities/Player.js?v=20261029b';
-import { Trolley } from '../entities/Trolley.js?v=20261029a';
+import { Trolley } from '../entities/Trolley.js?v=20261029r';
 import { DialogueSystem } from '../systems/DialogueSystem.js?v=20261029a';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { ShopSystem } from '../systems/ShopSystem.js';
@@ -17,7 +17,7 @@ import { Menus } from '../ui/Menus.js?v=20261029b';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
-import { Saga, createSaga } from '../story/Saga.js?v=20261029k';
+import { Saga, createSaga } from '../story/Saga.js?v=20261029v';
 
 export class Game {
   constructor() {
@@ -341,6 +341,7 @@ export class Game {
   // ============ MAIN LOOP ============
   frame() {
     const dt = Math.min(0.05, this.clock.getDelta());
+    this._dt = dt;
     this.elapsed += dt;
 
     if (this.mode === 'playing') this.updatePlaying(dt);
@@ -508,45 +509,61 @@ export class Game {
       this.camYaw += d * (1 - Math.exp(-1.6 * dt));
     }
 
-    let dist = riding ? 9.5 : 7.2;
-    const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
+    let dist = riding ? 8.2 : 6.4;
+    let pitch = this.camPitch;
+    let ceilGap = Infinity;
+    this._camRay = this._camRay || new THREE.Raycaster();
+    // A low ceiling means the usual outdoor pitch would sit on the roof.
+    if (this.zone?.group) {
+      this._camRay.set(targetPos, this._camUp || (this._camUp = new THREE.Vector3(0, 1, 0)));
+      this._camRay.far = 3;
+      const up = this._camRay.intersectObject(this.zone.group, true).find((h) => h.distance > 0.15);
+      if (up && up.distance < 2.2) {
+        ceilGap = up.distance;
+        pitch = Math.min(pitch, 0.06);
+        dist = Math.min(dist, riding ? 4.4 : 3.2);
+      }
+    }
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
     const offset = new THREE.Vector3(
       Math.sin(this.camYaw) * cp * dist,
-      sp * dist + 0.5,
+      sp * dist + 0.35,
       Math.cos(this.camYaw) * cp * dist
     );
 
-    // Camera wall collision: raycast from the focus point toward the desired
-    // camera spot; if level geometry is in the way, pull the camera in.
-    if (this.zone && (this.zone.grounds.length || this.zone.blockers?.length)) {
+    // Pull the camera in before it crosses a wall, a roof, or furniture.
+    if (this.zone?.group) {
       const dir = offset.clone().normalize();
-      this._camRay = this._camRay || new THREE.Raycaster();
       this._camRay.set(targetPos, dir);
       this._camRay.far = dist;
-      const hits = [];
-      if (this.zone.grounds.length) this._camRay.intersectObjects(this.zone.grounds, false, hits);
-      if (this.zone.blockers?.length) this._camRay.intersectObjects(this.zone.blockers, true, hits);
-      if (hits.length) {
-        hits.sort((a, b) => a.distance - b.distance);
-        dist = Math.max(1.6, hits[0].distance * 0.92);
-      }
-      if (this.zone.colliders?.length) {
-        const point = this._camHit || (this._camHit = new THREE.Vector3());
-        for (const box of this.zone.colliders) {
-          const hit = this._camRay.ray.intersectBox(box, point);
-          if (!hit) continue;
-          const d = hit.distanceTo(targetPos);
-          if (d < dist) dist = Math.max(1.6, d * 0.92);
-        }
-      }
+      const hit = this._camRay.intersectObject(this.zone.group, true).find((h) => h.distance > 0.25);
+      if (hit) dist = Math.max(1.15, hit.distance * 0.82);
     }
     const desired = targetPos.clone().addScaledVector(offset.normalize(), dist);
-    // Keep camera above the deck a little
-    desired.y = Math.max(desired.y, targetPos.y - 1.5);
+    desired.y = Math.max(desired.y, targetPos.y - 0.4);
+    if (ceilGap < 2.2) desired.y = Math.min(desired.y, targetPos.y + Math.max(0.06, ceilGap * 0.28));
 
-    this.camPos.x = damp(this.camPos.x, desired.x, 14, dt);
-    this.camPos.y = damp(this.camPos.y, desired.y, 14, dt);
-    this.camPos.z = damp(this.camPos.z, desired.z, 14, dt);
+    const pull = dist < this.camPos.distanceTo(targetPos) ? 22 : 8;
+    this.camPos.x = damp(this.camPos.x, desired.x, pull, dt);
+    this.camPos.y = damp(this.camPos.y, desired.y, pull, dt);
+    this.camPos.z = damp(this.camPos.z, desired.z, pull, dt);
+    // The smoothed position can still be outside for a frame. Snap it back.
+    if (this.zone?.group) {
+      const back = this.camPos.clone().sub(targetPos);
+      const backLen = back.length();
+      if (backLen > 0.5) {
+        this._camRay.set(targetPos, back.multiplyScalar(1 / backLen));
+        this._camRay.far = backLen;
+        const hit = this._camRay.intersectObject(this.zone.group, true).find((h) => h.distance > 0.25);
+        if (hit && hit.distance < backLen - 0.05) {
+          this.camPos.copy(targetPos).addScaledVector(this._camRay.ray.direction, Math.max(1.15, hit.distance * 0.82));
+        }
+      }
+      if (ceilGap < 2.2) {
+        const cap = targetPos.y + Math.max(0.06, ceilGap * 0.28);
+        if (this.camPos.y > cap) this.camPos.y = cap;
+      }
+    }
     this.camera.position.copy(this.camPos);
 
     // ---- Camera shake (subtle, decaying) ----
