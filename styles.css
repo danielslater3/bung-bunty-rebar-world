@@ -27,6 +27,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0d14; f
 .hidden { display: none !important; }
 
 /* ---------- HUD ---------- */
+.saga-list { max-height: 48vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.saga-item { text-align: left; background: rgba(8,12,20,.72); color: #fff; border: 3px solid #1a1d26; border-radius: 14px; padding: 8px 12px; font-family: Nunito, sans-serif; cursor: pointer; }
+.saga-item b { display: block; color: var(--gold); font-size: 12px; letter-spacing: 1px; }
+.saga-item span { display: block; font-weight: 800; }
+.saga-item small { display: block; opacity: .8; font-weight: 700; }
+.saga-item.locked { opacity: .45; cursor: default; }
 #boot { position: fixed; inset: 0; z-index: 25; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0a0d14; color: #fff; font-family: Nunito, sans-serif; letter-spacing: 1px; }
 #boot b { font-size: 42px; color: var(--gold); }
 #boot span { margin-top: 10px; font-weight: 800; }
@@ -213,6 +219,14 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0d14; f
 #photo-frame { display: none; position: fixed; inset: 0; z-index: 25; pointer-events: none; border: 22px solid rgba(244,241,232,.22); box-shadow: inset 0 0 0 3px #1a1d26; }
 #photo-frame.on { display: block; }
 #photo-frame span { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); background: var(--paper); color: var(--ink); border: 3px solid var(--ink); border-radius: 999px; padding: 6px 14px; font-weight: 700; }
+#saga-play { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 24; width: min(560px, 92vw); pointer-events: auto; }
+#saga-play .saga-card { background: var(--paper); color: var(--ink); border: var(--line); border-radius: 20px; padding: 14px 16px 16px; box-shadow: var(--shadow); text-align: center; }
+#saga-play b { display: block; letter-spacing: 1px; color: var(--gold-deep); }
+#saga-play p { font-family: var(--font-body); font-weight: 800; margin: 6px 0; }
+#saga-play .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+#saga-play .mbtn { min-width: 120px; }
+#saga-marker { position: absolute; top: 2px; width: 10px; height: 20px; margin-left: -5px; background: #fff; border: 2px solid var(--ink); border-radius: 3px; }
+#saga-play-score { font-family: var(--font-body); font-weight: 800; margin-top: 4px; }
 #weather-tint { position: fixed; inset: 0; pointer-events: none; z-index: 4; transition: background .8s; }
 #weather-tint.haze { background: rgba(255, 186, 120, .08); }
 #weather-tint.storm { background: rgba(20, 28, 48, .28); }

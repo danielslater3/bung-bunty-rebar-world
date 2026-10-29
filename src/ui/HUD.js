@@ -61,6 +61,20 @@ export class HUD {
   }
 
   refreshQuest() {
+    const saga = this.game.saga?.tracker?.();
+    if (saga) {
+      this.$('quest-title').textContent = saga.title;
+      this.$('quest-name').textContent = saga.name;
+      const list = this.$('quest-objectives');
+      list.innerHTML = '';
+      for (const line of saga.lines) {
+        const li = document.createElement('li');
+        li.textContent = line.text;
+        if (line.done) li.classList.add('done');
+        list.appendChild(li);
+      }
+      return;
+    }
     const qs = this.game.quests;
     const q = qs.active;
     const nameEl = this.$('quest-name');

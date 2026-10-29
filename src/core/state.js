@@ -37,6 +37,7 @@ export const DEFAULT_STATE = () => ({
   buffs: { strength: 0, speed: 0, cyber: 0, fuelregen: 0 },
 
   // Progression
+  saga: null,
   currentZone: 'mansion',
   unlockedZones: ['mansion', 'brisbane'],
   redMode: false,
@@ -62,6 +63,9 @@ const SAVE_KEY = 'bung-bunty-rebar-world-save-v1';
 export const SaveSystem = {
   hasSave() {
     try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
+  },
+  peek() {
+    try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { return null; }
   },
   save(game) {
     try {

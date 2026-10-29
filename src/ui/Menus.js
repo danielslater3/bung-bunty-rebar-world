@@ -4,7 +4,8 @@
 import { state, bus, SaveSystem } from '../core/state.js';
 import { UPGRADES, SHOP_CATEGORIES } from '../systems/ShopSystem.js';
 import { ZONE_INFO } from '../world/zones.js';
-import { ARCHIVE, DISTRICTS, unlockArchive } from '../lore/universe.js';
+import { ARCHIVE, DISTRICTS, unlockArchive } from '../lore/universe.js?v=20261029a';
+import { ACTS, CHAPTERS } from '../story/sagaData.js?v=20261029a';
 import { TROLLEY_FLEET } from '../entities/models.js';
 import { BRISBANE_GEO } from '../world/geo/brisbane.data.js';
 
@@ -40,49 +41,101 @@ export class Menus {
 
   // ============ MAIN MENU ============
   showMain() {
-    const hasSave = SaveSystem.hasSave();
+    const saved = SaveSystem.peek();
+    const sagaSave = !!saved?.saga?.active;
+    const hasSave = !!saved;
     const s = this._screen(`
       <div class="game-title">
-        <div class="t-small">OPERATION REBAR: BLUE TO RED</div>
+        <div class="t-small">THE ORIGINAL SAGA — BRISBANE CHRONICLES</div>
         <div class="t-big">BUNG BUNTY</div>
         <div class="t-sub">REBAR WORLD</div>
-        <div class="t-tag">A 3D COMEDY ACTION-PLATFORMER · TROLLEY-CERTIFIED · 100% BUNG-APPROVED</div>
+        <div class="t-tag">A STORY IN THE REAL BRISBANE</div>
       </div>
       <div class="menu-btns">
-        <button class="mbtn gold" id="btn-new">NEW GAME</button>
-        <button class="mbtn ${hasSave ? '' : 'disabled'}" id="btn-continue" ${hasSave ? '' : 'disabled'}>CONTINUE</button>
-        <button class="mbtn" id="btn-settings">TROLLEY CALIBRATION</button>
+        <button class="mbtn ${sagaSave ? 'gold' : ''}" id="btn-continue" ${hasSave ? '' : 'disabled'}>${sagaSave ? 'CONTINUE STORY' : 'CONTINUE'}</button>
+        <button class="mbtn ${sagaSave ? '' : 'gold'}" id="btn-new">NEW SAGA</button>
+        <button class="mbtn" id="btn-chapters" ${sagaSave ? '' : 'disabled'}>CHAPTER SELECT</button>
+        <button class="mbtn" id="btn-roam">FREE ROAM</button>
+        <button class="mbtn" id="btn-lore">LORE ARCHIVE</button>
+        <button class="mbtn" id="btn-settings">SETTINGS</button>
         <button class="mbtn" id="btn-controls">CONTROLS</button>
       </div>
-      <div class="hint-line" id="tip-line">CLICK A BUTTON TO START — AUDIO POWERED BY PURE REBAR ENERGY</div>
-      <div class="version-tag">REBIRTH FOUNDATION · BUNG INDUSTRIES PTY LTD</div>
+      <div class="hint-line" id="tip-line">NEW SAGA STARTS IN WEST END. FREE ROAM IS THE OLD SANDBOX AND REPLACES THE SAVE.</div>
+      <div class="version-tag">BUNG INDUSTRIES PTY LTD · 3 MARCH 1977</div>
     `);
-    s.querySelector('#btn-new').onclick = () => this.game.startGame(true);
-    if (hasSave) s.querySelector('#btn-continue').onclick = () => this.game.startGame(false);
+    if (sagaSave || hasSave) s.querySelector('#btn-continue').onclick = () => this.game.startGame(false);
+    s.querySelector('#btn-new').onclick = () => this.game.startGame(true, 'saga');
+    if (sagaSave) s.querySelector('#btn-chapters').onclick = () => this.showChapters();
+    s.querySelector('#btn-roam').onclick = () => this.game.startGame(true, 'roam');
+    s.querySelector('#btn-lore').onclick = () => {
+      if (saved?.archive) state.archive = saved.archive;
+      this.showArchive(() => this.showMain());
+    };
     s.querySelector('#btn-settings').onclick = () => this.showSettings(() => this.showMain());
     s.querySelector('#btn-controls').onclick = () => this.showControls(() => this.showMain());
+  }
 
-    // Rotating loading tips, certified Bung-approved
-    const tips = [
-      'TIP: DO NOT QUESTION THE TROLLEY.',
-      'TIP: REAL WEALTH IS MEASURED IN REBARS.',
-      'TIP: GOLDEN TROLLEY MODE IS NOT LEGALLY RECOGNISED AVIATION.',
-      'TIP: REBAR CHAIN UNSTABLE. KEEP SENDING IT.',
-      'TIP: OPERATION REBAR REQUIRES UNNECESSARY CONFIDENCE.',
-      'TIP: NEARBY REBARS RESPECT BUNG\'S AUTHORITY.',
-      'TIP: PHYSICS HAS ENTERED NEGOTIATIONS.',
-      'TIP: A CRASH IS JUST TACTICAL PARKING AT SPEED.',
-      'WARNING: GABOR SCOOTER ACTIVITY DETECTED.',
-      'TIP: HOLD SHIFT ON THE TROLLEY TO CONVERT FUEL INTO PROBLEMS.',
-    ];
-    let ti = Math.floor(Math.random() * tips.length);
-    clearInterval(this._tipTimer);
-    this._tipTimer = setInterval(() => {
-      const el = s.querySelector('#tip-line');
-      if (!el) { clearInterval(this._tipTimer); return; }
-      ti = (ti + 1) % tips.length;
-      el.textContent = tips[ti];
-    }, 4200);
+  showChapters() {
+    const saved = SaveSystem.peek();
+    const saga = saved?.saga;
+    if (!saga?.active) { this.showMain(); return; }
+    let current = saga.chapter;
+    if (saga.legend) current = CHAPTERS.length - 1;
+    else if ((saga.done || []).includes(CHAPTERS[current]?.id)) current += 1;
+    current = Math.min(current, CHAPTERS.length - 1);
+    const s = this._screen(`
+      <div class="panel" style="max-width:640px;">
+        <h2>CHAPTER SELECT</h2>
+        <div class="panel-sub">REPLAY ANY CHAPTER YOU HAVE REACHED.</div>
+        <div class="saga-list">
+          ${CHAPTERS.map((ch, i) => {
+            const act = ACTS.find((a) => a.id === ch.act);
+            const unlocked = ch.playable && i <= current;
+            const done = (saga.done || []).includes(ch.id);
+            return `<button class="saga-item${unlocked ? '' : ' locked'}" data-i="${i}" ${unlocked ? '' : 'disabled'}>
+              <b>ACT ${act.id} · CHAPTER ${ch.n}${done ? ' · DONE' : ''}</b>
+              <span>${ch.title}</span>
+              ${ch.blurb ? `<small>${ch.blurb}</small>` : ''}
+            </button>`;
+          }).join('')}
+        </div>
+        <div class="menu-btns" style="margin-top:14px;width:100%;">
+          <button class="mbtn" id="btn-back">BACK</button>
+        </div>
+      </div>
+    `);
+    s.querySelectorAll('.saga-item:not(.locked)').forEach((el) => {
+      el.onclick = () => {
+        SaveSystem.load();
+        const i = Number(el.dataset.i);
+        state.saga.chapter = i;
+        state.saga.step = 0;
+        state.saga.stepState = {};
+        state.saga.intermission = false;
+        state.saga.trolleyDamage = false;
+        if (i < 2) state.saga.bigBoy = false;
+        state.currentZone = 'brisbane';
+        this.game.startGame('keep', 'saga');
+      };
+    });
+    s.querySelector('#btn-back').onclick = () => this.showMain();
+  }
+
+  showSagaClear(ch) {
+    const act = ACTS.find((a) => a.id === ch.act);
+    const next = CHAPTERS[state.saga.chapter + 1];
+    const s = this._screen(`
+      <div class="panel" style="max-width:560px;text-align:center;">
+        <div class="panel-sub">ACT ${act?.id || 1}${!next || next.act !== ch.act ? ' COMPLETE' : ''}</div>
+        <h2>CHAPTER ${ch.n}</h2>
+        <div class="panel-sub">${ch.title}</div>
+        <p style="margin:14px 0;font-weight:800;">${ch.reward?.relic ? ch.reward.relic + ' is on the shelf. ' : ''}${ch.reward?.coins ? '+' + ch.reward.coins + ' BungBucks.' : ''}</p>
+        <div class="menu-btns" style="width:100%;">
+          <button class="mbtn gold" id="btn-next">${next?.playable ? 'NEXT CHAPTER' : 'ROAM BRISBANE'}</button>
+        </div>
+      </div>
+    `);
+    s.querySelector('#btn-next').onclick = () => this.game.saga.nextChapter();
   }
 
   // ============ PAUSE — BUNG CONTROL CENTRE ============

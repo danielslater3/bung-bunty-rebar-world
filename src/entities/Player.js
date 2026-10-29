@@ -82,7 +82,17 @@ export class Player {
       this.grappling = false;
       this.grappleLine.visible = false;
       // Rebar Pulse still works from the trolley (essential for the chase)
-      if (input.pressed['KeyG'] && this.pulseCD <= 0) this.rebarPulse();
+      if (!g.saga?.freeze && input.pressed['KeyG'] && this.pulseCD <= 0) this.rebarPulse();
+      return;
+    }
+
+    if (g.saga?.freeze) {
+      this.vel.x = 0;
+      this.vel.z = 0;
+      this.pos.addScaledVector(this.vel, dt);
+      this.collide(dt);
+      this.animate(dt, false, false);
+      this.mesh.position.copy(this.pos);
       return;
     }
 

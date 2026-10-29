@@ -147,6 +147,7 @@ export class QuestSystem {
   }
 
   startActiveQuestBriefing() {
+    if (state.saga?.active) return;
     const q = this.active;
     if (!q || state.flags['briefed_' + q.id]) return;
     state.flags['briefed_' + q.id] = true;
@@ -159,6 +160,7 @@ export class QuestSystem {
   }
 
   onEvent(e) {
+    if (state.saga?.active) return;
     const q = this.active;
     if (!q) return;
     let changed = false;

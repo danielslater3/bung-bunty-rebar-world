@@ -6,17 +6,18 @@ import { state, bus, SaveSystem } from './state.js';
 import { Input } from './Input.js';
 import { AudioManager } from './AudioManager.js';
 import { FX } from './FX.js';
-import { Player } from '../entities/Player.js';
-import { Trolley } from '../entities/Trolley.js';
-import { DialogueSystem } from '../systems/DialogueSystem.js';
+import { Player } from '../entities/Player.js?v=20261029a';
+import { Trolley } from '../entities/Trolley.js?v=20261029a';
+import { DialogueSystem } from '../systems/DialogueSystem.js?v=20261029a';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { ShopSystem } from '../systems/ShopSystem.js';
 import { ChainManager } from '../systems/ChainManager.js';
 import { HUD } from '../ui/HUD.js';
-import { Menus } from '../ui/Menus.js';
+import { Menus } from '../ui/Menus.js?v=20261029a';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
+import { Saga, createSaga } from '../story/Saga.js?v=20261029a';
 
 export class Game {
   constructor() {
@@ -55,6 +56,7 @@ export class Game {
     this.shop = new ShopSystem(this);
     this.hud = new HUD(this);
     this.menus = new Menus(this);
+    this.saga = new Saga(this);
     this.chain = new ChainManager(this); // central Rebar Chain manager
     this.rebirth = new Rebirth(this);
     this.photo = false;
@@ -107,21 +109,31 @@ export class Game {
   }
 
   // ============ FLOW ============
-  async startGame(fresh) {
+  async startGame(fresh, mode = 'roam') {
     this.audio.init();
     this.audio.resume();
-    if (fresh) SaveSystem.reset();
-    else SaveSystem.load();
+    if (fresh === true) {
+      SaveSystem.reset();
+      if (mode === 'saga') {
+        state.saga = createSaga();
+        state.currentZone = 'brisbane';
+        state.flags.trolleyUnlocked = false;
+      }
+    } else if (fresh !== 'keep') SaveSystem.load();
     migrateState();
     this.audio.applyVolumes();
     this.menus.close();
     this.hud.show();
     this.player.mesh.visible = true;
-    this.mode = 'playing';
+    this.mode = state.saga?.active ? 'cutscene' : 'playing';
     this.input.enabled = true;
     this.input.lock();
     await this.loadZone(state.currentZone, true);
     if (!this.zone) return;
+    if (state.saga?.active) {
+      this.saga.resume(fresh === true || fresh === 'keep');
+      return;
+    }
     if (fresh) {
       setTimeout(() => {
         this.dialogue.conversation([
@@ -137,6 +149,7 @@ export class Game {
 
   pauseForMenu() {
     if (this.mode === 'playing') this.mode = 'paused';
+    this.hud.prompt(null);
     this.input.enabled = false;
     this._wasLocked = false;
     this.input.unlock();
@@ -210,7 +223,7 @@ export class Game {
     this.camYaw = kit.spawnYaw;
     this.player.facing = kit.spawnYaw + Math.PI;
     this.player.mesh.rotation.y = this.player.facing;
-    if (this.mode === 'playing' || this.mode === 'paused') this.restorePlace(name);
+    if (this.mode === 'playing' || this.mode === 'paused' || state.saga?.active) this.restorePlace(name);
 
     this.audio.playMusic(kit.music);
     if (!silent || true) {
@@ -219,6 +232,7 @@ export class Game {
     }
     bus.emit('qe', { type: 'enter', target: name });
     bus.emit('hud');
+    this.saga?.onZone();
     if (this.mode === 'playing' || this.mode === 'paused') SaveSystem.save(this);
   }
 
@@ -329,9 +343,12 @@ export class Game {
     const dt = Math.min(0.05, this.clock.getDelta());
     this.elapsed += dt;
 
-    if (this.mode === 'playing') {
-      this.updatePlaying(dt);
+    if (this.mode === 'playing') this.updatePlaying(dt);
+    else if (this.mode === 'cutscene') {
+      this.zone?.update(dt, this.elapsed);
+      this.dialogue.update(dt);
     }
+    if (this.mode === 'playing' || this.mode === 'cutscene') this.saga?.update(dt);
     if (this.mode === 'playing' || this.mode === 'paused') {
       this._autosave += dt;
       if (this._autosave >= 30) {
@@ -344,7 +361,7 @@ export class Game {
       this.camYaw += dt * 0.06;
     }
 
-    this.updateCamera(dt);
+    if (this.mode !== 'cutscene') this.updateCamera(dt);
     this.fx.update(dt);
     this.input.endFrame();
     this.renderer.render(this.scene, this.camera);
@@ -460,7 +477,7 @@ export class Game {
         if (it) { prompt = it.label; action = it.fn; }
       }
       this.hud.prompt(prompt);
-      if (prompt && input.pressed['KeyE']) action();
+      if (prompt && input.pressed['KeyE'] && !this.saga?.freeze) action();
     } else {
       this.hud.prompt(null);
     }

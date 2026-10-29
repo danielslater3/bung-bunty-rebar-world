@@ -70,8 +70,18 @@ export class Trolley {
   }
 
   get spec() { return trolleySpec(state.trolley); }
-  get maxSpeed() { return (18 + upgLevel('turbo') * 2.5) * this.spec.speed * (this.boosting ? 1.55 : 1); }
-  get accel() { return (16 + upgLevel('turbo') * 2) * this.spec.accel; }
+  get maxSpeed() {
+    let m = (18 + upgLevel('turbo') * 2.5) * this.spec.speed * (this.boosting ? 1.55 : 1);
+    if (state.saga?.trolleyDamage) m *= 0.42;
+    if (state.saga?.bigBoy) m *= 1.32;
+    return m;
+  }
+  get accel() {
+    let a = (16 + upgLevel('turbo') * 2) * this.spec.accel;
+    if (state.saga?.trolleyDamage) a *= 0.45;
+    if (state.saga?.bigBoy) a *= 1.35;
+    return a;
+  }
   get turnRate() { return (1.9 + upgLevel('handling') * 0.35) * this.spec.turn; }
   get fuelMax() { return (60 + upgLevel('tank') * 30) * this.spec.fuel; }
 
@@ -200,7 +210,7 @@ export class Trolley {
 
     if (this.riding) {
       // ---- Driving input ----
-      const ax = input.axis();
+      const ax = g.saga?.freeze ? { x: 0, y: 0 } : input.axis();
       const throttle = afloat ? 0 : ax.y;
       steer = -ax.x * (afloat ? 0.25 : 1);
 
