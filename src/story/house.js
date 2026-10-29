@@ -431,5 +431,11 @@ export function buildHouse(saga) {
     Z.group.add(drum);
   }
 
-  return { y, door, wardL, wardR, cupL, cupR, hanging, bars, emerald, garage };
+  return {
+    y, door, wardL, wardR, cupL, cupR, hanging, bars, emerald, garage,
+    rooms: [
+      { minX: X0 - 0.3, maxX: X1 + 0.3, minZ: Z0 - 2.8, maxZ: Z1 + 0.3, floor: y, ceil: y + 2.68 },
+      { minX: garage.minX - 0.4, maxX: garage.maxX + 0.4, minZ: garage.minZ - 0.4, maxZ: garage.maxZ + 0.4, floor: y, ceil: y + 2.68 },
+    ],
+  };
 }

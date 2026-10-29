@@ -5,8 +5,8 @@ import { mat } from '../core/utils.js';
 import { unlockArchive } from '../lore/universe.js?v=20261029a';
 import { buildChing, buildGabor, buildScooter, setBungKit } from '../entities/models.js?v=20261029b';
 import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js?v=20261029b';
-import { buildHouse } from './house.js?v=20261029v';
-import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029q';
+import { buildHouse } from './house.js?v=20261029w';
+import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029w';
 import { buildGuide, updateGuide } from './guide.js?v=20261029r';
 import {
   bootMission, tickMission, poseMission, missionMarker, missionLabel, onInteract,

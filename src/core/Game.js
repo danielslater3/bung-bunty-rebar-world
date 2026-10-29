@@ -17,7 +17,7 @@ import { Menus } from '../ui/Menus.js?v=20261029b';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
-import { Saga, createSaga } from '../story/Saga.js?v=20261029v';
+import { Saga, createSaga } from '../story/Saga.js?v=20261029w';
 
 export class Game {
   constructor() {
@@ -496,6 +496,44 @@ export class Game {
     }
   }
 
+  indoorCeiling(x, y, z) {
+    const rooms = this.saga?.actors?.house?.rooms;
+    if (rooms) {
+      for (let i = 0; i < rooms.length; i++) {
+        const r = rooms[i];
+        if (x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ && y > r.floor - 1 && y < r.ceil + 0.6) return r.ceil;
+      }
+    }
+    const bar = this.saga?.actors?.bar;
+    if (bar?.inside && y > bar.y - 1.2 && y < bar.y + 3.3 && bar.inside(x, z)) return bar.ceil;
+    return 0;
+  }
+
+  // Distance to the nearest wall box along dir. Skips the city meshes.
+  cameraClearance(origin, dir, far) {
+    const list = this.zone?.colliders;
+    if (!list || far < 0.2) return far;
+    const ray = this._boxRay || (this._boxRay = new THREE.Ray());
+    const hit = this._camHit || (this._camHit = new THREE.Vector3());
+    ray.origin.copy(origin);
+    ray.direction.copy(dir);
+    if (ray.direction.lengthSq() < 1e-8) return far;
+    ray.direction.normalize();
+    let best = far;
+    const ox = origin.x, oy = origin.y, oz = origin.z;
+    for (let i = 0, n = list.length; i < n; i++) {
+      const b = list[i];
+      if (b.max.x < ox - far || b.min.x > ox + far) continue;
+      if (b.max.z < oz - far || b.min.z > oz + far) continue;
+      if (b.max.y < oy - 2 || b.min.y > oy + far + 2) continue;
+      if (!ray.intersectBox(b, hit)) continue;
+      const dx = hit.x - ox, dy = hit.y - oy, dz = hit.z - oz;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d > 0.2 && d < best) best = d;
+    }
+    return best;
+  }
+
   updateCamera(dt) {
     const riding = this.trolley.riding;
     const targetPos = riding
@@ -511,58 +549,44 @@ export class Game {
 
     let dist = riding ? 8.2 : 6.4;
     let pitch = this.camPitch;
-    let ceilGap = Infinity;
-    this._camRay = this._camRay || new THREE.Raycaster();
-    // A low ceiling means the usual outdoor pitch would sit on the roof.
-    if (this.zone?.group) {
-      this._camRay.set(targetPos, this._camUp || (this._camUp = new THREE.Vector3(0, 1, 0)));
-      this._camRay.far = 3;
-      const up = this._camRay.intersectObject(this.zone.group, true).find((h) => h.distance > 0.15);
-      if (up && up.distance < 2.2) {
-        ceilGap = up.distance;
-        pitch = Math.min(pitch, 0.06);
-        dist = Math.min(dist, riding ? 4.4 : 3.2);
-      }
+    // Room ceilings are a box test. Raycasting the whole city was the 3fps bug.
+    const ceil = this.indoorCeiling(targetPos.x, targetPos.y, targetPos.z);
+    if (ceil) {
+      pitch = Math.min(pitch, 0.08);
+      dist = Math.min(dist, riding ? 4.6 : 3.4);
     }
     const cp = Math.cos(pitch), sp = Math.sin(pitch);
-    const offset = new THREE.Vector3(
+    const offset = this._camOffset || (this._camOffset = new THREE.Vector3());
+    offset.set(
       Math.sin(this.camYaw) * cp * dist,
       sp * dist + 0.35,
       Math.cos(this.camYaw) * cp * dist
     );
 
-    // Pull the camera in before it crosses a wall, a roof, or furniture.
-    if (this.zone?.group) {
-      const dir = offset.clone().normalize();
-      this._camRay.set(targetPos, dir);
-      this._camRay.far = dist;
-      const hit = this._camRay.intersectObject(this.zone.group, true).find((h) => h.distance > 0.25);
-      if (hit) dist = Math.max(1.15, hit.distance * 0.82);
-    }
-    const desired = targetPos.clone().addScaledVector(offset.normalize(), dist);
+    // Nearby wall boxes only. No mesh raycast.
+    const reach = this.cameraClearance(targetPos, offset, dist);
+    if (reach < dist) dist = Math.max(1.15, reach * 0.82);
+    const len = offset.length() || 1;
+    const desired = this._camDesired || (this._camDesired = new THREE.Vector3());
+    desired.copy(targetPos).addScaledVector(offset, dist / len);
     desired.y = Math.max(desired.y, targetPos.y - 0.4);
-    if (ceilGap < 2.2) desired.y = Math.min(desired.y, targetPos.y + Math.max(0.06, ceilGap * 0.28));
+    if (ceil) desired.y = Math.min(desired.y, targetPos.y + Math.max(0.08, (ceil - targetPos.y) * 0.35));
 
     const pull = dist < this.camPos.distanceTo(targetPos) ? 22 : 8;
     this.camPos.x = damp(this.camPos.x, desired.x, pull, dt);
     this.camPos.y = damp(this.camPos.y, desired.y, pull, dt);
     this.camPos.z = damp(this.camPos.z, desired.z, pull, dt);
-    // The smoothed position can still be outside for a frame. Snap it back.
-    if (this.zone?.group) {
-      const back = this.camPos.clone().sub(targetPos);
-      const backLen = back.length();
-      if (backLen > 0.5) {
-        this._camRay.set(targetPos, back.multiplyScalar(1 / backLen));
-        this._camRay.far = backLen;
-        const hit = this._camRay.intersectObject(this.zone.group, true).find((h) => h.distance > 0.25);
-        if (hit && hit.distance < backLen - 0.05) {
-          this.camPos.copy(targetPos).addScaledVector(this._camRay.ray.direction, Math.max(1.15, hit.distance * 0.82));
-        }
+    const back = this._camBack || (this._camBack = new THREE.Vector3());
+    back.copy(this.camPos).sub(targetPos);
+    const backLen = back.length();
+    if (backLen > 0.5) {
+      const hit = this.cameraClearance(targetPos, back, backLen);
+      if (hit < backLen - 0.05) {
+        this.camPos.copy(targetPos).addScaledVector(back, Math.max(1.15, hit * 0.82) / backLen);
       }
-      if (ceilGap < 2.2) {
-        const cap = targetPos.y + Math.max(0.06, ceilGap * 0.28);
-        if (this.camPos.y > cap) this.camPos.y = cap;
-      }
+    }
+    if (ceil && this.camPos.y > targetPos.y + Math.max(0.08, (ceil - targetPos.y) * 0.35)) {
+      this.camPos.y = targetPos.y + Math.max(0.08, (ceil - targetPos.y) * 0.35);
     }
     this.camera.position.copy(this.camPos);
 

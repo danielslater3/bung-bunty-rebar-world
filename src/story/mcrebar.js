@@ -11,6 +11,14 @@ const TX = (BX - AX) / LEN, TZ = (BZ - AZ) / LEN;
 const OUTX = TZ, OUTZ = -TX;
 const MID = [(AX + BX) / 2, (AZ + BZ) / 2];
 
+export function insideMcRebar(x, z) {
+  const dx = x - MID[0];
+  const dz = z - MID[1];
+  const along = dx * TX + dz * TZ;
+  const depth = -(dx * OUTX + dz * OUTZ);
+  return along > -8.1 && along < 8.1 && depth > -1.2 && depth < 11.8;
+}
+
 export function mcrebarPoint(along, depth) {
   return {
     x: MID[0] + TX * along - OUTX * depth,
@@ -284,7 +292,7 @@ export function buildMcRebar(saga) {
   const it = Z.interactables?.find((x) => x.id === 'mcrebar');
   if (it) it.pos.set(stand.x, y + 1.0, stand.z);
 
-  return { y, meal, counter, door, stand, spot: mcrebarPoint(0.6, 3.3) };
+  return { y, meal, counter, door, stand, spot: mcrebarPoint(0.6, 3.3), inside: insideMcRebar, ceil: y + 2.85 };
 }
 
 function paint(draw, w, h) {
