@@ -1,7 +1,7 @@
 // Playable mission kinds for Acts II–VI. Each one can fail and be retried.
 // Walking up to a sign is not enough to clear these steps.
 import { state } from '../core/state.js';
-import { ESCORT_PATH, SCOOTER_PATH } from './sagaData.js?v=20261029a';
+import { ESCORT_PATH, SCOOTER_PATH } from './sagaData.js?v=20261029b';
 
 const HANDLED = new Set([
   'escort', 'race', 'rhythm', 'photo', 'shards', 'trial', 'cricket', 'sky',

@@ -6,18 +6,18 @@ import { state, bus, SaveSystem } from './state.js';
 import { Input } from './Input.js';
 import { AudioManager } from './AudioManager.js';
 import { FX } from './FX.js';
-import { Player } from '../entities/Player.js?v=20261029a';
+import { Player } from '../entities/Player.js?v=20261029b';
 import { Trolley } from '../entities/Trolley.js?v=20261029a';
 import { DialogueSystem } from '../systems/DialogueSystem.js?v=20261029a';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { ShopSystem } from '../systems/ShopSystem.js';
 import { ChainManager } from '../systems/ChainManager.js';
 import { HUD } from '../ui/HUD.js';
-import { Menus } from '../ui/Menus.js?v=20261029a';
+import { Menus } from '../ui/Menus.js?v=20261029b';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
-import { Saga, createSaga } from '../story/Saga.js?v=20261029a';
+import { Saga, createSaga } from '../story/Saga.js?v=20261029k';
 
 export class Game {
   constructor() {

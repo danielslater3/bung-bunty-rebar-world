@@ -19,7 +19,7 @@ export const PLACE = {
   shelf: { x: -816.2, z: 902.6, label: 'the rebar shelf' },
   garage: { x: -812, z: 891, label: 'the trolley pad' },
   gate: { x: -820, z: 884, label: 'the front yard' },
-  mcrebar: { x: 193, z: 112, label: 'McRebar, Queen Street' },
+  mcrebar: { x: 140.7, z: 81.1, label: 'McRebar, 130 Queen Street' },
   hall: { x: 27, z: 69, label: 'King George Square' },
   bank: { x: -200, z: 780, label: 'South Bank' },
   mallBolt: { x: 173, z: 100, label: 'the Queen Street stall' },
@@ -65,7 +65,7 @@ export const PLACE = {
 };
 
 export const CHASE_PATH = [
-  [193, 112],
+  [151.3, 95.5],
   [173, 100],
   [150, 90],
   [110, 55],
@@ -126,7 +126,7 @@ export const CHAPTERS = [
       { id: 'shelf', kind: 'interact', at: 'shelf', text: 'Inspect the rebar collection', prompt: '<b>[E]</b> Inspect the collection' },
       { id: 'garage', kind: 'interact', at: 'garage', text: 'Prepare the golden trolley', prompt: '<b>[E]</b> Wake the James Rebar trolley' },
       { id: 'gate', kind: 'reach', at: 'gate', radius: 5, text: 'Leave the yard' },
-      { id: 'mcrebar', kind: 'reach', at: 'mcrebar', radius: 7, text: 'Drive to McRebar' },
+      { id: 'mcrebar', kind: 'reach', at: 'mcrebar', radius: 3, text: 'Drive to McRebar' },
       { id: 'meal', kind: 'interact', at: 'mcrebar', text: 'Buy a Rebar Deluxe', prompt: '<b>[E]</b> Order a Rebar Deluxe' },
       {
         id: 'watched', kind: 'scene', look: 'mcrebar', text: 'Notice who is watching',

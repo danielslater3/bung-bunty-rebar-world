@@ -195,7 +195,12 @@ export class ZoneKit {
     m.receiveShadow = true;
     m.castShadow = opts.castShadow ?? h > 0.5;
     this.group.add(m);
-    if (opts.ground !== false) this.grounds.push(m);
+    if (opts.ground !== false) {
+      this.grounds.push(m);
+      // Brisbane swaps grounds every frame from _baseGrounds. Floors added
+      // after that snapshot have to join the base list or the player falls through.
+      if (this._baseGrounds) this._baseGrounds.push(m);
+    }
     // Low boxes (steps, plinths) are walk-over-able rather than walls.
     if (opts.collide !== false && h > 1.0 && !opts.rx && !opts.rz) {
       m.updateMatrixWorld();
@@ -433,8 +438,9 @@ export class ZoneKit {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1),
-      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: opts.glow ? new THREE.Color(bg) : 0x000000, emissiveMap: opts.glow ? tex : null, emissiveIntensity: opts.glow ? 0.5 : 1 }));
+    const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: opts.glow ? new THREE.Color(bg) : 0x000000, emissiveMap: opts.glow ? tex : null, emissiveIntensity: opts.glow ? 0.5 : 1 });
+    const edge = new THREE.MeshStandardMaterial({ color: bg, roughness: 0.7 });
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.06), [edge, edge, edge, edge, face, face]);
     m.position.set(x, y, z);
     m.rotation.y = ry;
     this.group.add(m);

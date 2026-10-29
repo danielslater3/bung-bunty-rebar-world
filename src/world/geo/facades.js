@@ -808,17 +808,47 @@ export function buildShells(buildings, opts) {
     }
     if (parapet > 0.05 && top > yP + 0.05) bands.push([Math.max(yb, yP), top, L.plain, yP, 4]);
     const fe = b.fe;
+    // 130 Queen Street. The level-1 burger tenancy opens onto the mall edge.
+    // The street-level glass under it stays. The door is only the upper opening.
+    const queenTenancy = Math.hypot(cx - 133.67, cz - 69.17) < 2;
+    const doorLow = ys + 3.35;
+    const doorHigh = ys + 6.25;
+    const piece = (ax, az, bx, bz, y0, y1, nx, nz, layer) => {
+      if (y1 - y0 < 0.04) return;
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.08) return;
+      const bays = Math.max(1, Math.round(len / BAY[layer]));
+      W.quad(ax, az, bx, bz, y0, y1, nx, nz, bays, 0, 1, paint, layer);
+    };
     for (let i = 0; i < n; i++) {
       const a = pts[i], c = pts[(i + 1) % n];
       const len = Math.hypot(c[0] - a[0], c[1] - a[1]);
       if (len < 0.05) continue;
       const [nx, nz] = edgeNormal(a, c, ccw);
+      const midX = (a[0] + c[0]) / 2, midZ = (a[1] + c[1]) / 2;
+      const queenDoor = queenTenancy && len > 16 && len < 21 && Math.hypot(midX - 144.3, midZ - 87.55) < 1.4;
       for (const [y0, y1, layer0, vOrg, vH, isGround] of bands) {
         if (y1 - y0 < 0.02) continue;
         let layer = isGround && front != null && i === fe ? front : layer0;
         if (len < BAY[layer] * 0.7 && PLAIN_OF[layer] != null) layer = PLAIN_OF[layer];
-        const bays = Math.max(1, Math.round(len / BAY[layer]));
-        W.quad(a[0], a[1], c[0], c[1], y0, y1, nx, nz, bays, (y0 - vOrg) / vH, (y1 - vOrg) / vH, paint, layer);
+        if (!queenDoor) {
+          const bays = Math.max(1, Math.round(len / BAY[layer]));
+          W.quad(a[0], a[1], c[0], c[1], y0, y1, nx, nz, bays, (y0 - vOrg) / vH, (y1 - vOrg) / vH, paint, layer);
+          continue;
+        }
+        const gap = 2.7;
+        const t0 = 0.5 - gap / (2 * len);
+        const t1 = 0.5 + gap / (2 * len);
+        const lx = a[0] + (c[0] - a[0]) * t0, lz = a[1] + (c[1] - a[1]) * t0;
+        const rx = a[0] + (c[0] - a[0]) * t1, rz = a[1] + (c[1] - a[1]) * t1;
+        const lo = Math.max(y0, doorLow);
+        const hi = Math.min(y1, doorHigh);
+        if (y0 < lo - 0.02) piece(a[0], a[1], c[0], c[1], y0, Math.min(y1, lo), nx, nz, layer);
+        if (hi - lo > 0.05) {
+          piece(a[0], a[1], lx, lz, lo, hi, nx, nz, layer);
+          piece(rx, rz, c[0], c[1], lo, hi, nx, nz, layer);
+        }
+        if (y1 > hi + 0.02) piece(a[0], a[1], c[0], c[1], Math.max(y0, hi), y1, nx, nz, layer);
       }
     }
     // Shop awning over the footpath on the street front. The mall has its own fronts.

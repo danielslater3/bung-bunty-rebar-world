@@ -5,7 +5,7 @@ import { clamp, damp, dampAngle } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
 import { pushFootprints } from '/src/world/geo/footprints.js';
 import { state, bus, upgLevel, addEnergy } from '../core/state.js';
-import { buildBung } from './models.js';
+import { buildBung } from './models.js?v=20261029b';
 
 const GRAVITY = 26;
 

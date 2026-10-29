@@ -3,12 +3,15 @@ import * as THREE from 'three';
 import { state, bus, SaveSystem } from '../core/state.js';
 import { mat } from '../core/utils.js';
 import { unlockArchive } from '../lore/universe.js?v=20261029a';
-import { buildChing, buildGabor, buildScooter } from '../entities/models.js';
-import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js?v=20261029a';
+import { buildChing, buildGabor, buildScooter, setBungKit } from '../entities/models.js?v=20261029b';
+import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js?v=20261029b';
+import { buildHouse } from './house.js?v=20261029i';
+import { buildMcRebar, buildCollectorLawn } from './mcrebar.js?v=20261029i';
+import { buildGuide, updateGuide } from './guide.js?v=20261029k';
 import {
   bootMission, tickMission, poseMission, missionMarker, missionLabel, onInteract,
   closePlay, prepSnow, driftSnow,
-} from './missions.js?v=20261029a';
+} from './missions.js?v=20261029b';
 
 export { createSaga, CHAPTERS, ACTS };
 
@@ -88,6 +91,7 @@ export class Saga {
       this.game.input.enabled = true;
       this.ensureStep();
     }
+    this.syncKit();
     this.refresh();
     SaveSystem.save(this.game);
   }
@@ -96,11 +100,15 @@ export class Saga {
     if (!this.on || this.game.zone?.name !== 'brisbane') return;
     driftSnow(this, dt);
     if (this.game.mode === 'cutscene') {
+      if (this.actors?.guide) this.actors.guide.visible = false;
       this.aimCamera(dt);
       if (this.game.input.pressed['Escape']) this.game.dialogue.skip();
       return;
     }
     if (this.game.mode !== 'playing') return;
+    this.syncKit();
+    updateGuide(this);
+    this.tickPose(dt);
     if (state.saga.intermission) {
       this.poseActors();
       this.followCompanion(dt);
@@ -154,34 +162,14 @@ export class Saga {
     const Z = this.game.zone;
     const gy = (x, z) => this.ground(x, z);
     const home = PLACE.home;
-    const hy = gy(home.x, home.z);
-    const wall = mat(0xe4d7c4, { roughness: 0.9 });
-    const floor = mat(0xb7a48c, { roughness: 0.85 });
-    Z.box(home.x, hy, home.z + 1.2, 12, 0.22, 10, floor, { collide: false });
-    Z.box(home.x, hy, home.z + 6.1, 12, 2.8, 0.35, wall);
-    Z.box(home.x - 6.05, hy, home.z + 1.2, 0.35, 2.8, 10, wall);
-    Z.box(home.x + 6.05, hy, home.z + 1.2, 0.35, 2.8, 10, wall);
-    Z.box(PLACE.bed.x, hy, PLACE.bed.z, 2.1, 0.45, 1.3, mat(0xf4f1ea, { roughness: 0.8 }), { collide: false });
-    Z.box(PLACE.wardrobe.x, hy, PLACE.wardrobe.z, 1.1, 1.8, 0.55, mat(0x6d543c, { roughness: 0.7 }));
-    Z.box(PLACE.shelf.x, hy, PLACE.shelf.z, 1.6, 1.5, 0.4, mat(0x39414d, { roughness: 0.5 }));
-    Z.box(PLACE.shelf.x, hy + 1.15, PLACE.shelf.z, 0.12, 0.7, 0.12, mat(0xb35c2a, { metalness: 0.6, roughness: 0.4 }), { collide: false });
-    Z.box(PLACE.garage.x, hy, PLACE.garage.z, 2.4, 0.18, 1.5, mat(0xffc94d, { metalness: 0.85, roughness: 0.25, emissive: 0x5a3c08 }), { collide: false });
-    Z.textSign(home.x, hy + 1.7, home.z + 6.4, 0, 'BUNG\'S PLACE\nWEST END', { w: 4.2, h: 1.15, bg: '#ffc02e', fg: '#1a1d26' });
-
-    const my = gy(PLACE.mcrebar.x, PLACE.mcrebar.z);
-    Z.box(PLACE.mcrebar.x, my, PLACE.mcrebar.z, 3.2, 2.4, 2.2, mat(0xc45a2a, { roughness: 0.7 }));
-    Z.textSign(PLACE.mcrebar.x, my + 3.3, PLACE.mcrebar.z, 0.4, 'MCREBAR\nFICTIONAL STALL', { w: 3.4, h: 1.15, bg: '#c45a2a', fg: '#fff6e8' });
-
+    const house = buildHouse(this);
+    const bar = buildMcRebar(this);
+    buildCollectorLawn(this);
+    const hy = house.y;
+    const my = bar.y;
     const ey = gy(PLACE.event.x, PLACE.event.z);
-    Z.box(PLACE.event.x, ey, PLACE.event.z, 8, 0.12, 8, mat(0xf2efe6, { roughness: 0.9 }), { collide: false });
-    Z.textSign(PLACE.event.x, ey + 2.4, PLACE.event.z - 4.2, 0, 'COLLECTOR LAWN\nSOUTH BANK', { w: 4.4, h: 1.1, bg: '#14305a', fg: '#ffe9a8' });
-    Z.box(PLACE.event.x - 2.4, ey, PLACE.event.z + 1.2, 0.35, 1.1, 0.35, mat(0x1f8a4c, { emissive: 0x0d4a28, roughness: 0.4 }));
-    Z.box(PLACE.event.x, ey, PLACE.event.z + 1.2, 0.35, 1.1, 0.35, mat(0xc9ccd4, { metalness: 0.5, roughness: 0.35 }));
-    Z.box(PLACE.event.x + 2.4, ey, PLACE.event.z + 1.2, 0.35, 1.1, 0.35, mat(0xf0d78a, { metalness: 0.6, roughness: 0.3 }));
-    Z.textSign(PLACE.event.x - 2.4, ey + 1.8, PLACE.event.z + 1.2, 0, 'LEFT', { w: 1.1, h: 0.4, bg: '#1f8a4c', fg: '#ffffff' });
-    Z.box(PLACE.event.x + 3.4, ey, PLACE.event.z - 1, 0.4, 0.9, 0.4, mat(0x22262e, { roughness: 0.5 }));
-    Z.box(PLACE.event.x - 3.2, ey, PLACE.event.z - 1.4, 0.3, 1.4, 0.3, mat(0x8d6b45, { roughness: 0.8 }));
 
+    const rings = [];
     for (const id of ['ring1', 'ring2', 'ring3']) {
       const p = this.point(id);
       const ring = new THREE.Mesh(
@@ -189,7 +177,9 @@ export class Saga {
         mat(0xffc94d, { emissive: 0xffaa00, emissiveIntensity: 0.8, metalness: 0.7 })
       );
       ring.position.set(p.x, p.y + 1.6, p.z);
+      ring.visible = false;
       Z.group.add(ring);
+      rings.push(ring);
     }
 
     for (const n of Z.npcs) {
@@ -214,8 +204,10 @@ export class Saga {
       new THREE.MeshBasicMaterial({ color: 0xffc02e })
     );
     Z.group.add(marker);
-    this.actors = { gabor, scooter, bag, guard, marker };
+    const guide = buildGuide(Z.group);
+    this.actors = { gabor, scooter, bag, guard, marker, guide, house, bar, rings };
     this.dressed = true;
+    this.syncKit();
     this.poseActors();
 
     this.interact('bed', PLACE.bed, hy, '<b>[E]</b> The bed', () => this.onBed());
@@ -235,10 +227,43 @@ export class Saga {
       bank: ['<b>[E]</b> Spare wheel at South Bank', 'South Bank is donating a wheel. The wheel has consented.'],
       mallBolt: ['<b>[E]</b> Decorative spoon, removed', 'The spoon is out. The trolley may forgive you.'],
     };
+    const partMesh = {
+      hall: () => {
+        const g = new THREE.Group();
+        const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.28, 8), mat(0xc9ccd4, { metalness: 0.8, roughness: 0.25 }));
+        const head = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 6), mat(0xe0b15a, { metalness: 0.75, roughness: 0.3 }));
+        head.position.y = 0.16;
+        g.add(shank, head);
+        return g;
+      },
+      bank: () => {
+        const g = new THREE.Group();
+        const tyre = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.07, 8, 16), mat(0x22262e, { roughness: 0.85 }));
+        tyre.rotation.x = Math.PI / 2;
+        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.08, 8), mat(0xc9ccd4, { metalness: 0.7, roughness: 0.3 }));
+        g.add(tyre, hub);
+        return g;
+      },
+      mallBolt: () => {
+        const g = new THREE.Group();
+        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.34, 6), mat(0xc9ccd4, { metalness: 0.7, roughness: 0.3 }));
+        handle.rotation.z = 0.4;
+        const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), mat(0xe7e4dc, { metalness: 0.5, roughness: 0.35 }));
+        bowl.scale.y = 0.4;
+        bowl.position.set(0.08, -0.12, 0);
+        g.add(handle, bowl);
+        return g;
+      },
+    };
     for (const id of ['hall', 'bank', 'mallBolt']) {
       const p = PLACE[id];
       const y = gy(p.x, p.z);
-      Z.box(p.x, y, p.z, 0.35, 0.35, 0.35, mat(0xffc94d, { metalness: 0.7, roughness: 0.3 }), { collide: false });
+      const mesh = partMesh[id]();
+      mesh.position.set(p.x, y + 0.35, p.z);
+      if (state.saga.stepState?.parts?.[id]) mesh.visible = false;
+      Z.group.add(mesh);
+      this.actors.parts = this.actors.parts || {};
+      this.actors.parts[id] = mesh;
       this.interact(id, p, y, partPrompt[id][0], () => this.onPart(id, partPrompt[id][1]));
     }
     this.dressChronicle();
@@ -283,6 +308,8 @@ export class Saga {
   }
 
   ensureMansion() {
+    // Chapters 1–4 keep the West End house. The later mansion waits.
+    if ((state.saga?.chapter ?? 0) < 4) return;
     if (this._mansionBuilt || !this.game.zone) return;
     state.saga.mansion = true;
     this._mansionBuilt = true;
@@ -480,13 +507,26 @@ export class Saga {
     for (const member of a.family || []) hide(member.mesh);
     if (a.piles) for (const mesh of Object.values(a.piles)) hide(mesh);
     const step = this.currentStep();
+    const showRings = step?.kind === 'rings';
+    for (const ring of a.rings || []) ring.visible = !!showRings;
     const needGabor = step && ['goggles', 'follow', 'bag', 'confront', 'catch', 'relic', 'watched', 'promo', 'announce', 'sabotage'].includes(step.id);
     const chase = step && (step.kind === 'follow' || step.kind === 'catch' || step.id === 'bag' || step.id === 'relic' || step.id === 'confront');
     if (needGabor) {
-      const at = step.id === 'sabotage'
-        ? this.point('garage').add(new THREE.Vector3(2.2, 0, 1.4))
-        : chase ? this.pathAt(this.gaborT) : this.point('mcrebar').add(new THREE.Vector3(4.5, 0, 3));
-      const y = this.ground(at.x, at.z);
+      let at;
+      let y;
+      if (step.id === 'sabotage') {
+        at = this.point('garage').add(new THREE.Vector3(2.2, 0, 1.4));
+        y = this.ground(at.x, at.z);
+      } else if (chase) {
+        at = this.pathAt(this.gaborT);
+        y = at.y;
+      } else if (a.bar) {
+        at = new THREE.Vector3(a.bar.spot.x, a.bar.y, a.bar.spot.z);
+        y = a.bar.y;
+      } else {
+        at = this.point('mcrebar');
+        y = this.ground(at.x, at.z);
+      }
       show(a.gabor, at.x, y, at.z);
       show(a.scooter, at.x + 1.1, y, at.z + 0.4);
       if (chase || step?.id === 'bag' || step?.id === 'relic') show(a.bag, at.x - 0.8, y + 0.4, at.z);
@@ -501,8 +541,10 @@ export class Saga {
     this.stickInteract('bag', a.bag.position);
     poseMission(this);
     const mark = this.markerPoint();
-    if (mark && a.marker && !a.marker.visible) show(a.marker, mark.x, mark.y + 2.4, mark.z);
-    else if (mark && a.marker?.visible) a.marker.position.y += Math.sin(this.game.elapsed * 3) * 0.05;
+    const here = this.here();
+    const markFar = mark && Math.hypot(here.x - mark.x, here.z - mark.z) > 16 && (state.saga?.chapter ?? 0) > 3;
+    if (markFar) show(a.marker, mark.x, mark.y + 2.2, mark.z);
+    else if (a.marker) a.marker.visible = false;
   }
 
   stickInteract(id, pos) {
@@ -550,6 +592,7 @@ export class Saga {
     this.scenePlaying = true;
     if (step.go) this.go(step.go);
     this.sceneLook = step.look ? this.point(step.look) : this.game.player.pos.clone();
+    if (step.look === 'mcrebar' && this.actors?.bar) this.sceneLook.y = this.actors.bar.y;
     this.game.mode = 'cutscene';
     this.game.input.enabled = false;
     this.game.input.unlock();
@@ -591,6 +634,8 @@ export class Saga {
 
   go(id) {
     const p = this.point(id);
+    if (id === 'mcrebar' && this.actors?.bar) p.y = this.actors.bar.y;
+    if (['home', 'bed', 'wardrobe', 'shelf'].includes(id) && this.actors?.house) p.y = this.actors.house.y;
     this.game.trolley.dismiss();
     this.game.player.teleport(new THREE.Vector3(p.x, p.y + 0.55, p.z));
     this.snapCamera();
@@ -603,7 +648,10 @@ export class Saga {
   check(step) {
     const here = this.here();
     if (step.kind === 'reach') {
-      if (here.distanceTo(this.point(step.at)) < (step.radius || 6)) this.advance();
+      const p = this.point(step.at);
+      const floor = step.at === 'mcrebar' && this.actors?.bar ? this.actors.bar.y : p.y;
+      const flat = Math.hypot(here.x - p.x, here.z - p.z);
+      if (flat < (step.radius || 6) && Math.abs(here.y - floor) < 2.4) this.advance();
     } else if (step.kind === 'follow') {
       if (this.gaborT > 0.96 && here.distanceTo(this.actors.gabor.position) < 6) this.advance();
     } else if (step.kind === 'catch') {
@@ -682,25 +730,124 @@ export class Saga {
   // ---------- interactions ----------
   stepIs(id) { return this.currentStep()?.id === id; }
 
+  held() { return this._pose || this.game.dialogue.busy; }
+
+  playPose(kind, dur, done) {
+    if (this._pose) return;
+    this.freeze = true;
+    this._pose = { kind, t: 0, dur, done };
+  }
+
+  tickPose(dt) {
+    const pose = this._pose;
+    if (!pose) return;
+    pose.t += dt;
+    const u = Math.min(1, pose.t / pose.dur);
+    const player = this.game.player;
+    const parts = player.parts;
+    const house = this.actors?.house;
+    if (pose.kind === 'rise') {
+      player.mesh.rotation.x = (1 - u) * 1.05;
+      player.mesh.position.y = player.pos.y - (1 - u) * 0.42;
+      if (parts) {
+        parts.armL.rotation.x = -0.9 * (1 - u);
+        parts.armR.rotation.x = -0.6 * (1 - u);
+      }
+    } else if (pose.kind === 'dress' && parts) {
+      const lift = Math.sin(u * Math.PI);
+      parts.armL.rotation.x = -2.35 * lift;
+      parts.armR.rotation.x = -2.35 * lift;
+      if (house) {
+        house.wardL.rotation.y = Math.min(1.15, u * 1.5);
+        house.wardR.rotation.y = -Math.min(1.15, u * 1.5);
+        if (u > 0.45) {
+          house.hanging.visible = false;
+          state.saga.stepState.uniform = true;
+          this.syncKit();
+        }
+      }
+    } else if (pose.kind === 'cupboard' && house) {
+      const ang = Math.min(1.25, u * 1.5);
+      house.cupL.rotation.y = -ang;
+      house.cupR.rotation.y = ang;
+      if (u > 0.7) state.saga.stepState.shelfOpen = true;
+    } else if (pose.kind === 'mop' && parts) {
+      const lift = Math.sin(u * Math.PI);
+      parts.armL.rotation.x = -1.7 * lift;
+      parts.armR.rotation.x = -1.7 * lift;
+      if (u > 0.45) {
+        state.saga.stepState.disguise = true;
+        this.syncKit();
+      }
+    }
+    if (u < 1) return;
+    this._pose = null;
+    this.freeze = false;
+    player.mesh.rotation.x = 0;
+    player.mesh.position.y = player.pos.y;
+    pose.done?.();
+  }
+
+  syncKit() {
+    const s = state.saga;
+    const mesh = this.game.player?.mesh;
+    if (!s || !mesh) return;
+    const dressed = s.chapter > 0 || s.step > 2 || !!s.stepState?.uniform;
+    setBungKit(mesh, { uniform: dressed, disguise: !!s.stepState?.disguise && s.chapter === 3 });
+    const house = this.actors?.house;
+    if (!house || this._pose) return;
+    if (dressed) {
+      house.hanging.visible = false;
+      if (house.wardL.rotation.y < 0.2) {
+        house.wardL.rotation.y = 1.15;
+        house.wardR.rotation.y = -1.15;
+      }
+    }
+    const open = s.chapter > 0 || s.step > 3 || !!s.stepState?.shelfOpen;
+    if (open && Math.abs(house.cupL.rotation.y) < 0.2) {
+      house.cupL.rotation.y = -1.25;
+      house.cupR.rotation.y = 1.25;
+    }
+    house.emerald.visible = (s.relics || []).includes('Emerald Rebar');
+    if (this.actors?.bar) this.actors.bar.meal.visible = !!s.stepState?.meal;
+  }
+
   onBed() {
     if (!this.stepIs('bed')) { this.game.say('bung', 'The bed has done its job. I have not.'); return; }
-    this.game.dialogue.conversation([['bung', 'I am awake. The singlet is a lifestyle, not a suggestion.']], () => this.advance());
+    if (this.held()) return;
+    this.playPose('rise', 0.95, () => {
+      this.game.audio.sfx('land');
+      this.game.dialogue.conversation([['bung', 'I am awake. The singlet is still in the wardrobe, which is a problem I can walk to.']], () => this.advance());
+    });
   }
 
   onWardrobe() {
     if (!this.stepIs('clothes')) { this.game.say('bung', 'Already uniformed. The city can cope.'); return; }
-    this.game.dialogue.conversation([['bung', 'Singlet. Boxers. Boots. Four hairs at attention.']], () => this.advance());
+    if (this.held()) return;
+    this.game.audio.sfx('unlock');
+    this.playPose('dress', 1.15, () => {
+      this.game.dialogue.conversation([['bung', 'Singlet on. Boxers on. The hairs are at attention.']], () => this.advance());
+    });
   }
 
   onShelf() {
     if (this.stepIs('shelf')) {
-      const owned = (state.saga.relics || []).join(', ');
-      this.game.dialogue.conversation([['bung', owned ? `Look at them. ${owned}.` : 'A humble shelf. It will not stay humble.']], () => this.advance());
+      if (this.held()) return;
+      this.game.audio.sfx('unlock');
+      this.playPose('cupboard', 0.7, () => {
+        const owned = (state.saga.relics || []).join(', ');
+        this.game.dialogue.conversation([['bung', owned ? `Look at them. ${owned}.` : 'Five bars and one empty clip. The empty clip is ambitious.']], () => this.advance());
+      });
       return;
     }
     if (this.stepIs('home')) {
+      if (this.held()) return;
       if (!state.saga.relics.includes('Emerald Rebar')) state.saga.relics.push('Emerald Rebar');
-      this.game.dialogue.conversation([['bung', 'The Emerald is home. Gabor\'s drone can file a complaint.']], () => this.advance());
+      this.game.audio.sfx('quest');
+      this.playPose('cupboard', 0.7, () => {
+        this.syncKit();
+        this.game.dialogue.conversation([['bung', 'The Emerald is on the clip. Gabor\'s drone can file a complaint.']], () => this.advance());
+      });
       return;
     }
     const list = (state.saga.relics || []);
@@ -735,19 +882,21 @@ export class Saga {
   }
 
   onCounter() {
-    if (this.stepIs('meal')) {
-      state.coins += 0;
-      this.game.dialogue.conversation([
-        ['bung', 'One Rebar Deluxe. No onions. Extra destiny.'],
-        ['doc', 'A wiry silhouette across the mall does not order. He watches.'],
-      ], () => this.advance());
+    if (this.stepIs('meal') || this.stepIs('order')) {
+      if (this.held()) return;
+      state.saga.stepState.meal = true;
+      if (this.actors?.bar) this.actors.bar.meal.visible = true;
+      this.game.audio.sfx('buy');
+      const lines = this.stepIs('meal')
+        ? [
+          ['bung', 'One Rebar Deluxe. No onions. Extra destiny.'],
+          ['doc', 'The tray hits the counter. Across the mall, a wiry silhouette does not order. He watches.'],
+        ]
+        : [['bung', 'Another one. The fries are a research grant.']];
+      this.game.dialogue.conversation(lines, () => this.advance());
       return;
     }
-    if (this.stepIs('order')) {
-      this.game.dialogue.conversation([['bung', 'Another one. I am supporting the arts, and the arts are fries.']], () => this.advance());
-      return;
-    }
-    this.game.say('bung', 'McRebar. Fictional. Delicious. Geographically on Queen Street.');
+    this.game.say('bung', 'McRebar. The counter is real. The arches are rebar.');
   }
 
   onGabor() {
@@ -784,11 +933,14 @@ export class Saga {
 
   onMop() {
     if (!this.stepIs('disguise')) { this.game.say('bung', 'The mop and I are already professionally involved.'); return; }
-    state.saga.stepState.disguise = true;
-    this.game.dialogue.conversation([
-      ['bung', 'I am a janitor. The singlet is ironic workwear.'],
-      ['doc', 'A collector looks at the mop, then at the belly, and decides not to be paid enough to ask.'],
-    ], () => this.advance());
+    if (this.held()) return;
+    this.game.audio.sfx('unlock');
+    this.playPose('mop', 0.8, () => {
+      this.game.dialogue.conversation([
+        ['bung', 'High-vis on. Cap on. I am a janitor with a trolley licence.'],
+        ['doc', 'A collector looks at the vest, then at the belly, and decides not to be paid enough to ask.'],
+      ], () => this.advance());
+    });
   }
 
   onPed(id) {
@@ -824,6 +976,7 @@ export class Saga {
     const have = state.saga.stepState.parts || (state.saga.stepState.parts = {});
     if (have[id]) { this.game.say('bung', 'Already got that one.'); return; }
     have[id] = true;
+    if (this.actors?.parts?.[id]) this.actors.parts[id].visible = false;
     this.game.audio.sfx('quest');
     this.game.say('bung', line);
     this.refresh();

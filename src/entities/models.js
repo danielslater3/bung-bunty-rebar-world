@@ -14,34 +14,59 @@ export function buildBung() {
   const g = new THREE.Group();
   const parts = {};
 
-  // Belly / singlet (stained white)
-  const belly = sphere(0.62, mat(0xf2efe6, { roughness: 0.9 }), 18, 14);
+  // Body. The singlet and boxers are a separate kit so the wardrobe can put them on.
+  const belly = sphere(0.62, SKIN(), 18, 14);
   belly.scale.set(1, 1.12, 0.92);
   belly.position.y = 0.95;
   g.add(belly);
-  // Singlet stains
-  for (const [x, y, z] of [[0.2, 1.05, 0.52], [-0.25, 0.85, 0.5], [0.05, 0.7, 0.55]]) {
-    const stain = sphere(0.09, mat(0xc9bd9c, { roughness: 1 }), 8, 6);
-    stain.position.set(x, y, z); stain.scale.z = 0.25;
-    g.add(stain);
-  }
   parts.belly = belly;
 
-  // Dodgy brown boxer shorts (with a simple lighter band pattern)
+  const uniform = new THREE.Group();
+  const singlet = sphere(0.655, mat(0xf4f1ea, { roughness: 0.82 }), 18, 14);
+  singlet.scale.set(1.02, 1.05, 0.9);
+  singlet.position.y = 0.98;
+  uniform.add(singlet);
+  const seam = cyl(0.6, 0.6, 0.03, mat(0xd9d4c4, { roughness: 1 }), 16);
+  seam.position.y = 0.66;
+  uniform.add(seam);
+  const neck = cyl(0.16, 0.2, 0.08, mat(0xf4f1ea, { roughness: 0.82 }), 12);
+  neck.position.y = 1.48;
+  uniform.add(neck);
+  for (const [x, y, z] of [[0.18, 1.08, 0.58], [-0.22, 0.88, 0.56], [0.04, 0.74, 0.6]]) {
+    const stain = sphere(0.085, mat(0xc4b48a, { roughness: 1 }), 8, 6);
+    stain.position.set(x, y, z);
+    stain.scale.z = 0.22;
+    uniform.add(stain);
+  }
   const shorts = cyl(0.5, 0.55, 0.42, mat(0x7a5230, { roughness: 1 }), 14);
   shorts.position.y = 0.42;
-  g.add(shorts);
+  uniform.add(shorts);
   const shortsBand = cyl(0.515, 0.515, 0.07, mat(0x9a6c42, { roughness: 1 }), 14);
   shortsBand.position.y = 0.56;
-  g.add(shortsBand);
-  // Trolley grease smudge on the shorts
+  uniform.add(shortsBand);
   const grease = sphere(0.1, mat(0x3a3026, { roughness: 1 }), 7, 5);
-  grease.position.set(0.3, 0.42, 0.42); grease.scale.z = 0.2;
-  g.add(grease);
-  // Singlet seam line
-  const seam = cyl(0.585, 0.585, 0.025, mat(0xd9d4c4, { roughness: 1 }), 16);
-  seam.position.y = 0.66;
-  g.add(seam);
+  grease.position.set(0.3, 0.42, 0.42);
+  grease.scale.z = 0.2;
+  uniform.add(grease);
+  g.add(uniform);
+  parts.uniform = uniform;
+
+  const disguise = new THREE.Group();
+  const vest = box(0.95, 0.55, 0.62, mat(0xf0c43a, { roughness: 0.65 }));
+  vest.position.y = 1.05;
+  disguise.add(vest);
+  const vestBand = box(0.97, 0.08, 0.64, mat(0x1a1d26, { roughness: 0.5 }));
+  vestBand.position.y = 1.22;
+  disguise.add(vestBand);
+  const cap = cyl(0.28, 0.28, 0.16, mat(0xf0c43a, { roughness: 0.6 }), 12);
+  cap.position.y = 2.16;
+  disguise.add(cap);
+  const brim = box(0.34, 0.04, 0.22, mat(0x1a1d26, { roughness: 0.5 }));
+  brim.position.set(0, 2.08, 0.18);
+  disguise.add(brim);
+  disguise.visible = false;
+  g.add(disguise);
+  parts.disguise = disguise;
 
   // Legs (stubby)
   const legGeoMat = SKIN();
@@ -148,6 +173,13 @@ export function buildBung() {
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; } });
   addOutline(g, 0.06); // cartoon ink outline — Bung must be iconic
   return g;
+}
+
+export function setBungKit(mesh, { uniform = true, disguise = false } = {}) {
+  const parts = mesh?.userData?.parts;
+  if (!parts) return;
+  if (parts.uniform) parts.uniform.visible = !!uniform;
+  if (parts.disguise) parts.disguise.visible = !!disguise;
 }
 
 // ============================================================
@@ -289,7 +321,13 @@ export function buildGabor() {
     brow.position.set(sx * 0.08, 0.0, 0.21);
     brow.rotation.z = sx * 0.4;
     headG.add(brow);
+    const lens = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 6, 10), mat(0x9fd4ea, { metalness: 0.8, roughness: 0.15, emissive: 0x143044, emissiveIntensity: 0.4 }));
+    lens.position.set(sx * 0.08, -0.05, 0.22);
+    headG.add(lens);
   }
+  const strap = box(0.34, 0.035, 0.04, mat(0x1a1d26, { roughness: 0.5 }));
+  strap.position.set(0, -0.02, 0.12);
+  headG.add(strap);
   // Small orange beard
   const beard = cyl(0.02, 0.085, 0.18, mat(0xd97722, { roughness: 1 }), 6);
   beard.position.set(0, -0.27, 0.13);
