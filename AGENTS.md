@@ -7,7 +7,7 @@ Full notes: `docs/handover/START_HERE.md`.
 ## Stack
 
 - Three.js revision 160, `vendor/three.module.js`, import map key `"three"`.
-- ES modules. No bundler, no npm install, no test runner, no env vars.
+- ES modules. No bundler or game dependency install. Native Node tests and an optional external Playwright loaded-scene script are in `tools/tests/`; see `docs/QUALITY_PASS.md`.
 - Run: `python3 -m http.server 8765` from the repo root, then open the URL. See `docs/handover/SETUP_AND_TESTING.md`.
 - Deploy: push `main`. GitHub Pages serves https://danielslater3.github.io/bung-bunty-rebar-world/
 
@@ -24,7 +24,7 @@ Full notes: `docs/handover/START_HERE.md`.
 ## Conventions
 
 - Match the surrounding file. Plain JavaScript, `export` functions and classes, no new framework.
-- Bump `?v=` on a changed module, on the file that imports it, on the `Game.js` map entry, and on `main.js`. Relative imports ignore the import map. Every importer of `sagaData.js` must use the same query. Do not load `state.js` from a second URL.
+- Keep source imports query-free. `index.html` maps both root `/src/` and relative `./src/` aliases to the same versioned URL, including under GitHub Pages. Add both aliases for new modules and bump the source token consistently in the map and entry script. Never load `state.js` or `sagaData.js` from a second URL. See `docs/QUALITY_PASS.md`.
 - `DialogueSystem.say` is a bark and must not set `cinematic`. `conversation` is the cinematic path.
 - Camera collision tests `zone.colliders` boxes only. Never raycast `zone.group` (that was a 3 fps bug).
 - 1 m in the city is 1 m in the world. Do not invent coordinates. Fiction stays labelled fiction.
@@ -37,4 +37,4 @@ Full notes: `docs/handover/START_HERE.md`.
 
 `docs/handover/DEVELOPMENT_ROADMAP.md` Phase 1: prove the indoor camera, the dialogue camera, the street arrow, the Queen Street chase, the distance HUD, the trail, and a trolley trip out of the garage and back. Then the house and McRebar. Then chapters 3 and 4 played for real.
 
-Bugs and their real status: `docs/handover/KNOWN_ISSUES.md`. None of Bugs A–J are fully closed.
+Bugs and their historical status: `docs/handover/KNOWN_ISSUES.md`. The latest implementation and actual verification scope are in `docs/QUALITY_PASS.md`; full human playthrough remains outstanding.

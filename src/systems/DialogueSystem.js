@@ -23,6 +23,7 @@ export class DialogueSystem {
 
   // Scripted conversation: array of [speaker, text]
   conversation(lines, onEnd = null) {
+    if (this.game.saga?.on) this.game.saga.freeze = true;
     this.queue = lines.map(([speaker, text], i) => ({
       speaker,
       text,
@@ -40,6 +41,7 @@ export class DialogueSystem {
     if (!this.current) {
       this.el.classList.add('hidden');
       const cb = this.onEnd; this.onEnd = null;
+      if (this.game.saga?.on) this.game.saga.freeze = false;
       if (cb) cb();
       return;
     }
@@ -59,7 +61,10 @@ export class DialogueSystem {
   update(dt) {
     if (!this.current) return;
     this.timer -= dt;
-    if (this.game.input.pressed['KeyE'] && this.queue.length > 0) this._next(true);
+    if (this.game.input.pressed['KeyE']) {
+      this.game.input.pressed['KeyE'] = false; // A dialogue advance must not also mount/deliver.
+      this._next(true);
+    }
     else if (this.timer <= 0) this._next(true);
   }
 

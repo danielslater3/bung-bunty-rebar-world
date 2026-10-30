@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { mat } from '../../core/utils.js';
 import { ZoneKit } from '/src/world/ZoneKit.js';
-import { BRISBANE_GEO as GEO } from './brisbane.data.js';
+import { BRISBANE_GEO as SOURCE_GEO } from './brisbane.data.js';
 import { verifyGeo } from './project.js';
 import { indexFootprints } from '/src/world/geo/footprints.js';
 import { GaborChase } from '../../systems/BossEvents.js';
@@ -14,11 +14,16 @@ import { createStreetKit, tiledMesh, closestMall, addMallFronts, addDistrictFron
 import { dressCbd, signAnchors } from './cbdFronts.js';
 import { dressShops } from './shopSigns.js';
 import { RIVER_SURFACE, riverMaterial, attachRiverClock, waterSheet } from './river.js';
-import { bridgeDeckList, deckCovers, buildBridges } from './bridges.js';
+import { buildBridges } from './bridges.js';
 import { createTerrain, easeKerbs, terrainMeshes, terrainMaterial, parkMask, BANK_Y } from '/src/world/geo/terrain.js';
 import { drapeRibbon, ribbon3d, drapePolygon, deckProfile } from '/src/world/geo/drape.js';
 import { buildShells, roofCollector } from '/src/world/geo/facades.js';
 
+import { SurfaceIndex } from './surfaces.js';
+
+import { prepareGeography } from './stability.js';
+import { pushFootprints } from './footprints.js';
+const GEO = prepareGeography(SOURCE_GEO);
 const CHUNK = 240;
 
 function b64(s) {
@@ -252,7 +257,8 @@ export function buildOsmBrisbane(game) {
 
   const grid = GEO.grid;
   const ground = b64(grid.ground);
-  const deck = b64(grid.deck);
+  const surfaces = new SurfaceIndex();
+  Z.walkSurfaces = surfaces;
   const T = createTerrain(grid, ground);
   easeKerbs(T, GEO.roads);
   Z.terrain = T;
@@ -262,11 +268,7 @@ export function buildOsmBrisbane(game) {
     if (ix < 0 || iz < 0 || ix >= grid.w || iz >= grid.h) return null;
     const id = iz * grid.w + ix;
     let h = T.walkAt(x, z);
-    const d = deck[id];
-    if (d > 0) {
-      const dh = d * grid.step - 0.18;
-      if (dh <= feetY + 0.9) h = Math.max(h, dh);
-    }
+    h = Math.max(h, surfaces.heightAt(x, z, feetY));
     return h;
   };
   Z.swimInfo = (x, z, feetY) => {
@@ -275,11 +277,8 @@ export function buildOsmBrisbane(game) {
     if (ix < 0 || iz < 0 || ix >= grid.w || iz >= grid.h) return null;
     const id = iz * grid.w + ix;
     if (ground[id] !== 1) return null;
-    const d = deck[id];
-    if (d > 0) {
-      const dh = d * grid.step;
-      if (dh > 0.8 && dh <= feetY + 1.4) return null;
-    }
+    const dh = surfaces.heightAt(x, z, feetY, 1.4);
+    if (dh > RIVER_SURFACE + 0.45) return null;
     return { surface: RIVER_SURFACE };
   };
   Z.groundAt = (x, z, refY = 1e6) => Z.sampleGround(x, z, refY) ?? 0;
@@ -315,15 +314,14 @@ export function buildOsmBrisbane(game) {
   const curbs = [], asphalt = [], paving = [], paths = [], cycle = [], bus = [], marks = [];
   const walkPos = new Map();
   const bucket = { 0: asphalt, 1: asphalt, 2: paving, 3: paths, 4: cycle, 5: bus };
-  const decks = bridgeDeckList(GEO.bridges);
   const gH = (x, z) => Math.max(T.heightAt(x, z), BANK_Y);
   for (const road of GEO.roads) {
     if (road.py) {
       const pts = roadPoints(road);
       const buf = [];
-      ribbon3d(buf, pts, road.w * 0.5, gH, 0.04, (a, b) => !deckCovers(
-        decks, (a[0] + b[0]) / 2, (a[2] + b[2]) / 2, (a[1] + b[1]) / 2,
-      ));
+      // Keep the complete approach ribbon. Midpoint rejection used to remove
+      // whole triangles straddling a bridge outline, leaving holes at abutments.
+      ribbon3d(buf, pts, road.w * 0.5, gH, 0.04);
       if (!buf.length) continue;
       const key = `${Math.floor(pts[0][0] / CHUNK)},${Math.floor(pts[0][2] / CHUNK)}`;
       const list = walkPos.get(key) || [];
@@ -401,6 +399,18 @@ export function buildOsmBrisbane(game) {
     },
   });
   Z.group.add(shells.group);
+  // Keep the skyline, but do not submit distant facade batches to the moving
+  // 140 m shadow camera. Bounds already exist on the static chunk geometry.
+  let shadowTick=0;
+  Z.updaters.push(dt => {
+    shadowTick-=dt;if(shadowTick>0)return;shadowTick=.35;
+    const p=game.trolley.riding?game.trolley.pos:game.player.pos;
+    for(const m of shells.group.children){
+      if (!m.geometry?.boundingSphere) m.geometry?.computeBoundingSphere();
+      const sphere=m.geometry?.boundingSphere;if(!sphere)continue;
+      m.castShadow=Math.hypot(sphere.center.x-p.x,sphere.center.z-p.z)<sphere.radius+120;
+    }
+  });
   Z.blockers = [shells.group];
   const hips = shells.stats.pitched;
   if (roofs.photo.length) {
@@ -473,18 +483,12 @@ export function buildOsmBrisbane(game) {
       positions,
       key === 'white-bridges' ? whiteDeckMat : key === 'bridges' ? bridgeMat : roadMat,
     );
+    surfaces.add(positions);
+    mesh.geometry.computeBoundingBox();
     mesh.userData.walk = true;
     mesh.userData.abs = true;
-    let sx = 0, sz = 0;
-    if (key === 'bridges' || key === 'white-bridges') {
-      const L = GEO.landmarks.victoriaBridge;
-      sx = L.x; sz = L.z;
-    } else {
-      const [a, b] = key.split(',');
-      sx = (+a + 0.5) * CHUNK; sz = (+b + 0.5) * CHUNK;
-    }
     Z.group.add(mesh);
-    walkMeshes.push({ mesh, x: sx, z: sz });
+    walkMeshes.push({ mesh, bounds: mesh.geometry.boundingBox });
   }
 
   // Streetlights at a regular spacing along major and pedestrian centrelines.
@@ -500,7 +504,12 @@ export function buildOsmBrisbane(game) {
       acc += seg;
       if (acc >= 38) {
         acc = 0;
-        lampSpots.push([flat[i], flat[i + 1]]);
+        // Put lights at the mapped road edge, never on its centreline.
+        const dx=flat[i]-flat[i-2], dz=flat[i+1]-flat[i-1], length=Math.hypot(dx,dz)||1;
+        const side=road.w*.5+.7;
+        const x=flat[i]-dz/length*side,z=flat[i+1]+dx/length*side,p={x,z};
+        pushFootprints(p,.45,T.walkAt(x,z),Z);
+        if(Math.hypot(p.x-x,p.z-z)<.01)lampSpots.push([x,z]);
         if (lampSpots.length >= 420) break;
       }
     }
@@ -646,7 +655,7 @@ export function buildOsmBrisbane(game) {
   });
 
   Z._baseGrounds = Z.grounds.slice();
-  const seed = (x, z) => walkMeshes.filter((w) => (w.x - x) ** 2 + (w.z - z) ** 2 < 220 * 220).map((w) => w.mesh);
+  const seed = (x, z) => walkMeshes.filter(({ bounds: b }) => x >= b.min.x - 12 && x <= b.max.x + 12 && z >= b.min.z - 12 && z <= b.max.z + 12).map((w) => w.mesh);
   Z.grounds = Z._baseGrounds.concat(seed(Z.spawn.x, Z.spawn.z));
   Z.updaters.push(() => {
     const p = game.trolley.riding ? game.trolley.pos : game.player.pos;

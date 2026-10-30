@@ -176,7 +176,7 @@ export class HUD {
       return;
     }
     el.classList.remove('hidden');
-    this.$('chase-dist').textContent = `${info.metres} m AWAY`;
+    this.$('chase-dist').textContent = `GABOR — ${info.metres} m`;
     const note = this.$('chase-note');
     note.textContent = info.note || '';
     note.classList.toggle('hot', info.note === 'IN CATCH RANGE');

@@ -99,3 +99,27 @@ export function indexFootprints(buildings, cell = 48) {
   }
   return { buckets, cell, kept };
 }
+
+// Analytic camera ray against nearby extruded footprint edges. This deliberately
+// avoids raycasting the millions of rendered facade triangles.
+export function footprintClearance(zone,origin,direction,far) {
+  if(!zone.footBuckets)return far;
+  const cell=zone.footCell,ex=origin.x+direction.x*far,ez=origin.z+direction.z*far;
+  let best=far;const seen=new Set();
+  for(let iz=Math.floor(Math.min(origin.z,ez)/cell);iz<=Math.floor(Math.max(origin.z,ez)/cell);iz++)
+    for(let ix=Math.floor(Math.min(origin.x,ex)/cell);ix<=Math.floor(Math.max(origin.x,ex)/cell);ix++)
+      for(const poly of zone.footBuckets.get(`${ix},${iz}`)||[]){
+        if(seen.has(poly))continue;seen.add(poly);
+        const r=poly.r;
+        for(let i=0;i<r.length;i+=2){
+          const j=(i+2)%r.length,sx=r[j]-r[i],sz=r[j+1]-r[i+1];
+          const den=direction.x*sz-direction.z*sx;if(Math.abs(den)<1e-8)continue;
+          const dx=r[i]-origin.x,dz=r[i+1]-origin.z;
+          const t=(dx*sz-dz*sx)/den,u=(dx*direction.z-dz*direction.x)/den;
+          if(t<.02||t>=best||u<0||u>1)continue;
+          const y=origin.y+direction.y*t;
+          if(y>poly.y0&&y<poly.h)best=t;
+        }
+      }
+  return best;
+}

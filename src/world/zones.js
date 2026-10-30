@@ -606,7 +606,7 @@ function buildShenzhen(game) {
       }
     }
   };
-  bus.on('pulse', onPulse);
+  Z.listen('pulse', onPulse);
 
   // ---- Cyber Rebar Shards (high up — grapple for them) ----
   Z.grapple(-45, 20, 70);

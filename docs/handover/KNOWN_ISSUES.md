@@ -1,5 +1,7 @@
 # Known issues
 
+**30 October update:** this file preserves the earlier observations. See [the implemented quality pass and verification limits](../QUALITY_PASS.md) for the subsequent navigation, chase, surface, camera, garage, delivery and save-continuation fixes. The original descriptions below are historical; they are not all current symptoms.
+
 Status values: **resolved**, **partially resolved**, **outstanding**. Nothing below is marked resolved. Browser checks cited here were scripted sessions against a local static server on 29 October 2026, build queries `20261030d` / dialogue camera `20261030c`, before and during the commit that became `18a494e`. They are not a from-scratch human play of all four chapters, and they were not repeated against the live GitHub Pages URL after publish.
 
 Do not raycast `zone.group` while fixing cameras. That was the 3 fps bug fixed in `0fc9adb`.

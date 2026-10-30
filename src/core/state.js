@@ -7,6 +7,11 @@ export const bus = {
   on(evt, fn) {
     if (!this._m.has(evt)) this._m.set(evt, []);
     this._m.get(evt).push(fn);
+    return () => {
+      const list=this._m.get(evt);if(!list)return;
+      const i=list.indexOf(fn);if(i>=0)list.splice(i,1);
+      if(!list.length)this._m.delete(evt);
+    };
   },
   emit(evt, data) {
     const fns = this._m.get(evt);

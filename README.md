@@ -1,5 +1,7 @@
 # BUNG BUNTY: REBAR WORLD — WORLD DETAIL + CARTOON VISUAL REVAMP 3.0
 
+The **30 October Brisbane opening quality pass** adds shared street navigation, a bevelled gold arrow, a resumable Gabor chase, bridge/collision fixes and chapter progression tests. See [implemented changes, phase status and validation](docs/QUALITY_PASS.md). Play the [live GitHub Pages game](https://danielslater3.github.io/bung-bunty-rebar-world/).
+
 The current development handover for OpenAI Codex is in [`docs/handover/START_HERE.md`](docs/handover/START_HERE.md) and [`AGENTS.md`](AGENTS.md). The notes below describe the older sandbox campaign and are not the chapter-1–4 source of truth. Three.js is vendored at `vendor/three.module.js` (revision 160). The live site is GitHub Pages from `main`.
 
 A 3D comedy action-platformer / open-zone adventure / movement score-chaser /
@@ -51,11 +53,11 @@ and boost state transitions.
 
 ## How to run
 
-The game is a zero-build Three.js web app (modules loaded from CDN), so it just
+The game is a zero-build Three.js web app (Three.js is vendored locally), so it just
 needs any static file server:
 
 ```bash
-cd "Bung Game"
+cd bung-bunty-rebar-world
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
@@ -63,8 +65,7 @@ python3 -m http.server 8000
 (Or `npx serve`, or any equivalent. Opening `index.html` directly via `file://`
 will NOT work because ES modules require HTTP.)
 
-Requires an internet connection on first load (Three.js is fetched from
-jsDelivr). Everything else — models, sounds, music, voice — is generated
+Optional Google Fonts use the internet. Models, sounds, music, voice are generated
 procedurally in code.
 
 ## Controls

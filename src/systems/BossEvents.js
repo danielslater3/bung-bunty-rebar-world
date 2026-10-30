@@ -37,7 +37,7 @@ export class GaborChase {
     game.zone.group.add(this.group);
     this.pos = new THREE.Vector3();
 
-    bus.on('pulse', (e) => { if (this.game.zone === this.kit) this.onPulse(e); });
+    this.kit.listen('pulse', (e) => { if (this.game.zone === this.kit) this.onPulse(e); });
   }
 
   shouldActivate() {
@@ -191,7 +191,7 @@ export class MegaForeheadMachine {
     this.group = g;
     this.kit = game.zone;
     game.zone.group.add(g);
-    bus.on('pulse', (e) => { if (this.game.zone === this.kit) this.onPulse(e); });
+    this.kit.listen('pulse', (e) => { if (this.game.zone === this.kit) this.onPulse(e); });
   }
 
   get arenaActive() { return this.phase === 'nodes' || this.phase === 'core'; }

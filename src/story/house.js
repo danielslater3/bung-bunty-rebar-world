@@ -1,8 +1,9 @@
 // Bung's West End house. A real plan: verandah, bedroom, living room,
 // kitchen, rebar cupboard and a workshop garage. Furniture is geometry he can use.
 import * as THREE from 'three';
+import { ribbon3d } from '../world/geo/drape.js';
 import { mat } from '../core/utils.js';
-import { PLACE } from './sagaData.js?v=20261029x';
+import { PLACE } from './sagaData.js';
 
 function woodTex() {
   const c = document.createElement('canvas');
@@ -122,7 +123,7 @@ export function buildHouse(saga) {
 
   // Verandah deck and posts, facing the yard.
   Z.box(cx, y - 0.02, Z0 - 1.35, W + 0.3, 0.12, 2.5, mat(0xc4a077, { roughness: 0.8 }), { collide: false });
-  for (const x of [X0 + 0.3, cx, X1 - 0.3]) {
+  for (const x of [X0 + 0.3, X1 - 0.3]) {
     Z.box(x, y, Z0 - 2.45, 0.14, 2.55, 0.14, trim);
   }
   Z.box(cx, y + 2.45, Z0 - 1.35, W + 0.2, 0.1, 2.6, mat(0x6e4b32, { roughness: 0.75 }), { collide: false, ground: false });
@@ -323,8 +324,8 @@ export function buildHouse(saga) {
   Z.box(gcx, y, maxZ, maxX - minX, 2.75, 0.16, boardD);
   // North wall stays solid. The real building north of the yard blocks that way.
   Z.box(gcx, y, minZ, maxX - minX, 2.75, 0.16, boardD);
-  const opening = 3.6;
-  const doorZ = minZ + 2.4;
+  const opening = 4.2;
+  const doorZ = minZ + 2.7;
   const southOfDoor = Z0 - (doorZ + opening / 2);
   const northOfDoor = (doorZ - opening / 2) - minZ;
   if (southOfDoor > 0.2) Z.box(minX, y, Z0 - southOfDoor / 2, 0.16, 2.75, southOfDoor, boardD);
@@ -386,22 +387,19 @@ export function buildHouse(saga) {
   const gate = PLACE.gate;
   const street = saga.ground(gate.x, gate.z);
   const westRun = minX - (gate.x + 1.5);
-  const westSlabs = 8;
-  for (let i = 0; i < westSlabs; i++) {
-    const t = (i + 0.5) / westSlabs;
-    const x = minX - t * westRun;
-    const ramp = gFloor * (1 - t) + street * t;
-    const top = Math.max(ramp, saga.ground(x, doorZ) + 0.03);
-    Z.box(x, top - 0.12, doorZ, westRun / westSlabs + 0.15, 0.12, 4.4, concrete);
-  }
-  const northRun = doorZ - gate.z;
-  const northSlabs = 6;
-  for (let i = 0; i < northSlabs; i++) {
-    const t = (i + 0.5) / northSlabs;
-    const z = doorZ - t * northRun;
-    const top = Math.max(street + 0.04, saga.ground(gate.x, z) + 0.03);
-    Z.box(gate.x, top - 0.12, z, 4.4, 0.12, northRun / northSlabs + 0.15, concrete);
-  }
+  const driveway = [
+    [minX + 1, gFloor, doorZ], [gate.x, street + .04, doorZ], [gate.x, street + .04, gate.z],
+  ];
+  const drivewayPositions=[];
+  ribbon3d(drivewayPositions,driveway,2.2,(x,z)=>saga.ground(x,z),.015);
+  const drivewayGeo=new THREE.BufferGeometry();
+  drivewayGeo.setAttribute('position',new THREE.Float32BufferAttribute(drivewayPositions,3));
+  drivewayGeo.computeVertexNormals();
+  const drivewayMesh=new THREE.Mesh(drivewayGeo,concrete);
+  drivewayMesh.receiveShadow=true;Z.group.add(drivewayMesh);Z.grounds.push(drivewayMesh);Z._baseGrounds?.push(drivewayMesh);
+  // Match the collision sampler as well as the raycast set. The old eight
+  // horizontal slabs formed abrupt steps which caught a reversing trolley.
+  Z.walkSurfaces?.add(drivewayPositions);
 
   PLACE.garage.x = gcx + 1.4;
   PLACE.garage.z = gcz + 1.6;
@@ -433,6 +431,9 @@ export function buildHouse(saga) {
 
   return {
     y, door, wardL, wardR, cupL, cupR, hanging, bars, emerald, garage,
+    garageRoute: [{x: gcx, y: gFloor, z: doorZ}, {x: minX-1, y: gFloor, z: doorZ}, {x:gate.x,y:street,z:doorZ}, {x:gate.x,y:street,z:gate.z}],
+    drivewayMesh,
+    frontRoute: [{x:cx,y:y+.16,z:Z0+1}, {x:cx,y:y+.12,z:Z0-2.5}, {x:cx,y:yard,z:Z0-3-treads*.36}, {x:cx,y:saga.ground(cx,doorZ),z:doorZ}, {x:gate.x,y:street,z:doorZ}, {x:gate.x,y:street,z:gate.z}],
     rooms: [
       { minX: X0 - 0.3, maxX: X1 + 0.3, minZ: Z0 - 2.8, maxZ: Z1 + 0.3, floor: y, ceil: y + 2.68 },
       { minX: garage.minX - 0.4, maxX: garage.maxX + 0.4, minZ: garage.minZ - 0.4, maxZ: garage.maxZ + 0.4, floor: y, ceil: y + 2.68 },

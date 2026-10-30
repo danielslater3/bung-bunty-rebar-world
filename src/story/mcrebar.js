@@ -3,7 +3,7 @@
 // laid out from the supplied plan: front seating, dining, order, collect, kitchen.
 import * as THREE from 'three';
 import { mat } from '../core/utils.js';
-import { PLACE } from './sagaData.js?v=20261029x';
+import { PLACE } from './sagaData.js';
 
 const AX = 151.3, AZ = 81.4, BX = 137.3, BZ = 93.7;
 const LEN = Math.hypot(BX - AX, BZ - AZ);
@@ -190,12 +190,16 @@ export function buildMcRebar(saga) {
   const rise = Math.max(0.4, y - street);
   const steps = Math.max(4, Math.round(rise / 0.15));
   const tread = rise / steps;
+  const navRoute = [{ ...mcrebarPoint(0, 1.5), y: y + .12 }, { ...door, y }];
   for (let i = 0; i < steps; i++) {
     const depth = -1.85 - i * 0.42;
     const p = mcrebarPoint(0, depth);
     const top = y - i * tread;
+    navRoute.push({ ...p, y: top });
     Z.box(p.x, top - tread, p.z, 2.4, tread, 0.42, mat(0xd9d4cc, { roughness: 0.8 }), { collide: false, ry });
   }
+  const stairFoot = mcrebarPoint(0, -1.85 - steps * .42);
+  navRoute.push({ ...stairFoot, y: saga.ground(stairFoot.x, stairFoot.z) });
   for (const side of [-1.25, 1.25]) {
     for (let i = 0; i < steps; i += 2) {
       const depth = -1.85 - i * 0.42;
@@ -301,7 +305,7 @@ export function buildMcRebar(saga) {
   const it = Z.interactables?.find((x) => x.id === 'mcrebar');
   if (it) it.pos.set(stand.x, y + 1.0, stand.z);
 
-  return { y, meal, counter, door, stand, spot: mcrebarPoint(0.6, 3.3), inside: insideMcRebar, ceil: y + 2.85 };
+  return { y, meal, counter, door, stand, navRoute, spot: mcrebarPoint(0.6, 3.3), inside: insideMcRebar, ceil: y + 2.85 };
 }
 
 function paint(draw, w, h) {

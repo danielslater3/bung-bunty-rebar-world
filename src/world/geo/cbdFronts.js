@@ -21,6 +21,9 @@ const COUNCIL_GOLD = '#f2c14b';
 // 127 Queen Street has no building way. Its point is the midpoint of 125 and 129.
 // 130A has no separate way. Its point is 8 m from 130 toward 136, still on that front.
 const PLACES = [
+  // OSM shop node retained at its mapped location; address confirmed by Apple
+  // https://www.apple.com/au/retail/brisbane/ (MacArthur Chambers, 233 Queen St).
+  { x:371.82, z:-65.92, name:'APPLE', sub:'MACARTHUR CHAMBERS · 233 QUEEN STREET', bg:'#e8e0d0', fg:'#262523', y:5.6, w:5.4, h:1.0, mark:'word', apple:true },
   { x: 133.66, z: 69.17, name: 'McREBARS', sub: '130 QUEEN STREET', bg: '#d9232a', fg: '#ffc72c', y: 6.7, w: 5.4, h: 1.35, mark: 'rebar' },
   { x: 133.66, z: 69.17, name: 'GIRDER & STONE', sub: 'JEWELLERS', bg: '#161616', fg: '#f4f4f4', y: 3.15, w: 4.6, h: 0.85, mark: 'word' },
   { x: 140.22, z: 64.60, name: 'REBAR FRIED\nCHICKEN', sub: '130A QUEEN STREET', bg: '#c8102e', fg: '#ffffff', y: 4.6, w: 4.2, h: 1.35, mark: 'stripe' },
@@ -282,6 +285,23 @@ export function dressCbd(group, buildings, mallFlat, hall) {
     mesh.name = place.name;
     group.add(mesh);
     signs++;
+    if (place.apple) {
+      // Shallow heritage detailing follows the actual hosting footprint edge.
+      // It stays against the wall, outside the playable Queen Street corridor.
+      const stone=new THREE.MeshStandardMaterial({color:0xd9cbb4,roughness:.85});
+      const glass=new THREE.MeshStandardMaterial({color:0x65848b,roughness:.22,metalness:.28});
+      const bay=Math.min(3.6,edge.len/5),width=bay*5;
+      const detail=new THREE.Group();
+      detail.position.set(edge.mx+face.nx*.18,0,edge.mz+face.nz*.18);detail.rotation.y=face.yaw;
+      const add=(x,y,w,h,d,m)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,0);o.castShadow=true;detail.add(o);};
+      for(let i=-2;i<=2;i++){
+        add(i*bay,2.65,bay-.5,4.4,.12,glass);
+        add(i*bay-bay/2,3.5,.35,6.5,.32,stone);
+        add(i*bay,7.6,bay-.7,2.5,.14,glass);
+      }
+      add(0,5.2,width,.32,.42,stone);add(0,9.2,width+.3,.4,.48,stone);
+      group.add(detail);
+    }
     if (place.heritage && !verandahed.has(host)) {
       addVerandah(group, edge, face);
       verandahed.add(host);

@@ -1,5 +1,7 @@
 # Start here
 
+**Latest implementation:** [Brisbane opening quality pass, 30 October](../QUALITY_PASS.md). Read that first for the shared navigation/chase controllers, surface collision, progression repairs, current tests and module-cache rules. The status inventory below describes the earlier `18a494e` baseline.
+
 This is the entry point for an agent taking over **Bung Bunty: Rebar World**. Read this, then the documents listed at the bottom, then the source. Do not treat the root `README.md` as current: it describes the older sandbox revamp and still says Three.js comes from a CDN.
 
 ## What this is

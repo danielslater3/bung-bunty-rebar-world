@@ -6,6 +6,15 @@ import * as THREE from 'three';
 const MAX_ERR = 0.05;
 const MIN_SEG = 0.8;
 
+function pushUp(out, a, b, c) {
+  const area = (b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0]);
+  if (!Number.isFinite(area) || Math.abs(area) < 1e-7) return;
+  // +Y is clockwise in the XZ plane. Double-sided materials flip the normal
+  // on a back face, so forcing +Y normals on downward faces made roads black.
+  if (area > 0) [b, c] = [c, b];
+  out.push(...a, ...b, ...c);
+}
+
 function side(px, pz, nx, nz, halfW, s) {
   return [px + nx * halfW * s, pz + nz * halfW * s];
 }
@@ -81,7 +90,7 @@ export function drapeRibbon(out, pts, halfW, heightOf, lift = 0, cols = 2, maxDe
       emit(ab, bc, ca, depth + 1);
       return;
     }
-    out.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    pushUp(out, a, b, c);
   };
   for (let i = 0; i < rows.length - 1; i++) {
     const r0 = rows[i], r1 = rows[i + 1];
@@ -124,8 +133,8 @@ export function ribbon3d(out, pts, halfW, groundOf, lift, keepSeg) {
   for (let i = 0; i < dense.length - 1; i++) {
     if (keepSeg && !keepSeg(dense[i], dense[i + 1])) continue;
     const a = left[i], b = right[i], c = left[i + 1], d = right[i + 1];
-    out.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-    out.push(b[0], b[1], b[2], d[0], d[1], d[2], c[0], c[1], c[2]);
+    pushUp(out, a, b, c);
+    pushUp(out, b, d, c);
   }
 }
 
@@ -153,19 +162,27 @@ export function triangulateRing(flat) {
 }
 
 function pushSplit(out, a, b, c, yOf, maxEdge, depth) {
+  const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  if (Math.abs(area) < 1e-7) return;
   const ab = Math.hypot(b[0] - a[0], b[1] - a[1]);
   const bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
   const ca = Math.hypot(a[0] - c[0], a[1] - c[1]);
-  if (Math.max(ab, bc, ca) <= maxEdge || depth > 6) {
-    for (const p of [a, b, c]) out.push(p[0], yOf(p[0], p[1]), p[1]);
+  const ya = yOf(a[0], a[1]), yb = yOf(b[0], b[1]), yc = yOf(c[0], c[1]);
+  const err = Math.abs(yOf((a[0]+b[0]+c[0])/3, (a[1]+b[1]+c[1])/3) - (ya+yb+yc)/3);
+  if ((Math.max(ab, bc, ca) <= maxEdge && err <= 0.045) || depth >= 22) {
+    pushUp(out, [a[0], ya, a[1]], [b[0], yb, b[1]], [c[0], yc, c[1]]);
     return;
   }
-  const m = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-  const mab = m(a, b), mbc = m(b, c), mca = m(c, a);
-  pushSplit(out, a, mab, mca, yOf, maxEdge, depth + 1);
-  pushSplit(out, mab, b, mbc, yOf, maxEdge, depth + 1);
-  pushSplit(out, mca, mbc, c, yOf, maxEdge, depth + 1);
-  pushSplit(out, mab, mbc, mca, yOf, maxEdge, depth + 1);
+  // Longest-edge bisection avoids the exponential proliferation of tiny
+  // triangles on the narrow, kilometre-long bridge/rail polygons.
+  const m = (p, q) => [(p[0]+q[0])/2, (p[1]+q[1])/2];
+  if (ab >= bc && ab >= ca) {
+    const mid=m(a,b); pushSplit(out,a,mid,c,yOf,maxEdge,depth+1); pushSplit(out,mid,b,c,yOf,maxEdge,depth+1);
+  } else if (bc >= ca) {
+    const mid=m(b,c); pushSplit(out,a,b,mid,yOf,maxEdge,depth+1); pushSplit(out,a,mid,c,yOf,maxEdge,depth+1);
+  } else {
+    const mid=m(c,a); pushSplit(out,a,b,mid,yOf,maxEdge,depth+1); pushSplit(out,mid,b,c,yOf,maxEdge,depth+1);
+  }
 }
 
 // Polygon laid on a height function, split until no edge is longer than maxEdge.

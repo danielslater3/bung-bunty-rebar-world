@@ -4,8 +4,8 @@
 import { state, bus, SaveSystem } from '../core/state.js';
 import { UPGRADES, SHOP_CATEGORIES } from '../systems/ShopSystem.js';
 import { ZONE_INFO } from '../world/zones.js';
-import { ARCHIVE, DISTRICTS, unlockArchive } from '../lore/universe.js?v=20261029a';
-import { ACTS, CHAPTERS } from '../story/sagaData.js?v=20261029x';
+import { ARCHIVE, DISTRICTS, unlockArchive } from '../lore/universe.js';
+import { ACTS, CHAPTERS } from '../story/sagaData.js';
 import { TROLLEY_FLEET } from '../entities/models.js';
 import { BRISBANE_GEO } from '../world/geo/brisbane.data.js';
 

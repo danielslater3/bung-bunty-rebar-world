@@ -67,8 +67,8 @@ export const PLACE = {
 // Queen Street mall centerline, from the McRebar door to the street in front
 // of the mapped Apple Store. Samples sit clear of building footprints.
 export const CHASE_PATH = [
-  [146.4, 90.0],
-  [154.3, 90.1],
+  [151.8, 96.1],
+  [155.6, 95.9],
   [162.3, 90.3],
   [168.9, 84.7],
   [175.3, 79.8],
@@ -159,7 +159,7 @@ export const CHAPTERS = [
       { id: 'shelf', kind: 'interact', at: 'shelf', text: 'Inspect the rebar collection', prompt: '<b>[E]</b> Inspect the collection' },
       { id: 'garage', kind: 'interact', at: 'garage', text: 'Prepare the golden trolley', prompt: '<b>[E]</b> Wake the James Rebar trolley' },
       { id: 'gate', kind: 'reach', at: 'gate', radius: 5, text: 'Leave the yard' },
-      { id: 'mcrebar', kind: 'reach', at: 'mcrebar', radius: 3, text: 'Drive to McRebar' },
+      { id: 'mcrebar', kind: 'reach', at: 'mcrebar', radius: 3, text: 'Ride to McRebar · park, then take the mall stairs' },
       { id: 'meal', kind: 'interact', at: 'mcrebar', text: 'Buy a Rebar Deluxe', prompt: '<b>[E]</b> Order a Rebar Deluxe' },
       {
         id: 'watched', kind: 'scene', look: 'mcrebar', text: 'Notice who is watching',
@@ -186,14 +186,14 @@ export const CHAPTERS = [
       },
       { id: 'order', kind: 'interact', at: 'mcrebar', text: 'Order another meal', prompt: '<b>[E]</b> Order, and watch the counter' },
       { id: 'goggles', kind: 'interact', at: 'gabor', text: 'Inspect Gabor\'s goggles', prompt: '<b>[E]</b> Ask about the ridiculous goggles' },
-      { id: 'follow', kind: 'follow', text: 'Follow Gabor down Queen Street' },
+      { id: 'follow', kind: 'follow', text: 'Down the stairs, then follow Gabor past Apple' },
       { id: 'bag', kind: 'interact', at: 'bag', text: 'Catch him at the winning meal', prompt: '<b>[E]</b> Grab the meal he is scanning' },
       {
         id: 'confront', kind: 'scene', look: 'bag', text: 'Confront Gabor',
         lines: [
           ['bung', 'Those are X-ray goggles and that is my statistical destiny.'],
           ['gabor', 'It is research. The burger was a control group.'],
-          ['bung', 'Get on the scooter. I am getting on the trolley.'],
+          ['bung', 'Get on the scooter. I am getting on the trolley. Back down Queen Street, you walking forehead.'],
         ],
       },
       { id: 'catch', kind: 'catch', text: 'Catch Gabor on the golden trolley' },

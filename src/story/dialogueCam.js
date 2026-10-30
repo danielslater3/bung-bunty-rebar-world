@@ -2,7 +2,7 @@
 // set DialogueSystem line.cinematic, so they leave this alone.
 import * as THREE from 'three';
 import { damp, dampAngle } from '../core/utils.js';
-import { clampMcRebar } from './mcrebar.js?v=20261029x';
+import { clampMcRebar } from './mcrebar.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const CAST = { bung: 1, gabor: 1, ching: 1, seb: 1 };
@@ -184,14 +184,16 @@ function pickShot(game, face, other, room, wide, narrate) {
     contain(pos, room);
     const front = (pos.x - face.x) * fx + (pos.z - face.z) * fz;
     const hit = game.cameraClearance(face, pos.clone().sub(face), 2.4) + (front > 0.3 ? 2 : 0);
-    if (hit > bestHit && insideRoom(pos, room) && !cameraBlocked(game, pos)) {
+    if (hit > bestHit && insideRoom(pos, room) && !cameraBlocked(game, pos) && sees(game, face, pos)) {
       bestHit = hit;
       best = pos;
     }
   }
   if (!best) {
     best = face.clone();
-    best.z += 1.2;
+    const dir = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    const reach = game.cameraClearance(face, dir, 1.2);
+    best.addScaledVector(dir, Math.max(.12, reach - .2));
     contain(best, room);
   }
   return { pos: best, look, dist: best.distanceTo(face) };
@@ -264,7 +266,13 @@ export function frameDialogue(saga, dt) {
   const other = partner ? facePoint(partner, game._dialOther || (game._dialOther = new THREE.Vector3())) : null;
   game._dialYaw = speaker.rotation.y;
   const room = game.indoorRoom(speaker.position.x, speaker.position.y + 1.2, speaker.position.z);
-  const shot = pickShot(game, face, other, room, wide, narrate);
+  // Keep a chosen angle for the line; head animation must not reselect a
+  // different side every frame. Re-evaluate if the actor actually moves.
+  let cache = saga._dialogueShot;
+  if (!cache || cache.line !== line || cache.face.distanceTo(face) > .6) {
+    cache = saga._dialogueShot = { line, face: face.clone(), shot: pickShot(game, face, other, room, wide, narrate) };
+  }
+  const shot = cache.shot;
   const pull = 4.2;
   game.camPos.x = damp(game.camPos.x, shot.pos.x, pull, dt);
   game.camPos.y = damp(game.camPos.y, shot.pos.y, pull, dt);
@@ -276,9 +284,15 @@ export function frameDialogue(saga, dt) {
   if (spanLen > 0.5) {
     const hit = game.cameraClearance(shot.look, span, spanLen);
     if (hit < spanLen - 0.25) {
-      game.camPos.copy(shot.look).addScaledVector(span, Math.max(0.85, hit * 0.72) / spanLen);
+      game.camPos.copy(shot.look).addScaledVector(span, Math.max(.12, hit - .2) / spanLen);
       if (room) contain(game.camPos, room);
     }
+  }
+  // A smooth transition can cross furniture even when both shots are clear.
+  // Room clamping can also push the ray-shortened position back into a wall.
+  // Validate the final position, including the first frame of a new scene.
+  if (cameraBlocked(game, game.camPos) || !insideRoom(game.camPos, room)) {
+    game.camPos.copy(shot.pos);
   }
   game.camera.position.copy(game.camPos);
   const look = game._dialLook || (game._dialLook = shot.look.clone());
@@ -309,4 +323,5 @@ export function resetTalk(saga) {
     }
   }
   saga.game._dialLook = null;
+  saga._dialogueShot = null;
 }

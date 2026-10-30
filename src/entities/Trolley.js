@@ -3,6 +3,7 @@
 // machine, drift mini-boosts, ramp launches, correctly-axled spinning wheels
 // and a golden particle trail. The trolley never lies.
 import * as THREE from 'three';
+import { moveHorizontal, positionClear, resolveHorizontal } from '../core/motion.js';
 import { clamp, damp } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
 import { pushFootprints } from '../world/geo/footprints.js';
@@ -189,15 +190,17 @@ export class Trolley {
   }
 
   dismount() {
-    this.setBoosting(false, 'dismounted');
-    this.riding = false;
     const g = this.game;
-    const side = new THREE.Vector3(Math.cos(this.heading), 0, -Math.sin(this.heading));
-    g.player.teleport(this.pos.clone().addScaledVector(side, 1.4).add(new THREE.Vector3(0, 0.3, 0)));
-    // Carry a touch of trolley momentum into Bung for a smooth hop-off
-    const fwd = new THREE.Vector3(Math.sin(this.heading), 0, Math.cos(this.heading));
-    g.player.vel.addScaledVector(fwd, this.speed * 0.25);
-    this.speed *= 0.3;
+    let landing = null;
+    for(const angle of [Math.PI/2,-Math.PI/2,Math.PI,0,Math.PI/4,-Math.PI/4]) {
+      const a=this.heading+angle;
+      const p=this.pos.clone().add(new THREE.Vector3(Math.sin(a)*1.6,.15,Math.cos(a)*1.6));
+      if(positionClear(p,g.player.radius,g.zone)) {landing=p;break;}
+    }
+    if(!landing){g.toast('NO ROOM TO HOP OFF — ROLL INTO THE CLEAR', 'gold');return;}
+    this.setBoosting(false, 'dismounted'); this.riding=false;
+    g.player.teleport(landing);
+    this.speed=0;
   }
 
   overWater() {
@@ -270,7 +273,7 @@ export class Trolley {
       if (this.engineT > 0.6) { this.engineT = 0; if (Math.abs(this.speed) > 2) g.audio.sfx('tick'); }
 
       // Dismount (consume the key so the same press can't re-mount)
-      if (input.pressed['KeyE']) {
+      if (input.pressed['KeyE'] && !g.saga?.objectiveInteraction(true)) {
         input.pressed['KeyE'] = false;
         this.dismount();
         return;
@@ -283,7 +286,8 @@ export class Trolley {
 
     // ---- Integrate position ----
     const fwd = new THREE.Vector3(Math.sin(this.heading), 0, Math.cos(this.heading));
-    this.pos.addScaledVector(fwd, this.speed * dt);
+    const hitWall = moveHorizontal(this.pos, fwd.x * this.speed * dt, fwd.z * this.speed * dt, .8, g.zone, 1.2);
+    if (hitWall) this.speed *= Math.exp(-12 * dt);
 
     // Vertical: raycast ground follow + ballistic air
     this._ray.set(this.pos.clone().add(new THREE.Vector3(0, 1.5, 0)), this._down);
@@ -345,7 +349,9 @@ export class Trolley {
       const dx = this.pos.x - cx, dz = this.pos.z - cz;
       const d2 = dx * dx + dz * dz;
       const r = 0.8;
-      if (d2 < r * r && d2 > 1e-6) {
+      if (d2 <= 1e-6 && this.pos.x >= b.min.x && this.pos.x <= b.max.x && this.pos.z >= b.min.z && this.pos.z <= b.max.z) {
+        resolveHorizontal(this.pos, r, this.game.zone, 1.2); this.speed = 0;
+      } else if (d2 < r * r && d2 > 1e-6) {
         const d = Math.sqrt(d2);
         this.pos.x += (dx / d) * (r - d);
         this.pos.z += (dz / d) * (r - d);

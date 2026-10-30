@@ -1,11 +1,12 @@
 // Bung Bunty player controller: waddle-running, jumping, grappling,
 // belly-bouncing chaos. Position is at Bung's feet.
 import * as THREE from 'three';
+import { moveHorizontal } from '../core/motion.js';
 import { clamp, damp, dampAngle } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
 import { pushFootprints } from '/src/world/geo/footprints.js';
 import { state, bus, upgLevel, addEnergy } from '../core/state.js';
-import { buildBung } from './models.js?v=20261029x';
+import { buildBung } from './models.js';
 
 const GRAVITY = 26;
 
@@ -90,7 +91,8 @@ export class Player {
     if (g.saga?.freeze) {
       this.vel.x = 0;
       this.vel.z = 0;
-      this.pos.addScaledVector(this.vel, dt);
+      moveHorizontal(this.pos, this.vel.x * dt, this.vel.z * dt, this.radius, g.zone);
+      this.pos.y += this.vel.y * dt;
       this.collide(dt);
       this.animate(dt, false, false);
       this.mesh.position.copy(this.pos);
@@ -150,7 +152,8 @@ export class Player {
     if (!this.grounded) this.fallPeak = Math.max(this.fallPeak, this.pos.y);
 
     // ---- Integrate ----
-    this.pos.addScaledVector(this.vel, dt);
+    moveHorizontal(this.pos, this.vel.x * dt, this.vel.z * dt, this.radius, g.zone);
+    this.pos.y += this.vel.y * dt;
 
     // ---- Collisions ----
     this.collide(dt);

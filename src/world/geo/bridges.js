@@ -1,5 +1,5 @@
 // Bridge superstructure on the mapped decks.
-// Deck height still comes from the OSM layer convention, not a surveyed clearance.
+// Deck height follows the compiled terrain/clearance profile used by collision.
 // Neville Bonner is the white cable-stayed bridge in the aerial view.
 // Victoria is built as the concrete road bridge. OSM tags that polygon "arch".
 // Story Bridge is a steel cantilever; OSM tags the way "suspension".
@@ -39,6 +39,19 @@ function pushBox(buf, cx, cy, cz, sx, sy, sz, yaw) {
     const q = v[tris[i]];
     buf.push(q[0], q[1], q[2]);
   }
+}
+
+// A continuous sloping prism, with both ends meeting the sampled deck profile.
+// Batched into the existing material buffers (no per-segment draw calls).
+function pushBeam(buf, a, b, width, height) {
+  const dx = b[0] - a[0], dz = b[2] - a[2], len = Math.hypot(dx, dz);
+  if (len < 0.001) return;
+  const nx = -dz / len * width / 2, nz = dx / len * width / 2;
+  const v = [];
+  for (const p of [a, b]) for (const y of [-height / 2, height / 2]) {
+    v.push([p[0] - nx, p[1] + y, p[2] - nz], [p[0] + nx, p[1] + y, p[2] + nz]);
+  }
+  for (const i of [0,2,1,1,2,3,4,5,6,5,7,6,0,4,2,2,4,6,1,3,5,3,7,5,2,6,3,3,6,7,0,1,4,1,5,4]) buf.push(...v[i]);
 }
 
 function flush(group, buf, material) {
@@ -209,8 +222,15 @@ export function buildBridges(group, geo, terrain) {
       const edgeDx = (b[0] - a[0]) / len, edgeDz = (b[1] - a[1]) / len;
       if (Math.abs(edgeDx * axisEarly.dx + edgeDz * axisEarly.dz) < 0.72) continue;
       const yaw = Math.atan2(b[0] - a[0], b[1] - a[1]);
-      const my = yOf((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
-      pushBox(rail, (a[0] + b[0]) / 2, my + 0.55, (a[1] + b[1]) / 2, 0.34, 1.05, len, yaw);
+      const sections = Math.ceil(len / 5);
+      for (let k = 0; k < sections; k++) {
+        const at = (t, lift) => {
+          const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
+          return [x, yOf(x, z) + lift, z];
+        };
+        pushBeam(rail, at(k / sections, 0.55), at((k + 1) / sections, 0.55), 0.34, 1.05);
+        pushBeam(concrete, at(k / sections, -0.25), at((k + 1) / sections, -0.25), 0.5, 0.6);
+      }
     }
     const axis = centerAxis(pts);
     if (axis.len < 30) continue;
@@ -333,9 +353,9 @@ export function buildBridges(group, geo, terrain) {
       claimed.add(cell);
       const inset = Math.max(0.35, half - 0.45);
       for (const side of [-1, 1]) {
-        pushBox(parapet, mx + nx * inset * side, my + 0.42, mz + nz * inset * side, 0.28, 0.72, seg * 0.9, yaw);
+        pushBeam(parapet, [a[0] + nx * inset * side, a[1] + 0.42, a[2] + nz * inset * side], [b[0] + nx * inset * side, b[1] + 0.42, b[2] + nz * inset * side], 0.28, 0.72);
       }
-      pushBox(concrete, mx, my - 0.22, mz, Math.max(0.8, road.w - 1.2), 0.2, seg * 0.88, yaw);
+      pushBeam(concrete, [a[0], a[1] - 0.3, a[2]], [b[0], b[1] - 0.3, b[2]], Math.max(0.8, road.w - 0.4), 0.5);
       if (road.w >= 6) {
         let dash = 2;
         while (dash < seg - 1.2) {

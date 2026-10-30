@@ -53,7 +53,13 @@ curl -fsS https://danielslater3.github.io/bung-bunty-rebar-world/ | grep main.js
 
 ## Automated tests
 
-None are configured. `node --check src/story/Saga.js` only parses a file. It does not load Three.js or play a chapter. Do not cite it as a gameplay pass.
+Native Node regression tests are now available:
+
+```bash
+node --experimental-loader ./tools/tests/loader.mjs --test tools/tests/*.test.mjs
+```
+
+An optional Playwright loaded-scene script is in `tools/tests/browser.cjs`. See [the quality-pass notes](../QUALITY_PASS.md) for setup, exact coverage and limitations. `node --check src/story/Saga.js` only parses a file; do not cite it as a gameplay pass.
 
 Useful syntax checks after an edit:
 
@@ -67,7 +73,7 @@ node --check src/story/guide.js
 
 ## Browser testing
 
-No Playwright. Use a normal browser.
+Use a normal browser for full playthroughs; the optional Playwright regression simulates selected interactions and is not a human playthrough.
 
 1. Open the local URL.
 2. Click the canvas if you need the pointer lock. Mouse look is in `Game.updatePlaying`.

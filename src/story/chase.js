@@ -71,7 +71,8 @@ export function ensureTrail(saga) {
   const group = saga.game.zone?.group;
   if (!group) return null;
   const pool = [];
-  const geo = new THREE.SphereGeometry(0.32, 8, 6);
+  const geo = new THREE.RingGeometry(0.1, 0.22, 10);
+  geo.rotateX(-Math.PI / 2);
   for (let i = 0; i < 48; i++) {
     const material = new THREE.MeshBasicMaterial({
       color: 0xff9a1a,
@@ -81,6 +82,7 @@ export function ensureTrail(saga) {
     });
     const mesh = new THREE.Mesh(geo, material);
     mesh.visible = false;
+    mesh.userData.dispose=()=>material.dispose();
     mesh.renderOrder = 3;
     group.add(mesh);
     pool.push({ mesh, life: 0, max: 8.5 });
@@ -99,7 +101,7 @@ export function dropTrail(saga, x, y, z) {
   const slot = trail.pool[trail.cursor];
   trail.cursor = (trail.cursor + 1) % trail.pool.length;
   slot.mesh.visible = true;
-  slot.mesh.position.set(x, y + 0.48, z);
+  slot.mesh.position.set(x, y + 0.12, z);
   slot.life = slot.max;
   slot.mesh.material.opacity = 0.95;
   slot.mesh.scale.setScalar(1);

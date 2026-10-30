@@ -10,7 +10,7 @@ import { Portal } from '../entities/Portal.js';
 import { Collectible } from '../entities/Collectible.js';
 import { Spawner } from '../entities/Enemies.js';
 import { NPC } from '../entities/NPC.js';
-import { state } from '../core/state.js';
+import { state, bus } from '../core/state.js';
 
 export class ZoneKit {
   constructor(game, name, music) {
@@ -31,6 +31,7 @@ export class ZoneKit {
     this.triggers = [];
     this.npcs = [];
     this.updaters = [];
+    this.cleanups = [];
     this.spawn = new THREE.Vector3(0, 1, 0);
     this.spawnYaw = 0; // camera yaw at spawn (0 = camera at +z looking toward -z)
     this.rain = null;
@@ -1255,9 +1256,14 @@ export class ZoneKit {
     return best;
   }
 
+  listen(event, fn) { this.cleanups.push(bus.on(event, fn)); }
+
   dispose() {
+    for (const fn of this.cleanups) fn();
+    this.cleanups.length=0;
     this.game.scene.remove(this.group);
     this.group.traverse((o) => {
+      o.userData.dispose?.();
       if (o.isMesh) {
         o.geometry?.dispose?.();
       }

@@ -1,23 +1,24 @@
 // The Game: renderer, camera, main loop, zone loading, damage/score logic,
 // and glue between every system. One instance runs the whole show.
 import * as THREE from 'three';
+import { footprintClearance } from '../world/geo/footprints.js';
 import { clamp, damp } from './utils.js';
 import { state, bus, SaveSystem } from './state.js';
 import { Input } from './Input.js';
 import { AudioManager } from './AudioManager.js';
 import { FX } from './FX.js';
-import { Player } from '../entities/Player.js?v=20261029y';
-import { Trolley } from '../entities/Trolley.js?v=20261029r';
-import { DialogueSystem } from '../systems/DialogueSystem.js?v=20261029x';
+import { Player } from '../entities/Player.js';
+import { Trolley } from '../entities/Trolley.js';
+import { DialogueSystem } from '../systems/DialogueSystem.js';
 import { QuestSystem } from '../systems/QuestSystem.js';
 import { ShopSystem } from '../systems/ShopSystem.js';
 import { ChainManager } from '../systems/ChainManager.js';
-import { HUD } from '../ui/HUD.js?v=20261029x';
-import { Menus } from '../ui/Menus.js?v=20261029x';
+import { HUD } from '../ui/HUD.js';
+import { Menus } from '../ui/Menus.js';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
-import { Saga, createSaga } from '../story/Saga.js?v=20261030d';
+import { Saga, createSaga } from '../story/Saga.js';
 
 export class Game {
   constructor() {
@@ -477,7 +478,10 @@ export class Game {
     reticle.classList.toggle('grapple-on', !!this.player.grappleTarget && !this.trolley.riding);
     if (!this.dialogue.busy) {
       let prompt = null, action = null;
-      if (!this.trolley.riding && this.trolley.summoned &&
+      const objective = this.saga?.objectiveInteraction(this.trolley.riding);
+      if (objective) {
+        prompt = objective.label; action = objective.fn;
+      } else if (!this.trolley.riding && this.trolley.summoned &&
           this.player.pos.distanceTo(this.trolley.pos) < 3) {
         prompt = '<b>[E]</b> Mount the James Rebar Trolley';
         action = () => this.trolley.mount();
@@ -542,14 +546,16 @@ export class Game {
     ray.direction.copy(dir);
     if (ray.direction.lengthSq() < 1e-8) return far;
     ray.direction.normalize();
-    let best = far;
+    let best = footprintClearance(this.zone, origin, ray.direction, far);
+    const padded = this._camPadded || (this._camPadded = new THREE.Box3());
     const ox = origin.x, oy = origin.y, oz = origin.z;
     for (let i = 0, n = list.length; i < n; i++) {
       const b = list[i];
       if (b.max.x < ox - far || b.min.x > ox + far) continue;
       if (b.max.z < oz - far || b.min.z > oz + far) continue;
       if (b.max.y < oy - 2 || b.min.y > oy + far + 2) continue;
-      if (!ray.intersectBox(b, hit)) continue;
+      padded.copy(b).expandByScalar(.16);
+      if (!ray.intersectBox(padded, hit)) continue;
       const dx = hit.x - ox, dy = hit.y - oy, dz = hit.z - oz;
       const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (d > 0.2 && d < best) best = d;
@@ -588,7 +594,7 @@ export class Game {
 
     // Nearby wall boxes only. No mesh raycast.
     const reach = this.cameraClearance(targetPos, offset, dist);
-    if (reach < dist) dist = Math.max(1.15, reach * 0.82);
+    if (reach < dist) dist = Math.max(.28, reach - .16);
     const len = offset.length() || 1;
     const desired = this._camDesired || (this._camDesired = new THREE.Vector3());
     desired.copy(targetPos).addScaledVector(offset, dist / len);
@@ -605,7 +611,7 @@ export class Game {
     if (backLen > 0.5) {
       const hit = this.cameraClearance(targetPos, back, backLen);
       if (hit < backLen - 0.05) {
-        this.camPos.copy(targetPos).addScaledVector(back, Math.max(1.15, hit * 0.82) / backLen);
+        this.camPos.copy(targetPos).addScaledVector(back, Math.max(.28, hit - .16) / backLen);
       }
     }
     if (ceil && this.camPos.y > targetPos.y + Math.max(0.08, (ceil - targetPos.y) * 0.35)) {
