@@ -19,6 +19,7 @@ const assert = require('node:assert/strict');
   await page.evaluate(async () => {
     const { state: S, SaveSystem } = await import('/src/core/state.js');
     const { CHAPTERS, createSaga } = await import('/src/story/sagaData.js');
+    window.testState = S;
     S.saga = {
       ...createSaga(),
       chapter: 7,
@@ -45,11 +46,17 @@ const assert = require('node:assert/strict');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   await page.locator('[data-chapter="0"]').click();
   await page.locator('#chapter-play').click();
+  await page.evaluate(async () => {
+    window.testState = (await import('/src/core/state.js')).state;
+  });
   await page.waitForFunction(
-    async () => {
-      const { state: S } = await import('/src/core/state.js');
-      return S._replay?.chapter === 0 && BUNG.saga?.dressed && BUNG.zone?.name === 'brisbane';
+    () => {
+      const S = window.testState;
+      return (
+        !BUNG.loading && S._replay?.chapter === 0 && BUNG.saga?.dressed && BUNG.zone?.name === 'brisbane'
+      );
     },
+    undefined,
     { timeout: 60000 },
   );
   const first = await page.evaluate(async () => {
@@ -71,11 +78,15 @@ const assert = require('node:assert/strict');
   await page.reload();
   await page.waitForFunction(() => !!window.BUNG);
   await page.locator('#btn-replay').click();
+  await page.evaluate(async () => {
+    window.testState = (await import('/src/core/state.js')).state;
+  });
   await page.waitForFunction(
-    async () => {
-      const { state: S } = await import('/src/core/state.js');
-      return S._replay?.chapter === 0 && BUNG.saga?.dressed;
+    () => {
+      const S = window.testState;
+      return !BUNG.loading && S._replay?.chapter === 0 && BUNG.saga?.dressed;
     },
+    undefined,
     { timeout: 60000 },
   );
   await page.evaluate(() => {
@@ -85,11 +96,15 @@ const assert = require('node:assert/strict');
     BUNG.menus.showPause();
   });
   await page.locator('#btn-campaign').click();
+  await page.evaluate(async () => {
+    window.testState = (await import('/src/core/state.js')).state;
+  });
   await page.waitForFunction(
-    async () => {
-      const { state: S } = await import('/src/core/state.js');
-      return !S._replay && S.saga?.chapter === 7 && BUNG.saga?.dressed;
+    () => {
+      const S = window.testState;
+      return !BUNG.loading && !S._replay && S.saga?.chapter === 7 && BUNG.saga?.dressed;
     },
+    undefined,
     { timeout: 60000 },
   );
   const restored = await page.evaluate(async () => {

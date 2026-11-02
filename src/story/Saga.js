@@ -122,6 +122,14 @@ export class Saga {
     if (!this.on || this.game.zone?.name !== 'brisbane') return;
     driftSnow(this, dt);
     if (this.game.mode === 'cutscene') {
+      // A cancelled scene must never strand a replay in a non-interactive mode.
+      // Replay its dialogue rather than silently completing the story step.
+      if(!this.game.dialogue.current) {
+        this.scenePlaying=false;
+        const pending=this.currentStep();
+        if(pending?.kind==='scene')this.beginScene(pending);
+        else {this.game.mode='playing';this.game.input.enabled=true;this.freeze=false;this.snapCamera();}
+      }
       hideGuide(this);
       this.game.hud?.chaseHud(null);
       this.aimCamera(dt);
@@ -235,9 +243,7 @@ export class Saga {
     Z.group.add(marker);
     const guide = buildGuide(Z.group);
     this.actors = { gabor, scooter, bag, guard, marker, guide, house, bar, rings };
-    this.dressed = true;
     this.syncKit();
-    this.poseActors();
 
     this.interact('bed', PLACE.bed, hy, '<b>[E]</b> The bed', () => this.onBed());
     this.interact('wardrobe', PLACE.wardrobe, hy, '<b>[E]</b> Wardrobe', () => this.onWardrobe());
@@ -303,6 +309,7 @@ export class Saga {
       Z.colliders = Z.colliders.filter(b => b !== house.garage.blocker);
     }
     this.dressChronicle();
+    this.dressed = true;
   }
 
   onStory(id) {

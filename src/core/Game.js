@@ -111,48 +111,72 @@ export class Game {
 
   // ============ FLOW ============
   async startGame(fresh, mode = 'roam') {
-    this.audio.init();
-    this.audio.resume();
-    if (fresh === true) {
-      SaveSystem.reset();
-      if (mode === 'saga') {
-        state.saga = createSaga();
-        state.currentZone = 'brisbane';
-        state.flags.trolleyUnlocked = false;
+    if(this.loading)return;
+    this.loading=true;
+    document.body.classList.add('chapter-loading');
+    try {
+      this.audio.init();
+      this.audio.resume();
+      if (fresh === true) {
+        SaveSystem.reset();
+        if (mode === 'saga') {
+          state.saga = createSaga();
+          state.currentZone = 'brisbane';
+          state.flags.trolleyUnlocked = false;
+        }
+      } else if (fresh !== 'keep') {
+        if (!SaveSystem.load(fresh === 'replay')) { this.menus.showMain(); return; }
       }
-    } else if (fresh !== 'keep') {
-      if (!SaveSystem.load(fresh === 'replay')) { this.menus.showMain(); return; }
-    }
-    this.dialogue.clear?.();
-    document.getElementById('saga-play')?.remove();
-    this.saga.scenePlaying = false;
-    this.saga._booted = '';
-    this.saga._pose = null;
-    this.saga.freeze = false;
-    migrateState();
-    this.audio.applyVolumes();
-    this.menus.close();
-    this.hud.show();
-    this.player.mesh.visible = true;
-    this.mode = state.saga?.active ? 'cutscene' : 'playing';
-    this.input.enabled = true;
-    this.input.lock();
-    await this.loadZone(state.currentZone, true);
-    if (!this.zone) return;
-    if (state.saga?.active) {
-      this.saga.resume(fresh === true || fresh === 'keep');
-      return;
-    }
-    if (fresh) {
-      setTimeout(() => {
-        this.dialogue.conversation([
-          ['bung', 'OIIII. 3 March was a long time ago and I am still enormous. Beautiful morning in Brisbane.'],
-          ['ching', 'Gabor is buying rebar he cannot lift. The shipments are wrong. This is a conspiracy, Bung.'],
-          ['bung', 'Say no more. THE GLOBAL REBAR CONSPIRACY IS OFFICIALLY DEPLOYED.'],
-        ], () => this.quests.startActiveQuestBriefing());
-      }, 1200);
-    } else {
-      setTimeout(() => this.quests.startActiveQuestBriefing(), 800);
+      this.dialogue.clear?.();
+      document.getElementById('saga-play')?.remove();
+      this.saga.scenePlaying = false;
+      this.saga._booted = '';
+      this.saga._pose = null;
+      this.saga.freeze = false;
+      this.photo = false;
+      this._wasLocked = false;
+      this.shakeT = 0;
+      this.input.keys = {};this.input.pressed = {};
+      this.input.consumeMouse();
+      this.player.mesh.rotation.set(0, this.player.facing, 0);
+      document.getElementById('photo-frame')?.classList.remove('on');
+      migrateState();
+      this.audio.applyVolumes();
+      this.menus.close();
+      this.hud.show();
+      this.player.mesh.visible = true;
+      this.mode = state.saga?.active ? 'cutscene' : 'playing';
+      this.input.enabled = true;
+      this.input.lock();
+      try {
+        const loaded=await this.loadZone(state.currentZone, true);
+        if(!loaded)throw new Error('The district did not finish loading.');
+      } catch(error) {
+        console.error('Chapter load failed',error);
+        this.dialogue.clear();this.saga.scenePlaying=false;this.saga.freeze=false;
+        this.mode='menu';this.input.enabled=false;this.input.unlock();this.hud.hide();
+        this.menus.showMain();this.toast('CHAPTER COULD NOT LOAD — YOUR CAMPAIGN SAVE IS SAFE', 'red');return;
+      }
+      if (state.saga?.active) {
+        this.saga.resume(fresh === true || fresh === 'keep');
+        this.saga.snapCamera();
+        this.updateCamera(.05);
+        return;
+      }
+      if (fresh) {
+        setTimeout(() => {
+          this.dialogue.conversation([
+            ['bung', 'OIIII. 3 March was a long time ago and I am still enormous. Beautiful morning in Brisbane.'],
+            ['ching', 'Gabor is buying rebar he cannot lift. The shipments are wrong. This is a conspiracy, Bung.'],
+            ['bung', 'Say no more. THE GLOBAL REBAR CONSPIRACY IS OFFICIALLY DEPLOYED.'],
+          ], () => this.quests.startActiveQuestBriefing());
+        }, 1200);
+      } else {
+        setTimeout(() => this.quests.startActiveQuestBriefing(), 800);
+      }
+    } finally {
+      this.loading = false;
+      document.body.classList.remove('chapter-loading');
     }
   }
 
@@ -243,6 +267,7 @@ export class Game {
     bus.emit('hud');
     this.saga?.onZone();
     if (this.mode === 'playing' || this.mode === 'paused') SaveSystem.save(this);
+    return true;
   }
 
   restorePlace(name) {
@@ -353,6 +378,7 @@ export class Game {
     this._dt = dt;
     this.elapsed += dt;
 
+    if(this.loading){this.input.endFrame();return;}
     if (this.mode === 'playing') this.updatePlaying(dt);
     else if (this.mode === 'cutscene') {
       this.zone?.update(dt, this.elapsed);

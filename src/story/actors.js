@@ -8,6 +8,7 @@ export function floorAt(saga, p) {
   return room && Math.abs(room.floor - p.y) < 2 ? room.floor : saga.game.zone.groundAt(p.x, p.z, p.y + 0.55);
 }
 export function placeActor(saga, actor, target, others = [], radius = 0.5) {
+  if(!actor || !target)return false;
   const zone = saga.game.zone;
   for (const r of [0, 0.8, 1.6, 2.4, 3.2, 4.8])
     for (let i = 0; i < (r ? 16 : 1); i++) {

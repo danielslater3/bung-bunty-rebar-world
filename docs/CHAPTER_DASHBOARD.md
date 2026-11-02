@@ -15,3 +15,9 @@ NODE_PATH=/path/to/test-dependencies/node_modules node tools/tests/dashboard.cjs
 ```
 
 This release adds the requested dashboard first. The Chapter 7–8 gameplay overhaul is a separate pending release; no chapter data was changed here.
+
+## Replay entry hotfix
+
+The first dashboard release could stage Chapter 5/6 actors while the new world was still incomplete. The exception left the camera at the prior location and the game in cutscene mode. Staging now runs after all story actors are created. Loading is an explicit transaction with a visible overlay; gameplay updates wait until it completes. Replay entry also clears photo mode, mouse/key history, pose tilt and old camera state. A failed load returns to the menu, and an orphaned cutscene restarts its dialogue rather than trapping controls or silently completing the objective.
+
+The browser regression now waits synchronously for the completed load, enters Chapters 1–8 through the actual dashboard, verifies camera proximity/height, sends movement keys through the input system, checks the intentional rhythm lock separately, and exercises Back to the pause menu. The save-isolation/reload regression remains in place. Earlier tests that only checked loaded state did not establish that gameplay resumed.
