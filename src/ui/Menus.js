@@ -5,7 +5,8 @@ import { state, bus, SaveSystem } from '../core/state.js';
 import { UPGRADES, SHOP_CATEGORIES } from '../systems/ShopSystem.js';
 import { ZONE_INFO } from '../world/zones.js';
 import { ARCHIVE, DISTRICTS, unlockArchive } from '../lore/universe.js';
-import { ACTS, CHAPTERS } from '../story/sagaData.js';
+import { chapterFrontier, chapterReplay } from '../story/progression.js';
+import { ACTS, CHAPTERS, createSaga } from '../story/sagaData.js';
 import { TROLLEY_FLEET } from '../entities/models.js';
 import { BRISBANE_GEO } from '../world/geo/brisbane.data.js';
 
@@ -54,7 +55,8 @@ export class Menus {
       <div class="menu-btns">
         <button class="mbtn ${sagaSave ? 'gold' : ''}" id="btn-continue" ${hasSave ? '' : 'disabled'}>${sagaSave ? 'CONTINUE STORY' : 'CONTINUE'}</button>
         <button class="mbtn ${sagaSave ? '' : 'gold'}" id="btn-new">NEW SAGA</button>
-        <button class="mbtn" id="btn-chapters" ${sagaSave ? '' : 'disabled'}>CHAPTER SELECT</button>
+        <button class="mbtn" id="btn-chapters">CHAPTER DASHBOARD</button>
+        ${SaveSystem.peekReplay() ? '<button class="mbtn" id="btn-replay">RESUME CHAPTER REPLAY</button>' : ''}
         <button class="mbtn" id="btn-roam">FREE ROAM</button>
         <button class="mbtn" id="btn-lore">LORE ARCHIVE</button>
         <button class="mbtn" id="btn-settings">SETTINGS</button>
@@ -65,7 +67,8 @@ export class Menus {
     `);
     if (sagaSave || hasSave) s.querySelector('#btn-continue').onclick = () => this.game.startGame(false);
     s.querySelector('#btn-new').onclick = () => this.game.startGame(true, 'saga');
-    if (sagaSave) s.querySelector('#btn-chapters').onclick = () => this.showChapters();
+    s.querySelector('#btn-chapters').onclick = () => this.showChapters();
+    const replay=s.querySelector('#btn-replay');if(replay)replay.onclick=()=>this.game.startGame('replay','saga');
     s.querySelector('#btn-roam').onclick = () => this.game.startGame(true, 'roam');
     s.querySelector('#btn-lore').onclick = () => {
       if (saved?.archive) state.archive = saved.archive;
@@ -75,53 +78,76 @@ export class Menus {
     s.querySelector('#btn-controls').onclick = () => this.showControls(() => this.showMain());
   }
 
-  showChapters() {
-    const saved = SaveSystem.peek();
-    const saga = saved?.saga;
-    if (!saga?.active) { this.showMain(); return; }
-    let current = saga.chapter;
-    if (saga.legend) current = CHAPTERS.length - 1;
-    else if ((saga.done || []).includes(CHAPTERS[current]?.id)) current += 1;
-    current = Math.min(current, CHAPTERS.length - 1);
-    const s = this._screen(`
-      <div class="panel" style="max-width:640px;">
-        <h2>CHAPTER SELECT</h2>
-        <div class="panel-sub">REPLAY ANY CHAPTER YOU HAVE REACHED.</div>
-        <div class="saga-list">
-          ${CHAPTERS.map((ch, i) => {
-            const act = ACTS.find((a) => a.id === ch.act);
-            const unlocked = ch.playable && i <= current;
-            const done = (saga.done || []).includes(ch.id);
-            return `<button class="saga-item${unlocked ? '' : ' locked'}" data-i="${i}" ${unlocked ? '' : 'disabled'}>
-              <b>ACT ${act.id} · CHAPTER ${ch.n}${done ? ' · DONE' : ''}</b>
-              <span>${ch.title}</span>
-              ${ch.blurb ? `<small>${ch.blurb}</small>` : ''}
-            </button>`;
-          }).join('')}
+  showChapters(back = () => this.showMain()) {
+    if (['playing','paused'].includes(this.game.mode) && !SaveSystem.save(this.game)) {
+      this.game.toast('Could not save the checkpoint. Free some browser storage and try again.', 'red');return;
+    }
+    this.game.pauseForMenu();
+    const saved=SaveSystem.peek(),saga=saved?.saga;
+    const frontier=chapterFrontier(saga,CHAPTERS),done=new Set(saga?.done||[]);
+    const count=CHAPTERS.filter(ch=>done.has(ch.id)).length;
+    let selected=Math.max(0,Math.min(frontier,Number(saga?.chapter)||0)),filter='all';
+    const screen=this._screen(`
+      <div class="panel chapter-dashboard" aria-label="Chapter dashboard">
+        <div class="chapter-eyebrow">THE ORIGINAL SAGA · SIX ACTS · ONE ENORMOUS LEGEND</div>
+        <h2>YOUR BRISBANE CHRONICLE</h2>
+        <div class="chapter-summary"><span><b>${count}</b> / ${CHAPTERS.length} chapters complete</span><span>${Math.max(0,frontier+1)} unlocked</span></div>
+        <progress class="chapter-progress" value="${count}" max="${CHAPTERS.length}" aria-label="Campaign completion"></progress>
+        <div class="chapter-toolbar" aria-label="Chapter filters">
+          <button data-filter="all" aria-pressed="true">ALL CHAPTERS</button>
+          <button data-filter="unlocked" aria-pressed="false">UNLOCKED</button>
+          <button data-filter="complete" aria-pressed="false">COMPLETED</button>
         </div>
-        <div class="menu-btns" style="margin-top:14px;width:100%;">
+        <div class="chapter-layout"><div class="chapter-catalog" id="chapter-catalog"></div><aside class="chapter-detail" id="chapter-detail" aria-live="polite"></aside></div>
+        <p class="chapter-save-note">Replays use a separate save. Your campaign checkpoint, rewards and unlocks stay safe.</p>
+        <p id="chapter-error" role="alert"></p>
+        <div class="chapter-actions">
+          <button class="mbtn gold" id="chapter-continue">${frontier<0?'START NEW SAGA':'RETURN TO CAMPAIGN'}</button>
           <button class="mbtn" id="btn-back">BACK</button>
         </div>
-      </div>
-    `);
-    s.querySelectorAll('.saga-item:not(.locked)').forEach((el) => {
-      el.onclick = () => {
-        SaveSystem.load();
-        const i = Number(el.dataset.i);
-        state.saga.chapter = i;
-        state.saga.step = 0;
-        state.saga.stepState = {};
-        state.saga.intermission = false;
-        state.saga.trolleyDamage = false;
-        if (i < 2) state.saga.bigBoy = false;
-        state.currentZone = 'brisbane';
-        this.game.startGame('keep', 'saga');
+      </div>`);
+    const draw=()=>{
+      const shown=CHAPTERS.map((ch,i)=>({ch,i})).filter(({ch,i})=>filter==='all'||filter==='unlocked'&&i<=frontier||filter==='complete'&&done.has(ch.id));
+      const catalog=screen.querySelector('#chapter-catalog');
+      catalog.innerHTML=ACTS.map(act=>{
+        const entries=shown.filter(({ch})=>ch.act===act.id);if(!entries.length)return '';
+        return `<section class="chapter-act"><h3>ACT ${act.id} · ${act.title}</h3><div class="chapter-grid">${entries.map(({ch,i})=>{
+          const unlocked=i<=frontier&&ch.playable,status=done.has(ch.id)?'COMPLETED':i===saga?.chapter?'IN PROGRESS':unlocked?'AVAILABLE':'LOCKED';
+          return `<button class="chapter-card${selected===i?' selected':''}${unlocked?'':' locked'}" data-chapter="${i}" aria-pressed="${selected===i}" ${unlocked?'':'disabled'}>
+            <span class="chapter-number">${String(ch.n).padStart(2,'0')}</span><span class="chapter-card-copy"><small>${status}</small><b>${ch.title}</b></span>${done.has(ch.id)?'<span aria-label="Completed">✓</span>':''}</button>`;
+        }).join('')}</div></section>`;
+      }).join('')||'<p class="chapter-empty">No chapters here yet. Continue the saga to unlock more of Brisbane.</p>';
+      catalog.querySelectorAll('[data-chapter]').forEach(btn=>btn.onclick=()=>{selected=Number(btn.dataset.chapter);draw();screen.querySelector(`[data-chapter="${selected}"]`)?.focus({preventScroll:true});});
+      const ch=CHAPTERS[selected],unlocked=selected<=frontier;
+      screen.querySelector('#chapter-detail').innerHTML=`<div class="chapter-poster">${String(ch.n).padStart(2,'0')}<span>ACT ${ch.act}</span></div>
+        <small>CHAPTER ${ch.n}</small><h3>${ch.title}</h3><p>${ch.blurb||'Another extraordinary day in Brisbane.'}</p>
+        <p>${ch.steps.length} story objectives · ${done.has(ch.id)?'Completed':unlocked?'Unlocked':'Complete earlier chapters to unlock'}</p>
+        <button class="mbtn gold" id="chapter-play" ${unlocked?'':'disabled'}>REPLAY FROM BEGINNING</button>
+        ${SaveSystem.peekReplay()?'<button class="mbtn" id="chapter-resume">RESUME LAST REPLAY</button>':''}`;
+      const play=screen.querySelector('#chapter-play');play.onclick=async()=>{
+        play.disabled=true;
+        try {
+          const prepared=chapterReplay(SaveSystem.peek(),selected,CHAPTERS,createSaga);
+          SaveSystem.beginReplay(prepared);
+          await this.game.startGame('keep','saga');
+        } catch(err) {play.disabled=false;screen.querySelector('#chapter-error').textContent='Could not start replay: '+err.message;}
       };
+      const resume=screen.querySelector('#chapter-resume');if(resume)resume.onclick=()=>this.game.startGame('replay','saga');
+    };
+    screen.querySelectorAll('[data-filter]').forEach(btn=>btn.onclick=()=>{
+      filter=btn.dataset.filter;screen.querySelectorAll('[data-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b===btn)));draw();
     });
-    s.querySelector('#btn-back').onclick = () => this.showMain();
+    screen.querySelector('#chapter-continue').onclick=()=>this.game.startGame(frontier<0,'saga');
+    screen.querySelector('#btn-back').onclick=back;
+    draw();
   }
 
   showSagaClear(ch) {
+    if(state._replay) {
+      const s=this._screen(`<div class="panel replay-clear"><div class="panel-sub">CHAPTER REPLAY COMPLETE</div><h2>${ch.title}</h2><p>Your main campaign is right where you left it.</p><div class="menu-btns"><button class="mbtn gold" id="replay-campaign">RETURN TO CAMPAIGN</button><button class="mbtn" id="replay-dashboard">CHAPTER DASHBOARD</button></div></div>`);
+      s.querySelector('#replay-campaign').onclick=()=>this.game.startGame(false,'saga');
+      s.querySelector('#replay-dashboard').onclick=()=>this.showChapters(()=>this.showSagaClear(ch));return;
+    }
     const act = ACTS.find((a) => a.id === ch.act);
     const next = CHAPTERS[state.saga.chapter + 1];
     const s = this._screen(`
@@ -146,6 +172,8 @@ export class Menus {
         <div class="panel-sub">OPERATION PAUSED. THE REBAR WAITS FOR NO ONE (EXCEPT NOW).</div>
         <div class="menu-btns" style="width:100%;">
           <button class="mbtn gold" id="btn-resume">RESUME OPERATION</button>
+          <button class="mbtn" id="btn-chapters">CHAPTER DASHBOARD</button>
+          ${state._replay?'<button class="mbtn" id="btn-campaign">RETURN TO CAMPAIGN</button>':''}
           <button class="mbtn" id="btn-shop">REBAR EXCHANGE</button>
           <button class="mbtn" id="btn-deploy">DEPLOYMENT BOARD</button>
           <button class="mbtn" id="btn-map">WORLD MAP</button>
@@ -160,6 +188,8 @@ export class Menus {
     `, true);
     s.querySelector('#btn-resume').onclick = () => this.game.resume();
     s.querySelector('#btn-shop').onclick = () => this.openShop(true);
+    s.querySelector('#btn-chapters').onclick=()=>this.showChapters(()=>this.showPause());
+    const campaign=s.querySelector('#btn-campaign');if(campaign)campaign.onclick=()=>{SaveSystem.save(this.game);this.game.startGame(false,'saga');};
     s.querySelector('#btn-deploy').onclick = () => this.openDeploy(true);
     s.querySelector('#btn-map').onclick = () => this.showMap(() => this.showPause());
     s.querySelector('#btn-archive').onclick = () => this.showArchive(() => this.showPause());

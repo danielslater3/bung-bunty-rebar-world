@@ -43,6 +43,7 @@ export const DEFAULT_STATE = () => ({
 
   // Progression
   saga: null,
+  _replay: null, // Isolated replay slot; never replaces the campaign save.
   currentZone: 'mansion',
   unlockedZones: ['mansion', 'brisbane'],
   redMode: false,
@@ -64,6 +65,7 @@ export const DEFAULT_STATE = () => ({
 export let state = DEFAULT_STATE();
 
 const SAVE_KEY = 'bung-bunty-rebar-world-save-v1';
+const REPLAY_KEY = SAVE_KEY + '-replay';
 
 export const SaveSystem = {
   hasSave() {
@@ -97,16 +99,27 @@ export const SaveSystem = {
         comboTimer: 0,
         buffs: { strength: 0, speed: 0, cyber: 0, fuelregen: 0 },
       };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(s));
+      localStorage.setItem(state._replay ? REPLAY_KEY : SAVE_KEY, JSON.stringify(s));
       bus.emit('saved');
-    } catch (e) { console.warn('Save failed', e); }
+      return true;
+    } catch (e) { console.warn('Save failed', e); return false; }
   },
-  load() {
+  peekReplay() {
+    try { const s=JSON.parse(localStorage.getItem(REPLAY_KEY)||'null');return s?._replay && s?.saga?.active ? s : null; } catch { return null; }
+  },
+  beginReplay(prepared) {
+    // Persist first: if storage is full, leave the active game untouched.
+    localStorage.setItem(REPLAY_KEY, JSON.stringify(prepared));
+    Object.assign(state, DEFAULT_STATE(), prepared);
+  },
+  load(replay = false) {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(replay ? REPLAY_KEY : SAVE_KEY);
       if (!raw) return false;
       const data = JSON.parse(raw);
+      if (replay && (!data?._replay || !data?.saga?.active)) return false;
       Object.assign(state, DEFAULT_STATE(), data);
+      if (!replay) state._replay = null;
       if (!state.stock || typeof state.stock !== 'object') state.stock = {};
       if (!Array.isArray(state.archive)) state.archive = ['bung', 'ching', 'gabor', 'james', 'conspiracy'];
       if (!state.trolley) state.trolley = 'james';
@@ -120,7 +133,7 @@ export const SaveSystem = {
   },
   reset() {
     state = Object.assign(state, DEFAULT_STATE());
-    try { localStorage.removeItem(SAVE_KEY); } catch {}
+    try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(REPLAY_KEY); } catch {}
   },
 };
 

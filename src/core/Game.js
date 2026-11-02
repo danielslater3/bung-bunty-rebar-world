@@ -120,7 +120,15 @@ export class Game {
         state.currentZone = 'brisbane';
         state.flags.trolleyUnlocked = false;
       }
-    } else if (fresh !== 'keep') SaveSystem.load();
+    } else if (fresh !== 'keep') {
+      if (!SaveSystem.load(fresh === 'replay')) { this.menus.showMain(); return; }
+    }
+    this.dialogue.clear?.();
+    document.getElementById('saga-play')?.remove();
+    this.saga.scenePlaying = false;
+    this.saga._booted = '';
+    this.saga._pose = null;
+    this.saga.freeze = false;
     migrateState();
     this.audio.applyVolumes();
     this.menus.close();

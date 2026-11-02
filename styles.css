@@ -245,3 +245,45 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0d14; f
   font: 700 12px/1.4 system-ui, sans-serif; letter-spacing: .045em;
   text-align: center; box-shadow: 0 4px 18px #0005; pointer-events: none;
 }
+
+/* Chapter library: act shelves, clear unlock status and a protected replay slot. */
+.chapter-dashboard { max-width:1120px; width:min(96%,1120px); padding:28px; }
+.chapter-eyebrow { color:var(--blue);font-size:11px;font-weight:900;letter-spacing:2px; }
+.chapter-summary { display:flex;justify-content:space-between;color:#c5d4e5;margin:12px 0 6px;font-weight:800; }
+.chapter-summary b { color:var(--gold);font-size:24px; }
+.chapter-progress { width:100%;height:12px;accent-color:var(--gold);border:0; }
+.chapter-toolbar { display:flex;gap:8px;margin:20px 0;flex-wrap:wrap; }
+.chapter-toolbar button { background:#192231;border:2px solid #526077;color:#cad6e6;border-radius:20px;padding:9px 16px;cursor:pointer;font:800 12px Nunito,sans-serif; }
+.chapter-toolbar button[aria-pressed="true"] { background:var(--gold);color:#172030;border-color:var(--gold); }
+.chapter-layout { display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:22px; }
+.chapter-catalog { max-height:43vh;overflow:auto;padding:0 8px 8px 2px;scrollbar-color:#586983 #192231; }
+.chapter-act h3 { font-size:12px;letter-spacing:1px;color:#9db5cc;margin:6px 0 12px; }
+.chapter-act + .chapter-act { margin-top:24px; }
+.chapter-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
+.chapter-card { display:flex;align-items:center;gap:12px;text-align:left;min-height:100px;padding:14px 12px;border:2px solid #526077;border-radius:14px;background:linear-gradient(135deg,#374457,#202a38);color:#fff;cursor:pointer;transition:transform .15s,border-color .15s; }
+.chapter-card:not(:disabled):hover { transform:translateY(-2px);border-color:var(--gold); }
+.chapter-card.selected { border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);background:linear-gradient(135deg,#534a2f,#293240); }
+.chapter-card.locked { opacity:.5;cursor:default;border-style:dashed; }
+.chapter-number { font:900 28px Fredoka,sans-serif;color:var(--gold); }
+.chapter-card-copy small { display:block;font-size:9px;letter-spacing:1px;color:#b6cad9;margin-bottom:6px; }
+.chapter-card-copy b { font:700 13px Fredoka,sans-serif;line-height:1.4;display:block; }
+.chapter-detail { background:#17202d;border-radius:18px;padding:18px;align-self:start; }
+.chapter-poster { display:flex;justify-content:space-between;align-items:end;padding:18px;background:radial-gradient(at top right,#b88623,#3e3940);border-radius:12px;color:#ffe09a;font:800 64px Fredoka,sans-serif;margin-bottom:16px; }
+.chapter-poster span { font-size:12px;letter-spacing:2px; }
+.chapter-detail small { color:var(--gold);font-weight:900; }
+.chapter-detail h3 { font:700 20px Fredoka,sans-serif;margin:8px 0; }
+.chapter-detail p { color:#bfcede;font-size:13px;line-height:1.6;margin:10px 0; }
+.chapter-detail .mbtn { width:100%;font-size:12px;letter-spacing:.5px;padding:12px 8px;margin-top:10px; }
+.chapter-save-note { font-size:12px;color:#b9c7d5;line-height:1.5;margin:18px 0 12px; }
+.chapter-actions { display:flex;gap:12px;flex-wrap:wrap; }
+.chapter-actions .mbtn { font-size:13px;letter-spacing:1px; }
+.chapter-empty { padding:24px;color:#b9c7d5; }
+.chapter-card:focus-visible,.chapter-toolbar button:focus-visible { outline:3px solid var(--blue);outline-offset:3px; }
+#chapter-error { color:#ffb2ac;font-size:13px; }
+.replay-clear { text-align:center;max-width:620px; }.replay-clear p { margin:16px 0; }.replay-clear .menu-btns { width:100%; }
+@media(max-width:720px) { .chapter-layout { grid-template-columns:1fr; }.chapter-catalog { max-height:32vh; }.chapter-grid { grid-template-columns:1fr; }.chapter-dashboard { padding:18px; }.chapter-poster { display:none; }.chapter-detail { padding:14px; }.chapter-toolbar button { padding:7px 10px; } }
+@media(prefers-reduced-motion:reduce) { .chapter-card { transition:none; } }
+.chapter-progress { appearance:none;border-radius:8px;overflow:hidden;background:#17202d; }
+.chapter-progress::-webkit-progress-bar { background:#17202d;border-radius:8px; }
+.chapter-progress::-webkit-progress-value { background:linear-gradient(90deg,#e7a91e,#ffe194);border-radius:8px; }
+.chapter-progress::-moz-progress-bar { background:linear-gradient(90deg,#e7a91e,#ffe194);border-radius:8px; }

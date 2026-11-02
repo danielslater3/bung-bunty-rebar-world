@@ -83,6 +83,10 @@ export class Saga {
     if (!this.dressed) this.dress();
     this.normalize();
     if (repairProgress(state.saga, CHAPTERS)) { this.finishChapter(); return; }
+    if (state._replay && state.saga.intermission) {
+      this.game.mode='paused';this.game.input.enabled=false;
+      this.game.menus.showSagaClear(this.chapter());return;
+    }
     let jumped = false;
     if (state.saga.intermission && !state.saga.legend) {
       const ch = this.chapter();

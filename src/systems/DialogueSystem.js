@@ -14,6 +14,12 @@ export class DialogueSystem {
     this.onEnd = null;
   }
 
+  clear() {
+    this.queue=[];this.current=null;this.onEnd=null;this.timer=0;
+    this.el.classList.add('hidden');
+    this.game.saga?.resetTalk();
+  }
+
   // Quick one-liner (barks). Skips the queue if idle, otherwise drops it.
   say(speaker, text) {
     if (this.current && this.queue.length > 0) return; // don't pile up barks
