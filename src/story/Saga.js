@@ -17,6 +17,7 @@ import {
 
 import { repairProgress, awardChapter } from './progression.js';
 import { followActor, stageCast } from './actors.js';
+import { makePhoneShards } from './feud.js';
 import { ChaseController } from './ChaseController.js';
 import { localRoute } from '../systems/Navigation.js';
 
@@ -139,6 +140,7 @@ export class Saga {
     }
     if (this.game.mode !== 'playing') { hideGuide(this); return; }
     if (this.game.dialogue.cinematic) { hideGuide(this); this.tickGarage(dt); this.tickPose(dt); return; }
+    if(this.mission?.battle)this.freeze=true;
     this.syncKit();
     updateGuide(this);
     this.tickGarage(dt);
@@ -320,7 +322,8 @@ export class Saga {
   followCompanion(dt) {
     if (!state.saga?.companion || !this.actors?.ching) return;
     if (['escort','scene'].includes(this.currentStep()?.kind)) return;
-    if(state.saga.chapter>=4 && state.saga.chapter<=5) {
+    if(state.saga.chapter>=6&&state.saga.chapter<=7&&['rhythm','photo'].includes(this.currentStep()?.kind))return;
+    if(state.saga.chapter>=4 && state.saga.chapter<=7) {
       followActor(this,this.actors.ching,dt);return;
     }
     const a = this.actors.ching;
@@ -484,7 +487,7 @@ export class Saga {
     };
     for (const [id, [at, label]] of Object.entries(spots)) {
       const p = PLACE[at];
-      this.interact(id, p, gy(at), label, () => this.onStory(id));
+      this.interact(id, p, at === 'phone' ? this.actors.house.y : gy(at), label, () => this.onStory(id));
     }
     const ching = buildChing();
     const bike = makeBike();
@@ -496,7 +499,8 @@ export class Saga {
     const girder = makeGirder();
     const seb = makePerson(0xe07a12, 1.18);
     const cargo = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.1, 0.35), mat(0xb35c2a, { metalness: 0.45, roughness: 0.45 }));
-    const shards = [0, 1, 2].map(() => new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 0.08), mat(0x35c5f0, { emissive: 0x1787c9, emissiveIntensity: 0.5 })));
+    const shards = makePhoneShards();
+    Z.cleanups.push(()=>shards[0].material.dispose());
     const eyes = [];
     for (let i = 0; i < 10; i++) {
       eyes.push(new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), mat(0xf2c14b, { emissive: 0xffc02e, emissiveIntensity: 0.8 })));
@@ -721,7 +725,7 @@ export class Saga {
     this.game.input.enabled = false;
     this.game.input.unlock();
     this.poseActors();
-    if(state.saga.chapter>=4 && state.saga.chapter<=5) stageCast(this,step);
+    if(state.saga.chapter>=4 && state.saga.chapter<=7) stageCast(this,step);
     this.game.dialogue.conversation(step.lines, () => this.endScene());
   }
 
@@ -738,6 +742,19 @@ export class Saga {
   aimCamera(dt) {
     directDialogue(this, dt);
   }
+
+  performanceLine() {
+    if(this.game.mode!=='playing')return null;
+    if(state.saga?.chapter===7&&this.currentStep()?.id==='snap'&&this.mission?.kind==='photo'){
+      const m=this.mission;m.photoShot||={cinematic:true,speaker:'gabor',i:1};return m.photoShot;
+    }
+    if(state.saga?.chapter!==6||!this.mission?.battle)return null;
+    const m=this.mission,b=m.battle;
+    m.shots ||= [{cinematic:true,speaker:'bung',i:1},{cinematic:true,speaker:'gabor',i:2}];
+    return m.shots[Math.floor(b.index/4)%2];
+  }
+
+  framePerformance(dt,line) { directDialogue(this,dt,line); }
 
   frameDialogue(dt) {
     directDialogue(this, dt);

@@ -1,5 +1,6 @@
 // Cinematic camera for scripted conversations only. Gameplay barks never
 // set DialogueSystem line.cinematic, so they leave this alone.
+import { tickFeudScene } from './feud.js';
 import * as THREE from 'three';
 import { damp, dampAngle } from '../core/utils.js';
 import { placeActor, tickSceneActors } from './actors.js';
@@ -135,7 +136,7 @@ function consider(game, face, pos, room, look, bag, other, frontYaw) {
   bag.push({ pos: pos.clone(), look: look.clone(), dist });
 }
 
-function pickShot(game, face, other, room, wide, narrate) {
+function pickShot(game, face, other, room, wide, narrate, propLift=0) {
   const bag = [];
   const look = face.clone();
   if (other && wide) {
@@ -167,7 +168,7 @@ function pickShot(game, face, other, room, wide, narrate) {
     for (let a = 0; a < angles.length; a++) {
       const dir = back.clone().applyAxisAngle(UP, angles[a]);
       const pos = face.clone().addScaledVector(dir, dists[d]);
-      pos.y = face.y + (wide ? 0.15 : 0.02);
+      pos.y = face.y + (propLift || (wide ? 0.15 : 0.02));
       consider(game, face, pos, room, look, bag, other, game._dialYaw);
       if (bag.length) return bag[0];
     }
@@ -181,7 +182,7 @@ function pickShot(game, face, other, room, wide, narrate) {
     const ang = (k / 10) * Math.PI * 2;
     const dir = new THREE.Vector3(Math.sin(ang), 0, Math.cos(ang));
     const pos = face.clone().addScaledVector(dir, 1.7);
-    pos.y = face.y;
+    pos.y = face.y + propLift;
     contain(pos, room);
     const front = (pos.x - face.x) * fx + (pos.z - face.z) * fz;
     const hit = game.cameraClearance(face, pos.clone().sub(face), 2.4) + (front > 0.3 ? 2 : 0);
@@ -237,13 +238,14 @@ function faceToward(mesh, target, dt, player, allow) {
   }
 }
 
-function statePair(saga) { const n=saga.chapter()?.n;return n===5||n===6; }
+function statePair(saga) { const n=saga.chapter()?.n;return n>=5&&n<=8; }
 
-export function frameDialogue(saga, dt) {
+export function frameDialogue(saga, dt, overrideLine=null) {
   const game = saga.game;
-  const line = game.dialogue.current;
+  const line = overrideLine || game.dialogue.current;
   if (!line?.cinematic) return;
   if(statePair(saga))tickSceneActors(saga,dt);
+  tickFeudScene(saga,dt);
   if (!game.trolley.riding) game.player.mesh.position.copy(game.player.pos);
   const named = CAST[line.speaker] ? line.speaker : 'bung';
   const speaker = present(saga, named) || game.player.mesh;
@@ -255,7 +257,7 @@ export function frameDialogue(saga, dt) {
     if (maybe?.visible) partner = maybe;
   }
   const narrate = !CAST[line.speaker];
-  const wide = !!(partner && line.i % 4 === 0);
+  const wide = !line.focusPoint && !!(partner && line.i % 4 === 0);
   const moving = Math.hypot(game.input.axis().x, game.input.axis().y) > 0.1;
   const riding = game.trolley.riding;
   if (partner && speaker !== partner) {
@@ -267,6 +269,7 @@ export function frameDialogue(saga, dt) {
   if (partner && partner !== speaker) talk(partner, false, t, dt);
 
   const face = facePoint(speaker, game._dialFace || (game._dialFace = new THREE.Vector3()));
+  if(line.focusPoint)face.copy(line.focusPoint);
   const other = partner ? facePoint(partner, game._dialOther || (game._dialOther = new THREE.Vector3())) : null;
   game._dialYaw = speaker.rotation.y;
   const room = game.indoorRoom(speaker.position.x, speaker.position.y + 1.2, speaker.position.z);
@@ -274,7 +277,7 @@ export function frameDialogue(saga, dt) {
   // different side every frame. Re-evaluate if the actor actually moves.
   let cache = saga._dialogueShot;
   if (!cache || cache.line !== line || cache.face.distanceTo(face) > .6) {
-    cache = saga._dialogueShot = { line, face: face.clone(), shot: pickShot(game, face, other, room, wide, narrate) };
+    cache = saga._dialogueShot = { line, face: face.clone(), shot: pickShot(game, face, other, room, wide, narrate, line.focusPoint ? 1.15 : 0) };
   }
   const shot = cache.shot;
   const pull = 4.2;

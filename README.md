@@ -1,5 +1,8 @@
 # BUNG BUNTY: REBAR WORLD — WORLD DETAIL + CARTOON VISUAL REVAMP 3.0
 
+[Chapters 7–8 release](docs/CHAPTERS_7_8_RELEASE.md): three-round rap battle, visible phone destruction, reachable evidence, saved checkpoints and mouse-lock fixes.
+
+
 The [chapter dashboard](docs/CHAPTER_DASHBOARD.md) lets you replay unlocked chapters from the main or pause menu using an isolated replay save, while retaining your campaign checkpoint.
 
 

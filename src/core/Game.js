@@ -398,7 +398,9 @@ export class Game {
     }
 
     const cine = this.dialogue.cinematic;
-    if (this.mode !== 'cutscene' && !cine) this.updateCamera(dt);
+    const performance = !cine && this.saga?.performanceLine();
+    if(performance)this.saga.framePerformance(dt,performance);
+    else if (this.mode !== 'cutscene' && !cine) this.updateCamera(dt);
     if (cine && this.mode !== 'cutscene') this.saga?.frameDialogue?.(dt);
     if (cine) {
       if (this.saga) this.saga._dialOn = true;
@@ -427,13 +429,14 @@ export class Game {
     }
 
     // Detect pointer-lock loss (Esc) → pause
-    if (this._wasLocked && !input.locked && !this.menus.isOpen) {
+    if (this._wasLocked && !input.locked && !this.menus.isOpen && !input.expectedUnlock) {
       this._wasLocked = false;
       this.pauseForMenu();
       this.menus.showPause();
       return;
     }
     this._wasLocked = input.locked;
+    if(!input.locked)input.expectedUnlock=false;
 
     if (input.pressed['Escape'] || input.pressed['KeyP']) {
       this.pauseForMenu();
@@ -510,7 +513,7 @@ export class Game {
     reticle.classList.remove('hidden');
     // Reticle lights up gold when a grapple point is in range/aim
     reticle.classList.toggle('grapple-on', !!this.player.grappleTarget && !this.trolley.riding);
-    if (!this.dialogue.busy) {
+    if (!this.dialogue.busy && !(this.saga?.freeze && document.getElementById('saga-play'))) {
       let prompt = null, action = null;
       const objective = this.saga?.objectiveInteraction(this.trolley.riding);
       if (objective) {

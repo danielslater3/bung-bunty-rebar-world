@@ -26,6 +26,8 @@ export class Input {
     });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
+      if(this.locked && (!this.wantLock || !this.enabled)) { this.expectedUnlock=true;document.exitPointerLock?.(); }
+      else if(this.locked)this.expectedUnlock=false;
     });
     canvas.addEventListener('click', () => {
       if (this.enabled && !this.locked) this.lock();
@@ -34,12 +36,13 @@ export class Input {
 
   lock() {
     if (!this.enabled) return;
+    this.wantLock=true;
     try {
       const p = this.canvas.requestPointerLock?.();
       if (p && p.catch) p.catch(() => {});
     } catch { /* pointer lock unavailable (e.g. headless) — camera still works via drag */ }
   }
-  unlock() { if (this.locked) document.exitPointerLock?.(); }
+  unlock() { this.wantLock=false;this.expectedUnlock=true; if (this.locked || document.pointerLockElement===this.canvas) document.exitPointerLock?.(); }
 
   axis() {
     // Returns {x: strafe, y: forward}

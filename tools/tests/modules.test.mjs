@@ -12,7 +12,7 @@ test('all source modules have one canonical cache URL at root and project subpat
     const path = 'src/' + file;
     assert.equal(imports['/' + path], imports['./' + path], path);
     assert.ok(imports['/' + path]?.startsWith('./' + path + '?v='), path);
-    const version = path.endsWith('.data.js') ? '20261028-data' : '20261102-dashboardfix1';
+    const version = path.endsWith('.data.js') ? '20261028-data' : '20261103-pair78';
     assert.ok(imports['/' + path].endsWith('?v=' + version), path);
     if (!path.endsWith('.data.js')) {
       const source = readFileSync(new URL(path, root), 'utf8');
@@ -34,4 +34,9 @@ test('zone-scoped bus cleanup is idempotent and does not retain old callbacks', 
   bus.emit('test-zone-lifetime');
   assert.equal(calls, 1);
   assert.equal(bus._m.has('test-zone-lifetime'), false);
+});
+
+test('the complete game module graph loads as ES modules', async () => {
+  const {Game}=await import('../../src/core/Game.js');
+  assert.equal(typeof Game,'function');
 });

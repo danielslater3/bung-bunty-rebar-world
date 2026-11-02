@@ -299,7 +299,7 @@ export const CHAPTERS = [
           ['ching', 'Hit the gold, Bung. I will handle the cheering and the alibi.'],
         ],
       },
-      { id: 'rap', kind: 'rhythm', text: 'Win the rap battle', notes: 10, need: 7, gap: 0.92, window: 0.09, banner: 'QUEEN STREET CYPHER' },
+      { id: 'rap', kind: 'rhythm', text: 'Win three rounds of the rap battle', rounds: 3, notes: 24, need: 18, gap: 0.72, window: 0.16, banner: 'KING GEORGE CYPHER' },
       {
         id: 'bow', kind: 'scene', look: 'plaza', text: 'Bow, badly', cast: ['ching'],
         lines: [

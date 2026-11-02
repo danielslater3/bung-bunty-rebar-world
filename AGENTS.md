@@ -1,6 +1,6 @@
 # Agents
 
-Bung Bunty: Rebar World is a static Three.js game. Preserve the opening chapters and real Brisbane map. The user has explicitly advanced development to Chapters 5–6, in a strict two-chapter release cycle. Do not begin Chapters 7–8 until a later user request. Quality and correctness beat a longer feature list.
+Bung Bunty: Rebar World is a static Three.js game. Preserve the opening chapters and real Brisbane map. The user has explicitly advanced development to Chapters 7–8, in a strict two-chapter release cycle. Preserve the chapter dashboard and replay-loading hotfix. Do not begin Chapters 9–10 until a later user request. Quality and correctness beat a longer feature list.
 
 Full notes: `docs/handover/START_HERE.md`.
 

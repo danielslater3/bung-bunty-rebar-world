@@ -1,10 +1,12 @@
 // Playable mission kinds for Acts II–VI. Each one can fail and be retried.
 // Walking up to a sign is not enough to clear these steps.
+import { RhythmBattle } from './RhythmBattle.js';
+import { poseFeud, shardPoints } from './feud.js';
 import { state } from '../core/state.js';
 import { ESCORT_PATH, SCOOTER_PATH } from './sagaData.js';
-import { planner, segmentClear } from './guide.js';
+import { planner, segmentClear, hideGuide } from './guide.js';
 import { ChaseController } from './ChaseController.js';
-import { atDistance } from '../systems/Navigation.js';
+import { atDistance, localRoute } from '../systems/Navigation.js';
 import { placeActor, animateActor, stageCast, floorAt } from './actors.js';
 
 const HANDLED = new Set([
@@ -51,6 +53,7 @@ function body(text) {
 
 function unlockPointer(saga) {
   saga.freeze = true;
+  hideGuide(saga);saga.game.hud.prompt(null);
   saga.game._wasLocked = false;
   saga.game.input.unlock();
   if (saga.game.trolley.riding) saga.game.trolley.dismount();
@@ -115,6 +118,12 @@ const BOOT = {
   escort(saga) { bootJourney(saga, false); },
   race(saga) { bootJourney(saga, true); },
   rhythm(saga, step) {
+    if(state.saga.chapter===6){
+      unlockPointer(saga);saga.game.audio.stopMusic?.();
+      saga.mission={kind:'rhythm',battle:new RhythmBattle(state.saga.stepState.rhythm),beat:-1};
+      playCard('KING GEORGE CYPHER · THREE ROUNDS','F or SPACE on the gold beat · six of eight bars wins each round.');
+      markBand(.7,.12);return;
+    }
     unlockPointer(saga);
     saga.mission = { kind: 'rhythm', t: 0, hits: 0, misses: 0, armed: true, scored: false };
     playCard(step.banner || 'RAP BATTLE', 'Press F when the marker sits in the gold.');
@@ -126,6 +135,7 @@ const BOOT = {
     saga.mission = { kind: 'photo', t: 0, tries: 0 };
     playCard(step.banner || 'CAMERA', step.help || 'Press F when the marker sits in the gold.');
     markBand(0.5, step.sweet || 0.1);
+    score(`ATTEMPTS 0/${step.tries||3}`);
   },
   cricket(saga, step) {
     unlockPointer(saga);
@@ -142,6 +152,7 @@ const BOOT = {
     layTrial(saga, step, el);
   },
   shards(saga) {
+    if(state.saga.chapter===7){state.saga.phone='broken';shardPoints(saga);saga._drone=null;}
     saga.mission = { kind: 'shards', got: {}, stolen: 0 };
   },
   sky(saga, step) {
@@ -223,6 +234,22 @@ const TICK = {
   escort(saga, step, m, dt) { tickJourney(saga, step, m, dt, false); },
   race(saga, step, m, dt) { tickJourney(saga, step, m, dt, true); },
   rhythm(saga, step, m, dt) {
+    if(m.battle){
+      const b=m.battle,event=b.update(dt,!!(saga.game.input.pressed.KeyF||saga.game.input.pressed.Space));
+      const phase=Math.max(0,Math.min(1,(b.time-(b.due-b.gap)) / b.gap)),marker=document.getElementById('saga-marker');
+      if(marker)marker.style.left=`${6+phase*.7*86}%`;
+      markBand(.7,b.window/b.gap*.7);
+      const bars=['Steel in the trolley, gold in the rhyme.','Four hairs standing, all keeping time.','Your forehead gets here before your verse.','Rebar in my pocket. Metaphors could be worse.'];
+      body(`ROUND ${b.round+1}/3 · ${b.feedback} · ${event==='hit'?bars[b.index%4]:'F / SPACE on the gold beat'}`);
+      score(`${b.hits}/8 BARS · COMBO ${b.combo} · SCORE ${b.total} · BEST ${b.best}`);
+      const beat=Math.floor(b.time/b.gap),audio=saga.game.audio;
+      if(beat!==m.beat){m.beat=beat;if(audio.ctx){audio._kick(audio.sfxGain,audio.ctx.currentTime,.12);audio._note(audio.sfxGain,[130.81,155.56,196,174.61][beat%4],audio.ctx.currentTime,.17,'triangle',.08);}}
+      if(event==='hit')audio.sfx('coin');
+      if(event==='miss'||event==='early')audio.sfx('tick');
+      state.saga.stepState.rhythm=b.snapshot();
+      if(event==='complete'){state.saga.rapScore=b.total;closePlay();saga.freeze=false;audio.playMusic(saga.game.zone.music);saga.advance();}
+      return;
+    }
     m.t += dt;
     const cycle = step.gap || 0.9;
     const window = step.window || 0.08;
@@ -263,8 +290,10 @@ const TICK = {
     if (marker) marker.style.left = `${6 + p * 86}%`;
     if (!(saga.game.input.pressed['KeyF'] || saga.game.input.pressed['Space'])) return;
     m.tries += 1;
+    score(`ATTEMPTS ${m.tries}/${step.tries||3}`);
     const sweet = step.sweet || 0.1;
     if (Math.abs(p - 0.5) < sweet) {
+      saga.game.toast('PHOTOGRAPH SECURED · EVIDENCE SAVED', 'blue');
       if (step.grant && !state.saga.evidence.includes(step.grant)) state.saga.evidence.push(step.grant);
       closePlay();
       saga.freeze = false;
@@ -297,41 +326,23 @@ const TICK = {
     else retry(saga, 'bung', 'That over does not go on the statue. Another one.');
   },
   shards(saga, step, m, dt) {
-    const origin = saga.point(step.at);
-    const offsets = [[2.2, 1.1], [-2.4, 1.6], [0.8, -2.3]];
-    const got = haveMap('shards');
-    if (!saga._drone) saga._drone = origin.clone();
-    let nearest = null;
-    let nearestD = Infinity;
-    for (let i = 0; i < offsets.length; i++) {
-      if (got[`s${i}`]) continue;
-      const p = saga.pointXY(origin.x + offsets[i][0], origin.z + offsets[i][1]);
-      if (saga.here().distanceTo(p) < 1.55) {
-        got[`s${i}`] = true;
-        saga.game.audio.sfx('quest');
-        saga.game.toast(`SHARD ${Object.keys(got).length}/3`, 'blue');
-        continue;
-      }
-      const d = Math.hypot(saga._drone.x - p.x, saga._drone.z - p.z);
-      if (d < nearestD) { nearestD = d; nearest = p; }
+    const points=shardPoints(saga),got=haveMap('shards');m.time=(m.time||0)+dt;
+    for(let i=0;i<points.length;i++)if(!got[`s${i}`]&&saga.here().distanceTo(points[i])<1.55){
+      got[`s${i}`]=true;saga.game.audio.sfx('quest');saga.game.toast(`PHONE EVIDENCE ${Object.keys(got).length}/3 · SECURED`, 'blue');
     }
-    if (nearest) {
-      const dx = nearest.x - saga._drone.x;
-      const dz = nearest.z - saga._drone.z;
-      const len = Math.hypot(dx, dz) || 1;
-      const stepLen = Math.min(len, dt * 2.15);
-      saga._drone.x += (dx / len) * stepLen;
-      saga._drone.z += (dz / len) * stepLen;
-      saga._drone.y = origin.y;
-      if (len < 0.9) {
-        state.saga.stepState.shards = {};
-        saga._drone = origin.clone();
-        saga.game.audio.sfx('denied');
-        saga.game.say('gabor', 'The drone files that shard under mine.');
-        return;
-      }
+    const next=points.find((p,i)=>!got[`s${i}`]);
+    // Drone pressure is readable and recoverable: secured clues never vanish.
+    const origin=saga.point('smash');
+    if(!saga._drone)saga._drone=origin.clone();
+    if(saga.game.input.pressed.KeyF&&saga.here().distanceTo(saga._drone)<6){m.time=0;saga.game.toast('DRONE JAMMED · FIVE SECONDS', 'blue');}
+    if(next&&m.time>5){
+      if(m.droneTarget!==next){m.droneTarget=next;m.droneRoute=localRoute(saga._drone,next,(a,b)=>segmentClear(saga.game.zone,a,b,.45));m.droneIndex=1;}
+      const waypoint=m.droneRoute[m.droneIndex];
+      if(waypoint){const d=Math.hypot(waypoint.x-saga._drone.x,waypoint.z-saga._drone.z)||1,t=Math.min(1,dt*.75/d);saga._drone.x+=(waypoint.x-saga._drone.x)*t;saga._drone.z+=(waypoint.z-saga._drone.z)*t;if(d<.15)m.droneIndex++;}
+      if(Math.hypot(next.x-saga._drone.x,next.z-saga._drone.z)<.8){m.time=0;saga.game.say('ching','Tablet jammer online. Your secured evidence stays with us. Follow the gold rings.');}
+
     }
-    if (offsets.every((_, i) => got[`s${i}`])) saga.advance();
+    if(!next){state.saga.phone='broken';if(!state.saga.evidence.includes('shards'))state.saga.evidence.push('shards');saga.advance();}
   },
   sky(saga, step, m, dt) {
     m.t += dt;
@@ -530,7 +541,7 @@ export function poseMission(saga) {
       mesh.position.set(origin.x + off[0], origin.y + 0.4 + Math.sin(saga.game.elapsed * 4 + i) * 0.12, origin.z + off[1]);
       mesh.rotation.y += 0.04;
     });
-    if (saga._drone && a.drone) show(a.drone, saga._drone.x, origin.y + 1.6, saga._drone.z);
+    if (saga._drone && a.drone) show(a.drone, saga._drone.x, floorAt(saga,saga._drone) + 1.6, saga._drone.z);
   }
   if (step.kind === 'sky' && saga.mission) {
     const aim = skyPoint(saga, step, saga.mission);
@@ -570,7 +581,7 @@ export function poseMission(saga) {
   if ((step.kind === 'visits' || state.saga.mansion) && a.family) {
     for (const member of a.family) member.mesh.visible = !!state.saga.mansion;
   }
-  if (step.cast && state.saga.chapter>=4 && state.saga.chapter<=5) {
+  if (step.cast && state.saga.chapter>=4 && state.saga.chapter<=7) {
     stageCast(saga,step);
     const vehicle=state.saga.chapter===4?a.bike:a.scooter,p=a.gabor.position;
     if(placeActor(saga,vehicle,{x:p.x+1.7,y:p.y,z:p.z},[a.gabor,a.ching,saga.game.player.mesh],.6))vehicle.visible=true;
@@ -600,6 +611,7 @@ export function poseMission(saga) {
       mesh.position.y = saga.ground(PLACE_X(saga, id), PLACE_Z(saga, id)) + Math.sin(saga.game.elapsed * 2) * 0.05;
     });
   }
+  poseFeud(saga,step);
 }
 
 function PLACE_X(saga, id) { return saga.point(id).x; }
@@ -615,9 +627,7 @@ export function missionMarker(saga, step) {
     const got = state.saga.stepState.shards || {};
     const i = [0, 1, 2].find((n) => !got[`s${n}`]);
     if (i == null) return null;
-    const origin = saga.point(step.at);
-    const off = [[2.2, 1.1], [-2.4, 1.6], [0.8, -2.3]][i];
-    return saga.pointXY(origin.x + off[0], origin.z + off[1]);
+    const p=shardPoints(saga)[i];return p?saga.pointXY(p.x,p.z):null;
   }
   if (step.kind === 'evidence' || step.kind === 'snow' || step.kind === 'sequence') {
     const key = step.kind === 'snow' ? 'piles' : step.kind === 'sequence' ? null : 'evidenceGot';
@@ -659,6 +669,8 @@ export function missionLabel(saga, step) {
   if (step.kind === 'eyes') return `${step.text} (${m.hits}/6, misses ${m.misses})`;
   if (step.kind === 'hold') return `${step.text} (${Math.floor(m.held)}/${step.seconds || 8}s)`;
   if (step.kind === 'snow') return `${step.text} (${Math.ceil(m.left)}s left)`;
+  if (step.kind === 'shards') return `${step.text} (${Object.keys(state.saga.stepState.shards||{}).length}/3 SECURED)`;
+  if (step.kind === 'rhythm' && m.battle) return `RAP ROUND ${m.battle.round+1}/3 · ${m.battle.total} POINTS`;
   if (step.kind === 'rhythm') return `${step.text} (${m.hits}/${step.need})`;
   if (step.kind === 'cricket') return `${step.text} (${m.catches}/${step.need})`;
   if (step.kind === 'deliver') {

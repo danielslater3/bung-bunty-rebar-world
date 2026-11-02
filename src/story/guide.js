@@ -211,6 +211,7 @@ function objective(saga, step) {
     const inside = bar.inside(here.x, here.z) && Math.abs(here.y - bar.y) < 2;
     return { target: end, route: inside || on.off > 14 ? null : route, label: 'GABOR' };
   }
+  if(step.kind==='shards')return {target:saga.markerPoint(),label:`PHONE EVIDENCE ${Object.keys(state.saga.stepState.shards||{}).length}/3 · GOLD RINGS · F JAMS DRONE`};
   let id = step.at;
   if (step.kind === 'parts') id = step.parts.find((p) => !state.saga.stepState.parts?.[p]);
   if (step.kind === 'rings') id = step.rings.find((p) => !state.saga.stepState.rings?.[p]);
