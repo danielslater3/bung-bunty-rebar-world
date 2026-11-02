@@ -16,6 +16,7 @@ import {
 } from './missions.js';
 
 import { repairProgress, awardChapter } from './progression.js';
+import { followActor, stageCast } from './actors.js';
 import { ChaseController } from './ChaseController.js';
 import { localRoute } from '../systems/Navigation.js';
 
@@ -149,7 +150,7 @@ export class Saga {
     const live = this.currentStep();
     if (!live) return;
     if (live.kind === 'follow' || live.kind === 'catch') this.moveGabor(dt, live);
-    else this.game.hud?.chaseHud(null);
+    else if (!['escort','race'].includes(live.kind)) this.game.hud?.chaseHud(null);
     tickTrail(this, dt);
     this.moveGuard(dt, live);
     this.check(live);
@@ -307,7 +308,10 @@ export class Saga {
 
   followCompanion(dt) {
     if (!state.saga?.companion || !this.actors?.ching) return;
-    if (this.currentStep()?.kind === 'escort') return;
+    if (['escort','scene'].includes(this.currentStep()?.kind)) return;
+    if(state.saga.chapter>=4 && state.saga.chapter<=5) {
+      followActor(this,this.actors.ching,dt);return;
+    }
     const a = this.actors.ching;
     a.visible = true;
     const p = this.here();
@@ -706,6 +710,7 @@ export class Saga {
     this.game.input.enabled = false;
     this.game.input.unlock();
     this.poseActors();
+    if(state.saga.chapter>=4 && state.saga.chapter<=5) stageCast(this,step);
     this.game.dialogue.conversation(step.lines, () => this.endScene());
   }
 

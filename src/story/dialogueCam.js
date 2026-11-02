@@ -2,6 +2,7 @@
 // set DialogueSystem line.cinematic, so they leave this alone.
 import * as THREE from 'three';
 import { damp, dampAngle } from '../core/utils.js';
+import { placeActor, tickSceneActors } from './actors.js';
 import { clampMcRebar } from './mcrebar.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -46,7 +47,7 @@ function present(saga, name) {
     x = Math.max(room.minX + 0.5, Math.min(room.maxX - 0.5, x));
     z = Math.max(room.minZ + 0.5, Math.min(room.maxZ - 0.5, z));
   }
-  mesh.position.set(x, bung.pos.y, z);
+  if (!placeActor(saga,mesh,{x,y:bung.pos.y,z},[bung.mesh,...Object.values(saga.actors).filter(a=>a?.isObject3D && a!==mesh && ['ching','gabor','seb'].some(n=>saga.actors[n]===a))])) return null;
   mesh.visible = true;
   mesh.userData.camBrought = true;
   return mesh;
@@ -236,10 +237,13 @@ function faceToward(mesh, target, dt, player, allow) {
   }
 }
 
+function statePair(saga) { const n=saga.chapter()?.n;return n===5||n===6; }
+
 export function frameDialogue(saga, dt) {
   const game = saga.game;
   const line = game.dialogue.current;
   if (!line?.cinematic) return;
+  if(statePair(saga))tickSceneActors(saga,dt);
   if (!game.trolley.riding) game.player.mesh.position.copy(game.player.pos);
   const named = CAST[line.speaker] ? line.speaker : 'bung';
   const speaker = present(saga, named) || game.player.mesh;

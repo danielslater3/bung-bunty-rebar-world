@@ -256,7 +256,7 @@ export const CHAPTERS = [
           ['gabor', 'I brought a bicycle and a feeling. Both are unwelcome and both are here.'],
         ],
       },
-      { id: 'escort', kind: 'escort', text: 'Walk Ching to McRebar without letting Gabor cut in' },
+      { id: 'escort', kind: 'escort', text: 'Walk Ching through Queen Street to the meeting point' },
       { id: 'join', kind: 'interact', at: 'arrival', text: 'Ask Ching to stay', prompt: '<b>[E]</b> Ching' },
     ],
   },

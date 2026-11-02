@@ -113,9 +113,9 @@ export function buildGuide(group) {
   g.userData.alpha = opacity;
   return g;
 }
-function planner(saga) {
+export function planner(saga, radius = .6) {
   const zone = saga.game.zone,
-    clear = (a, b) => segmentClear(zone, a, b);
+    clear = (a, b) => segmentClear(zone, a, b, radius);
   const network = new RoadNetwork(saga.game.geoBrisbane.roads, (x, z) => zone.terrain.walkAt(x, z), clear);
   const plan = (from, to) => {
     // Interactable origins can sit inside a wardrobe/counter. Navigate to a
@@ -181,6 +181,10 @@ function planner(saga) {
   return new NavigationController(plan, clear);
 }
 function objective(saga, step) {
+  if (['escort', 'race'].includes(step.kind) && saga.mission?.controller) {
+    const c=saga.mission.controller;
+    return {target: atDistance(c.path,c.dist), label:step.kind==='escort'?'CHING':'GABOR'};
+  }
   if (step.kind === 'follow' || step.kind === 'catch') {
     const pts = saga.chasePts().map(([x, z]) => ({ x, z, y: saga.ground(x, z) }));
     const here = saga.here(),

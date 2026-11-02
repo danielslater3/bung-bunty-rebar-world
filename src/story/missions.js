@@ -2,6 +2,10 @@
 // Walking up to a sign is not enough to clear these steps.
 import { state } from '../core/state.js';
 import { ESCORT_PATH, SCOOTER_PATH } from './sagaData.js';
+import { planner, segmentClear } from './guide.js';
+import { ChaseController } from './ChaseController.js';
+import { atDistance } from '../systems/Navigation.js';
+import { placeActor, animateActor, stageCast, floorAt } from './actors.js';
 
 const HANDLED = new Set([
   'escort', 'race', 'rhythm', 'photo', 'shards', 'trial', 'cricket', 'sky',
@@ -75,14 +79,41 @@ function retry(saga, speaker, text) {
   saga.ensureStep();
 }
 
+function bootJourney(saga, racing) {
+  const saved=state.saga.stepState.journey || {};
+  const nav=planner(saga,racing?.95:.6);
+  const from=racing?saga.actors.bar.navRoute.at(-1):saga.point('plaza');
+  const to=saga.point(racing?'wlawn':'arrival');
+  const path=saved.path?.length>1?saved.path:nav.plan(from,to);
+  if(path.length<2) {
+    saga.mission={kind:racing?'race':'escort',unavailable:true};
+    saga.game.toast('Route unavailable — pause and reload this checkpoint', 'gold');return;
+  }
+  saga.mission={kind:racing?'race':'escort',controller:new ChaseController(path,saved),tail:saved.tail||0,t:saved.dist? saved.dist / new ChaseController(path).length:0};
+  saga.game.toast(racing?'SCOOTER PURSUIT · Take the stairs, mount, follow the gold route':'WELCOME WALK · Stay near Ching; she waits if you fall behind', 'gold');
+}
+
+function tickJourney(saga,step,m,dt,racing) {
+  if(!m.controller)return;
+  const c=m.controller;
+  const result=c.update(dt,saga.here(),{catching:racing,riding:saga.game.trolley.riding,finishAtEnd:true,clear:(a,b)=>segmentClear(saga.game.zone,a,b,.6)});
+  m.t=c.length?c.dist/c.length:0;
+  if(racing&&saga.game.trolley.riding&&result.gap<12)m.tail+=dt;
+  // A brief separation stages the rivalry without resetting the entire walk.
+  if(!racing&&result.gap>12&&!m.warned){m.warned=true;saga.game.say('gabor','I can escort! I have a bicycle and no social awareness.');saga.game.say('ching','Bung, over here. I am waiting, not available.');}
+  state.saga.stepState.journey={...c.snapshot(),path:c.path,tail:m.tail};
+  saga.game.hud.chaseHud({metres:Math.round(result.gap),target:racing?saga.actors.gabor.position:saga.actors.ching.position,note:racing?'FOLLOW THE SCOOTER · STAY WITHIN 12 m':`CHING · ${Math.round(m.t*100)}% · WALK TOGETHER`});
+  if(result.finished) {
+    // Follow controller completion requires the endpoint; race additionally
+    // demands sustained proximity. Never finish merely because a route blocks.
+    if(c.dist<c.length-4 || (racing&&m.tail<(step.tail||4))){c.completed=false;return;}
+    saga.game.hud.chaseHud(null);saga.advance();
+  }
+}
+
 const BOOT = {
-  escort(saga) {
-    saga.mission = { kind: 'escort', t: 0, snatch: 0 };
-  },
-  race(saga) {
-    saga.gaborT = 0;
-    saga.mission = { kind: 'race', tail: 0, lost: 0 };
-  },
+  escort(saga) { bootJourney(saga, false); },
+  race(saga) { bootJourney(saga, true); },
   rhythm(saga, step) {
     unlockPointer(saga);
     saga.mission = { kind: 'rhythm', t: 0, hits: 0, misses: 0, armed: true, scored: false };
@@ -189,51 +220,8 @@ export function tickMission(saga, dt) {
 }
 
 const TICK = {
-  escort(saga, step, m, dt) {
-    const player = saga.here();
-    const ching = saga.pathOn(ESCORT_PATH, m.t);
-    const dist = player.distanceTo(ching);
-    if (dist < 12) m.t = Math.min(0.995, m.t + dt * 0.02);
-    const gabor = ching.clone();
-    const block = dist < 3.2;
-    if (!block) {
-      gabor.x += Math.cos(saga.game.elapsed * 0.8) * 2.2;
-      gabor.z += Math.sin(saga.game.elapsed * 0.6) * 2.2;
-      m.snatch += dt;
-    } else m.snatch = 0;
-    saga._escort = { ching, gabor };
-    if (!block && m.snatch > 1.15 && m.t > 0.02) {
-      m.t = 0;
-      m.snatch = 0;
-      saga.game.audio.sfx('denied');
-      saga.game.say('gabor', 'I will walk her. You can hold the burgers.');
-      saga.game.say('ching', 'Bung. Beside me. Not at the horizon.');
-    }
-    if (m.t > 0.97 && player.distanceTo(saga.pathOn(ESCORT_PATH, 0.99)) < 8) saga.advance();
-  },
-  race(saga, step, m, dt) {
-    const player = saga.here();
-    const pos = saga.pathOn(SCOOTER_PATH, saga.gaborT);
-    const dist = player.distanceTo(pos);
-    const rate = dist < 18 ? 0.048 : 0.02;
-    saga.gaborT = Math.min(0.995, saga.gaborT + dt * rate);
-    if (saga.game.trolley.riding && dist < 10) m.tail += dt;
-    else m.tail = Math.max(0, m.tail - dt * 0.35);
-    if (dist > 46) m.lost += dt;
-    else m.lost = 0;
-    if (m.lost > 3.4) {
-      saga.gaborT = 0;
-      m.tail = 0;
-      m.lost = 0;
-      saga.game.audio.sfx('denied');
-      saga.game.say('gabor', 'Too slow. The scooter has places to be jealous.');
-      return;
-    }
-    const at = saga.pathOn(SCOOTER_PATH, saga.gaborT);
-    if (saga.game.trolley.riding && player.distanceTo(at) < 6.5 && saga.gaborT > 0.72 && m.tail > (step.tail || 4)) {
-      saga.advance();
-    }
-  },
+  escort(saga, step, m, dt) { tickJourney(saga, step, m, dt, false); },
+  race(saga, step, m, dt) { tickJourney(saga, step, m, dt, true); },
   rhythm(saga, step, m, dt) {
     m.t += dt;
     const cycle = step.gap || 0.9;
@@ -509,18 +497,28 @@ export function poseMission(saga) {
     mesh.position.set(x, y, z);
     if (yaw != null) mesh.rotation.y = yaw;
   };
-  if (step.kind === 'escort' && saga._escort) {
-    const { ching, gabor } = saga._escort;
-    show(a.ching, ching.x, ching.y, ching.z);
-    show(a.gabor, gabor.x, gabor.y, gabor.z);
-    show(a.bike, gabor.x + 0.8, gabor.y, gabor.z + 0.4);
-    a.ching.position.y += Math.sin(saga.game.elapsed * 8) * 0.04;
+  if (['escort','race'].includes(step.kind) && saga.mission?.controller) {
+    const m=saga.mission,c=m.controller,at=atDistance(c.path,c.dist);
+    const actor=step.kind==='escort'?a.ching:a.gabor;
+    actor.visible=true; actor.position.set(at.x,floorAt(saga,at),at.z); actor.rotation.y=c.heading;
+    placeActor(saga,actor,actor.position,[saga.game.player.mesh],.5);
+    if(step.kind==='escort') {
+      a.gabor.visible=true;
+      const back=atDistance(c.path,Math.max(0,c.dist-4));
+      placeActor(saga,a.gabor,back,[a.ching,saga.game.player.mesh],.55);
+      animateActor(a.ching,c.speed,saga.game.elapsed);
+      const bikeTarget={x:a.gabor.position.x+1.7,y:a.gabor.position.y,z:a.gabor.position.z};
+      a.bike.visible=placeActor(saga,a.bike,bikeTarget,[a.gabor,a.ching,saga.game.player.mesh],.55);
+      a.bike.rotation.y=c.heading;a.gabor.rotation.y=c.heading;
+    } else {
+      a.scooter.visible=true;a.scooter.position.copy(actor.position);a.scooter.rotation.y=c.heading;
+      for(const wheel of a.scooter.userData.wheels||[])wheel.rotation.x=c.dist/.1;
+    }
   }
-  if (step.kind === 'race') {
-    const at = saga.pathOn(SCOOTER_PATH, saga.gaborT);
-    show(a.gabor, at.x, at.y, at.z);
-    show(a.scooter, at.x + 0.7, at.y, at.z + 0.35);
-    a.scooter.rotation.y = Math.sin(saga.game.elapsed * 2) * 0.2;
+  if (state.saga.chapter===4 && step.id==='join') {
+    const p=saga.point('arrival');
+    a.ching.visible=placeActor(saga,a.ching,p,[saga.game.player.mesh]);
+    a.gabor.visible=placeActor(saga,a.gabor,{x:p.x-3,y:p.y,z:p.z},[a.ching,saga.game.player.mesh]);
   }
   if (step.kind === 'shards') {
     const origin = saga.point(step.at);
@@ -572,7 +570,12 @@ export function poseMission(saga) {
   if ((step.kind === 'visits' || state.saga.mansion) && a.family) {
     for (const member of a.family) member.mesh.visible = !!state.saga.mansion;
   }
-  if (step.cast) {
+  if (step.cast && state.saga.chapter>=4 && state.saga.chapter<=5) {
+    stageCast(saga,step);
+    const vehicle=state.saga.chapter===4?a.bike:a.scooter,p=a.gabor.position;
+    if(placeActor(saga,vehicle,{x:p.x+1.7,y:p.y,z:p.z},[a.gabor,a.ching,saga.game.player.mesh],.6))vehicle.visible=true;
+  }
+  else if (step.cast) {
     for (const name of step.cast) {
       if (name === 'ching' && a.ching && step.kind !== 'escort') {
         const p = saga.game.player.pos;
@@ -604,8 +607,8 @@ function PLACE_Z(saga, id) { return saga.point(id).z; }
 
 export function missionMarker(saga, step) {
   if (!step || !HANDLED.has(step.kind)) return undefined;
-  if (step.kind === 'escort') return saga.pathOn(ESCORT_PATH, Math.min(0.99, (saga.mission?.t || 0) + 0.04));
-  if (step.kind === 'race') return saga.pathOn(SCOOTER_PATH, Math.min(0.99, saga.gaborT + 0.02));
+  if (step.kind === 'escort') return saga.actors.ching.position;
+  if (step.kind === 'race') return saga.actors.gabor.position;
   if (step.kind === 'sky' && saga.mission) return skyPoint(saga, step, saga.mission);
   if (step.kind === 'eyes') return saga._eye ? eyePos(saga, step, saga._eye.idx) : saga.point(step.at);
   if (step.kind === 'shards') {
@@ -732,6 +735,7 @@ export function onInteract(saga, id) {
     return true;
   }
   if (id === 'join' && step.id === 'join') {
+    stageCast(saga,{cast:['ching','gabor']});
     state.saga.companion = true;
     saga.game.dialogue.conversation([
       ['ching', 'The visa is stamped. Queen Street is loud. I am staying.'],

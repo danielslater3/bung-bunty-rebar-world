@@ -12,7 +12,7 @@ export class ChaseController {
     this.blocked = false;
     this.blockedTime = 0;
   }
-  update(dt, player, { catching = false, riding = false, clear = () => true } = {}) {
+  update(dt, player, { catching = false, riding = false, clear = () => true, finishAtEnd = false } = {}) {
     dt = Math.max(0, Math.min(dt, 0.1));
     const at = atDistance(this.path, this.dist),
       on = nearestOnPath(this.path, player);
@@ -47,7 +47,7 @@ export class ChaseController {
     // Stage the whole corridor before the payoff; a shortcut cannot skip Apple.
     const stoppedSafely = this.blockedTime >= 8;
     const ready = catching
-      ? riding && (this.dist >= this.length * 0.82 || stoppedSafely) && live < 4.5
+      ? riding && (this.dist >= (finishAtEnd ? this.length - 1 : this.length * 0.82) || (!finishAtEnd && stoppedSafely)) && live < 4.5
       : (this.dist >= this.length - 4 || stoppedSafely) && live < 6;
     const finished = !this.completed && ready && Math.abs((player.y || 0) - (position.y || 0)) < 2.5;
     if (finished) {

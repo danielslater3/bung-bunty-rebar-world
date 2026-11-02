@@ -196,6 +196,7 @@ export function buildChing() {
   const trim = cyl(0.235, 0.235, 0.05, mat(0x2ee6ff, { emissive: 0x2ee6ff, emissiveIntensity: 1.4 }), 12);
   trim.position.y = 1.28;
   g.add(trim);
+  g.userData.walkLegs=[];g.userData.walkArms=[];
   // Legs — dark techwear pants
   for (const sx of [-1, 1]) {
     const leg = cyl(0.085, 0.1, 0.62, mat(0x23262e, { roughness: 0.8 }), 8);
@@ -204,6 +205,8 @@ export function buildChing() {
     const boot = box(0.16, 0.1, 0.26, mat(0xeeeeee, { roughness: 0.4 }));
     boot.position.set(sx * 0.12, 0.06, 0.04);
     g.add(boot);
+    const pivot=new THREE.Group();pivot.position.set(sx*.12,.65,0);g.add(pivot);
+    g.updateMatrixWorld(true);pivot.attach(leg);pivot.attach(boot);g.userData.walkLegs.push(pivot);
   }
   // Arms
   for (const sx of [-1, 1]) {
@@ -216,6 +219,8 @@ export function buildChing() {
     const hand = sphere(0.075, SKIN(), 8, 6);
     hand.position.set(sx * 0.38, 0.74, 0);
     g.add(hand);
+    const pivot=new THREE.Group();pivot.position.set(sx*.32,1.3,0);g.add(pivot);
+    g.updateMatrixWorld(true);pivot.attach(arm);pivot.attach(hand);g.userData.walkArms.push(pivot);
   }
   // Head
   const headG = new THREE.Group();
@@ -284,6 +289,14 @@ export function buildChing() {
   charm.position.set(0.2, 0.68, 0.12);
   g.add(charm);
 
+  // Arrival luggage: a compact hard case with a telescoping steel handle.
+  const luggage=new THREE.Group();luggage.position.set(-.6,0,-.35);
+  const shell=box(.34,.46,.24,mat(0x255b69,{roughness:.42,metalness:.18}));shell.position.y=.29;luggage.add(shell);
+  for(const x of [-.12,.12]) {
+    const wheel=cyl(.045,.045,.04,mat(0x242933),8);wheel.rotation.z=Math.PI/2;wheel.position.set(x,.045,-.35+.35);luggage.add(wheel);
+    const rail=box(.02,.38,.02,mat(0xb8c8cd,{metalness:.6}));rail.position.set(x,.66,0);luggage.add(rail);
+  }
+  const grip=box(.26,.04,.04,mat(0x252b31));grip.position.set(0,.86,0);luggage.add(grip);g.add(luggage);g.userData.luggage=luggage;
   g.userData.head = headG;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   addOutline(g, 0.055);
