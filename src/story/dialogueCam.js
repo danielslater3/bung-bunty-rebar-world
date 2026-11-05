@@ -1,5 +1,6 @@
 // Cinematic camera for scripted conversations only. Gameplay barks never
 // set DialogueSystem line.cinematic, so they leave this alone.
+import { containsCollider } from '../core/colliderSpace.js';
 import { tickFeudScene } from './feud.js';
 import * as THREE from 'three';
 import { damp, dampAngle } from '../core/utils.js';
@@ -7,7 +8,7 @@ import { placeActor, tickSceneActors } from './actors.js';
 import { clampMcRebar } from './mcrebar.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-const CAST = { bung: 1, gabor: 1, ching: 1, seb: 1 };
+const CAST = { bung: 1, gabor: 1, ching: 1, seb: 1, judge:1, witness:1 };
 
 function meshOf(saga, name) {
   if (name === 'bung') return saga.game.player.mesh;
@@ -44,6 +45,7 @@ function present(saga, name) {
     const p = clampMcRebar(x, z, 0.8);
     x = p.x;
     z = p.z;
+  } else if(room?.clamp){const p={x,y:bung.pos.y,z};room.clamp(p,.8);x=p.x;z=p.z;
   } else if (room) {
     x = Math.max(room.minX + 0.5, Math.min(room.maxX - 0.5, x));
     z = Math.max(room.minZ + 0.5, Math.min(room.maxZ - 0.5, z));
@@ -74,6 +76,7 @@ function partnerOf(saga, speakerName, speaker) {
 
 function contain(pos, room) {
   if (!room) return pos;
+  if(room.clamp){room.clamp(pos,.4);pos.y=Math.max(room.floor+1.2,Math.min(room.ceil-.22,pos.y));return pos;}
   if (room.kind === 'bar') {
     const p = clampMcRebar(pos.x, pos.z, 0.55);
     pos.x = p.x;
@@ -88,6 +91,7 @@ function contain(pos, room) {
 
 function insideRoom(pos, room) {
   if (!room) return true;
+  if(room.contains)return room.contains(pos,.15)&&pos.y>room.floor+.8&&pos.y<room.ceil-.12;
   if (pos.y < room.floor + 0.8 || pos.y > room.ceil - 0.12) return false;
   if (room.kind === 'bar') {
     const p = clampMcRebar(pos.x, pos.z, 0);
@@ -101,6 +105,7 @@ function cameraBlocked(game, pos) {
   if (!list) return false;
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
+    if(b.frame){if(containsCollider(b,pos))return true;continue;}
     if (pos.x <= b.min.x || pos.x >= b.max.x || pos.z <= b.min.z || pos.z >= b.max.z) continue;
     if (pos.y <= b.min.y || pos.y >= b.max.y) continue;
     return true;
@@ -238,7 +243,7 @@ function faceToward(mesh, target, dt, player, allow) {
   }
 }
 
-function statePair(saga) { const n=saga.chapter()?.n;return n>=5&&n<=8; }
+function statePair(saga) { const n=saga.chapter()?.n;return n>=5&&n<=10; }
 
 export function frameDialogue(saga, dt, overrideLine=null) {
   const game = saga.game;

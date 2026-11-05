@@ -20,6 +20,8 @@ import { followActor, stageCast } from './actors.js';
 import { makePhoneShards } from './feud.js';
 import { ChaseController } from './ChaseController.js';
 import { localRoute } from '../systems/Navigation.js';
+import { StoryVenues } from './venues.js';
+import { migrateVenues } from './venueData.js';
 
 export { createSaga, CHAPTERS, ACTS };
 
@@ -61,6 +63,8 @@ export class Saga {
     this._snowPoints = null;
     this._booted = '';
     if (!this.on || this.game.zone?.name !== 'brisbane') return;
+    migrateVenues(state.saga,CHAPTERS);
+    this.venues=null;
     this.dress();
   }
 
@@ -121,6 +125,7 @@ export class Saga {
 
   update(dt) {
     if (!this.on || this.game.zone?.name !== 'brisbane') return;
+    this.venues?.update(dt);
     driftSnow(this, dt);
     if (this.game.mode === 'cutscene') {
       // A cancelled scene must never strand a replay in a non-interactive mode.
@@ -192,6 +197,7 @@ export class Saga {
   }
 
   point(id) {
+    const venue=this.venues?.point(id);if(venue)return venue;
     const p = PLACE[id];
     if (!p) return this.game.player.pos.clone();
     return new THREE.Vector3(p.x, this.ground(p.x, p.z), p.z);
@@ -322,8 +328,9 @@ export class Saga {
   followCompanion(dt) {
     if (!state.saga?.companion || !this.actors?.ching) return;
     if (['escort','scene'].includes(this.currentStep()?.kind)) return;
-    if(state.saga.chapter>=6&&state.saga.chapter<=7&&['rhythm','photo'].includes(this.currentStep()?.kind))return;
-    if(state.saga.chapter>=4 && state.saga.chapter<=7) {
+    if(state.saga.chapter===8&&this.currentStep()?.kind==='trial')return;
+    if(state.saga.chapter>=6&&state.saga.chapter<=9&&['rhythm','photo'].includes(this.currentStep()?.kind))return;
+    if(state.saga.chapter>=4 && state.saga.chapter<=9) {
       followActor(this,this.actors.ching,dt);return;
     }
     const a = this.actors.ching;
@@ -452,7 +459,7 @@ export class Saga {
       return y;
     };
     prop('court', 7, 0.16, 4, 0xf7f1e4, 'BRISBANE CITY COURT\nPARLIAMENT LAWN');
-    prop('wlawn', 8, 0.12, 8, 0xf2efe6, 'W BRISBANE\nVICTORY LAWN');
+    prop('wlawn', 8, 0.12, 8, 0xf2efe6, 'RIVERSIDE\nSCOOTER FINISH');
     prop('pitch', 10, 0.08, 6, 0x3e8f45, 'DAVIES PARK\nREBAR CRICKET');
     prop('expo', 6, 0.1, 6, 0xffc94d, 'BRISBANE REBAR EXPO');
     prop('yard', 5, 0.16, 4, 0xe07a12, 'SEB DALY\nTHE YARD');
@@ -461,7 +468,6 @@ export class Saga {
     const spots = {
       join: ['arrival', '<b>[E]</b> Ching'],
       phone: ['phone', '<b>[E]</b> The blue phone'],
-      newphone: ['wlawn', '<b>[E]</b> The new phone'],
       receipt: ['receipt', '<b>[E]</b> Take the receipt'],
       witness: ['witness', '<b>[E]</b> The witness'],
       goggles: ['gogbox', '<b>[E]</b> The goggles box'],
@@ -530,6 +536,7 @@ export class Saga {
       };
     }
     if (state.saga.mansion || state.saga.chapter >= 15) this.ensureMansion();
+    this.venues=new StoryVenues(this);
     this.poseActors();
   }
 
@@ -546,7 +553,11 @@ export class Saga {
       ids=[state.saga.stepState.carrying ? step.drops[state.saga.stepState.leg||0] : 'crate'];
     } else if(step.kind==='parts') ids=step.parts.filter(id=>!state.saga.stepState.parts?.[id]);
     else if(step.kind==='choice') ids=['ped-left','ped-mid','ped-right'];
+    else if(step.kind==='evidence') ids=step.items.filter(i=>!state.saga.stepState.evidenceGot?.[i.id]).map(i=>i.id);
     else if(step.kind==='interact') ids=[step.at];
+    // A destination on another hotel floor is reached through the lift.
+    const venueTarget=this.venues?.target(step)?.target;
+    if(venueTarget&&this.venues?.floor&&venueTarget===this.venues.points['hotel-lift'])ids=['hotel-lift'];
     const p=this.here();let best=null,d=Infinity;
     for(const it of this.game.zone.interactables){
       if(!ids.includes(it.id))continue;
@@ -617,9 +628,10 @@ export class Saga {
     this.stickInteract('gabor', a.gabor.position);
     this.stickInteract('bag', a.bag.position);
     poseMission(this);
+    this.venues?.pose();
     const mark = this.markerPoint();
     const here = this.here();
-    const markFar = mark && Math.hypot(here.x - mark.x, here.z - mark.z) > 16 && (state.saga?.chapter ?? 0) > 3;
+    const markFar = !this.freeze && !this.game.dialogue.cinematic && mark && Math.hypot(here.x - mark.x, here.z - mark.z) > 16 && (state.saga?.chapter ?? 0) > 3;
     if (markFar) show(a.marker, mark.x, mark.y + 2.2, mark.z);
     else if (a.marker) a.marker.visible = false;
   }
@@ -696,6 +708,7 @@ export class Saga {
   markerPoint() {
     const step = this.currentStep();
     if (!step) return null;
+    const venue=this.venues?.target(step);if(venue)return new THREE.Vector3(venue.target.x,venue.target.y,venue.target.z);
     const marked = missionMarker(this, step);
     if (marked !== undefined) return marked;
     if (step.at && PLACE[step.at]) return this.point(step.at);
@@ -725,7 +738,7 @@ export class Saga {
     this.game.input.enabled = false;
     this.game.input.unlock();
     this.poseActors();
-    if(state.saga.chapter>=4 && state.saga.chapter<=7) stageCast(this,step);
+    if(state.saga.chapter>=4 && state.saga.chapter<=9) stageCast(this,step);
     this.game.dialogue.conversation(step.lines, () => this.endScene());
   }
 
@@ -745,6 +758,7 @@ export class Saga {
 
   performanceLine() {
     if(this.game.mode!=='playing')return null;
+    if(state.saga.chapter===8 && this.mission?.kind==='trial'){const m=this.mission;m.shots||=[];return m.shots[m.q]||(m.shots[m.q]={cinematic:true,speaker:'judge',i:m.q+1});}
     if(state.saga?.chapter===7&&this.currentStep()?.id==='snap'&&this.mission?.kind==='photo'){
       const m=this.mission;m.photoShot||={cinematic:true,speaker:'gabor',i:1};return m.photoShot;
     }
@@ -779,6 +793,7 @@ export class Saga {
   }
 
   go(id) {
+    if(this.venues?.floor && !id.startsWith('hotel-') && id!=='court-stand') {this.venues.unload();state.saga.venue=null;this.venues.restoreNight();}
     const p = this.point(id);
     if (id === 'mcrebar' && this.actors?.bar) p.y = this.actors.bar.y;
     if (['home', 'bed', 'wardrobe', 'shelf', 'garage'].includes(id) && this.actors?.house) p.y = this.actors.house.y;
@@ -1323,7 +1338,7 @@ export class Saga {
     const step = this.currentStep();
     const lines = [];
     if (step) {
-      let text = missionLabel(this, step) || step.text || 'Watch';
+      let text = (step.kind==='amenities'||step.kind==='evidence'?this.venues?.target(step)?.label:null) || missionLabel(this, step) || step.text || 'Watch';
       if (step.kind === 'parts') {
         const have = Object.keys(state.saga.stepState.parts || {}).length;
         text = `${text} (${have}/${step.parts.length})`;

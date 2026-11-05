@@ -49,7 +49,7 @@ export function chapterReplay(saved, index, chapters, createSaga) {
   saga.companion = index >= 5;
   saga.mansion = index >= 16;
   saga.phone = index >= 10 ? 'replaced' : index >= 8 ? 'broken' : index >= 7 ? 'blue' : 'intact';
-  saga.evidence = index >= 8 ? ['photo', 'shards'] : [];
+  saga.evidence = index >= 9 ? ['photo','shards','receipt','witness','goggles'] : index >= 8 ? ['photo', 'shards'] : [];
   saga.garageOpen = index > 0;
   saga.introSeen = index > 0;
   copy.saga = saga;

@@ -1,5 +1,6 @@
 // One waypoint presentation for every saga objective, including moving actors.
 import * as THREE from 'three';
+import { colliderPoint } from '../core/colliderSpace.js';
 import { state } from '../core/state.js';
 import { PLACE } from './sagaData.js';
 import { pushFootprints } from '../world/geo/footprints.js';
@@ -14,7 +15,7 @@ import {
 
 export function segmentClear(zone, a, b, radius = 0.6) {
   const n = Math.max(1, Math.ceil(distance(a, b) / 0.6));
-  const p = { x: 0, z: 0 };
+  const p = { x: 0, y:0, z: 0 },scratch={};
   for (let i = 0; i <= n; i++) {
     const t = i / n,
       x = a.x + (b.x - a.x) * t,
@@ -22,14 +23,17 @@ export function segmentClear(zone, a, b, radius = 0.6) {
     const y =
       (a.y ?? zone.groundAt(x, z)) + ((b.y ?? a.y ?? zone.groundAt(x, z)) - (a.y ?? zone.groundAt(x, z))) * t;
     p.x = x;
+    p.y = y;
     p.z = z;
     pushFootprints(p, radius, y, zone);
     if (Math.hypot(p.x - x, p.z - z) > 0.04) return false;
-    for (const box of zone.colliders) {
+    for (const worldBox of zone.colliders) {
+      const box=worldBox.localBox||worldBox,q=colliderPoint(worldBox,p,scratch);
+      const qr=worldBox.frame?radius/worldBox.frame.scale:radius;
       if (y + 0.15 >= box.max.y || y + 1.8 <= box.min.y) continue;
-      const dx = x - Math.max(box.min.x, Math.min(box.max.x, x)),
-        dz = z - Math.max(box.min.z, Math.min(box.max.z, z));
-      if (dx * dx + dz * dz < radius * radius) return false;
+      const dx = q.x - Math.max(box.min.x, Math.min(box.max.x, q.x)),
+        dz = q.z - Math.max(box.min.z, Math.min(box.max.z, q.z));
+      if (dx * dx + dz * dz < qr * qr) return false;
     }
   }
   return true;
@@ -181,6 +185,7 @@ export function planner(saga, radius = .6) {
   return new NavigationController(plan, clear);
 }
 function objective(saga, step) {
+  const venue=saga.venues?.target(step);if(venue)return venue;
   if (['escort', 'race'].includes(step.kind) && saga.mission?.controller) {
     const c=saga.mission.controller;
     return {target: atDistance(c.path,c.dist), label:step.kind==='escort'?'CHING':'GABOR'};
@@ -238,7 +243,7 @@ export function updateGuide(saga) {
   const arrow = saga.actors?.guide,
     step = saga.currentStep();
   if (!arrow) return;
-  if (saga.game.mode !== 'playing' || state.saga?.intermission || !step || step.kind === 'scene') {
+  if (saga.freeze || saga.game.mode !== 'playing' || state.saga?.intermission || !step || step.kind === 'scene') {
     hideGuide(saga);
     return;
   }

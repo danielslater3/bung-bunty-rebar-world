@@ -146,6 +146,7 @@ export class Trolley {
   }
 
   summon() {
+    if(this.game.saga?.venues?.floor){this.game.say('bung','The trolley is waiting outside. The lift has standards.');return;}
     const g = this.game;
     if (!state.flags.trolleyUnlocked) {
       g.toast('TROLLEY NOT UNLOCKED — VISIT THE GARAGE', 'red');

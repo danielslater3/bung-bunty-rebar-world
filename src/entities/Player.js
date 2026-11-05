@@ -1,7 +1,7 @@
 // Bung Bunty player controller: waddle-running, jumping, grappling,
 // belly-bouncing chaos. Position is at Bung's feet.
 import * as THREE from 'three';
-import { moveHorizontal } from '../core/motion.js';
+import { moveHorizontal, resolveHorizontal } from '../core/motion.js';
 import { clamp, damp, dampAngle } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
 import { pushFootprints } from '/src/world/geo/footprints.js';
@@ -339,6 +339,7 @@ export class Player {
 
     // Wall push-out vs box colliders (XZ circle test)
     for (const b of zone.colliders) {
+      if(b.frame)continue;
       if (this.pos.y > b.max.y - 0.25 || this.pos.y + 1.6 < b.min.y) continue;
       const cx = clamp(this.pos.x, b.min.x, b.max.x);
       const cz = clamp(this.pos.z, b.min.z, b.max.z);
@@ -363,6 +364,7 @@ export class Player {
         }
       }
     }
+    if(this.game.saga?.venues?.floor)resolveHorizontal(this.pos,this.radius,zone);
     pushFootprints(this.pos, this.radius, this.pos.y, zone);
   }
 

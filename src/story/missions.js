@@ -2,7 +2,7 @@
 // Walking up to a sign is not enough to clear these steps.
 import { RhythmBattle } from './RhythmBattle.js';
 import { poseFeud, shardPoints } from './feud.js';
-import { state } from '../core/state.js';
+import { state, SaveSystem } from '../core/state.js';
 import { ESCORT_PATH, SCOOTER_PATH } from './sagaData.js';
 import { planner, segmentClear, hideGuide } from './guide.js';
 import { ChaseController } from './ChaseController.js';
@@ -11,7 +11,7 @@ import { placeActor, animateActor, stageCast, floorAt } from './actors.js';
 
 const HANDLED = new Set([
   'escort', 'race', 'rhythm', 'photo', 'shards', 'trial', 'cricket', 'sky',
-  'dodge', 'snow', 'deliver', 'sequence', 'eyes', 'hold', 'visits', 'evidence',
+  'amenities', 'dodge', 'snow', 'deliver', 'sequence', 'eyes', 'hold', 'visits', 'evidence',
 ]);
 
 export function isMission(kind) { return HANDLED.has(kind); }
@@ -131,6 +131,7 @@ const BOOT = {
     score(`0 / ${step.need} BARS`);
   },
   photo(saga, step) {
+    if(state.saga.chapter===8 && step.id==='print' && !saga.game.dialogue.cinematic){saga.mission={kind:'photo',waiting:true,t:0,tries:0};return;}
     unlockPointer(saga);
     saga.mission = { kind: 'photo', t: 0, tries: 0 };
     playCard(step.banner || 'CAMERA', step.help || 'Press F when the marker sits in the gold.');
@@ -145,8 +146,11 @@ const BOOT = {
     score(`CATCHES 0/${step.need} · BALL 1/${step.balls}`);
   },
   trial(saga, step) {
+    const missing=step.evidence.filter(e=>!state.saga.evidence.includes(e.id));
+    if(missing.length){saga.venues?.leave();state.saga.step=missing.some(e=>e.id!=='photo')?1:2;state.saga.stepState.evidenceGot=Object.fromEntries(['receipt','witness','goggles'].filter(id=>state.saga.evidence.includes(id)).map(id=>[id,true]));saga._booted='';saga.ensureStep();saga.game.toast('BRIEF INCOMPLETE · Recover the marked evidence', 'gold');return;}
     unlockPointer(saga);
-    saga.mission = { kind: 'trial', q: 0 };
+    saga.venues?.enter('court',0);
+    saga.mission = { kind: 'trial', q: Math.min(step.questions.length-1,state.saga.stepState.trialQ||0) };
     const el = playCard('BRISBANE CITY COURT', step.questions[0].prompt);
     document.querySelector('#saga-play .pitch').style.display = 'none';
     layTrial(saga, step, el);
@@ -185,6 +189,7 @@ const BOOT = {
 function layTrial(saga, step, root) {
   const q = step.questions[saga.mission.q];
   body(q.prompt);
+  score(`QUESTION ${saga.mission.q+1}/${step.questions.length} · THE COURT HAS YOUR FOUR EXHIBITS`);
   const row = root.querySelector('#saga-play-actions');
   row.innerHTML = '';
   for (const ev of step.evidence) {
@@ -212,6 +217,8 @@ function answerTrial(saga, step, id) {
   saga.game.audio.sfx('quest');
   saga.game.say('bung', q.reply);
   m.q += 1;
+  state.saga.stepState.trialQ=m.q;
+  SaveSystem.save(saga.game);
   if (m.q >= step.questions.length) {
     closePlay();
     saga.freeze = false;
@@ -284,6 +291,8 @@ const TICK = {
     else retry(saga, 'gabor', 'The forehead wins the bar. Again.');
   },
   photo(saga, step, m, dt) {
+    if(m.waiting){const p=saga.venues?.point('evidence-print');if(!p||saga.here().distanceTo(p)>3)return;delete m.waiting;unlockPointer(saga);playCard('EVIDENCE PRINT','F in the gold · secure the photograph for court.');markBand(.5,step.sweet||.1);}
+
     m.t += dt;
     const p = (Math.sin(m.t * 2.6) + 1) / 2;
     const marker = document.getElementById('saga-marker');
@@ -456,7 +465,7 @@ const TICK = {
     const c = saga.point(step.at);
     const rad = 4.2 + Math.sin(m.t * 1.15) * 3.4;
     const ang = m.t * 0.9;
-    const gabor = saga.pointXY(c.x + Math.cos(ang) * rad, c.z + Math.sin(ang) * rad);
+    const gabor = state.saga.chapter===9?c.clone().add({x:Math.cos(ang)*3.1,y:0,z:Math.sin(ang)*3.1}):saga.pointXY(c.x + Math.cos(ang) * rad, c.z + Math.sin(ang) * rad);
     saga._holdGabor = gabor;
     const here = saga.here();
     const inside = here.distanceTo(c) < (step.radius || 5.5);
@@ -581,10 +590,12 @@ export function poseMission(saga) {
   if ((step.kind === 'visits' || state.saga.mansion) && a.family) {
     for (const member of a.family) member.mesh.visible = !!state.saga.mansion;
   }
-  if (step.cast && state.saga.chapter>=4 && state.saga.chapter<=7) {
+  if (step.cast && state.saga.chapter>=4 && state.saga.chapter<=9) {
     stageCast(saga,step);
-    const vehicle=state.saga.chapter===4?a.bike:a.scooter,p=a.gabor.position;
-    if(placeActor(saga,vehicle,{x:p.x+1.7,y:p.y,z:p.z},[a.gabor,a.ching,saga.game.player.mesh],.6))vehicle.visible=true;
+    if(state.saga.chapter<=7){
+      const vehicle=state.saga.chapter===4?a.bike:a.scooter,p=a.gabor.position;
+      if(placeActor(saga,vehicle,{x:p.x+1.7,y:p.y,z:p.z},[a.gabor,a.ching,saga.game.player.mesh],.6))vehicle.visible=true;
+    }
   }
   else if (step.cast) {
     for (const name of step.cast) {
@@ -776,11 +787,13 @@ function takeEvidence(saga, step, id) {
     saga.game.say('bung', 'Already in the brief.');
     return true;
   }
-  got[id] = true;
-  if (!state.saga.evidence.includes(id)) state.saga.evidence.push(id);
-  saga.game.audio.sfx('quest');
-  saga.game.say(item.who || 'bung', item.line);
-  if (step.items.every((it) => got[it.id])) saga.advance();
+  if(saga.game.dialogue.cinematic)return true;
+  stageCast(saga,{cast:[id==='witness'?'ching':'gabor']});
+  saga.game.dialogue.conversation([[item.who||'bung',item.line],['bung',id==='witness'?'Statement signed. The forehead is now on the record.':id==='goggles'?'Label, lens and ownership. Bagged for court.':'Ten thousand dollars. Filed, not folded into the singlet.']],()=>{
+    got[id]=true;if(!state.saga.evidence.includes(id))state.saga.evidence.push(id);
+    saga.game.audio.sfx('quest');saga.game.toast(`EVIDENCE SECURED · ${Object.keys(got).length}/${step.items.length}`, 'gold');
+    SaveSystem.save(saga.game);if(step.items.every(it=>got[it.id]))saga.advance();
+  });
   return true;
 }
 

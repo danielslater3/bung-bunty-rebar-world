@@ -57,7 +57,7 @@ export function pushFootprints(pos, radius, feetY, zone) {
         const list = buckets.get(`${ix + dx},${iz + dz}`);
         if (!list) continue;
         for (const poly of list) {
-          if (feetY > poly.h - 0.25 || feetY + 1.7 < poly.y0) continue;
+          if (poly.disabled || feetY > poly.h - 0.25 || feetY + 1.7 < poly.y0) continue;
           resolveOne(pos, radius, poly);
         }
       }
@@ -109,7 +109,7 @@ export function footprintClearance(zone,origin,direction,far) {
   for(let iz=Math.floor(Math.min(origin.z,ez)/cell);iz<=Math.floor(Math.max(origin.z,ez)/cell);iz++)
     for(let ix=Math.floor(Math.min(origin.x,ex)/cell);ix<=Math.floor(Math.max(origin.x,ex)/cell);ix++)
       for(const poly of zone.footBuckets.get(`${ix},${iz}`)||[]){
-        if(seen.has(poly))continue;seen.add(poly);
+        if(poly.disabled||seen.has(poly))continue;seen.add(poly);
         const r=poly.r;
         for(let i=0;i<r.length;i+=2){
           const j=(i+2)%r.length,sx=r[j]-r[i],sz=r[j+1]-r[i+1];

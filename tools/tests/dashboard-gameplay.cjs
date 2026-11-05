@@ -25,9 +25,9 @@ const assert = require('node:assert/strict');
     window.testState = S;
     S.saga = {
       ...createSaga(),
-      chapter: 7,
+      chapter: 9,
       step: 2,
-      done: CHAPTERS.slice(0, 7).map((c) => c.id),
+      done: CHAPTERS.slice(0, 9).map((c) => c.id),
       companion: true,
     };
     S.currentZone = 'brisbane';
@@ -40,7 +40,7 @@ const assert = require('node:assert/strict');
     BUNG.player.mesh.rotation.x = 1;
   });
   const results = [];
-  for (const chapter of [4, 0, 2, 5, 1, 3, 6, 7]) {
+  for (const chapter of [4, 0, 2, 5, 1, 3, 6, 7, 8, 9]) {
     await page.evaluate(() => BUNG.menus.showChapters());
     await page.locator(`[data-chapter="${chapter}"]`).click();
     await page.locator('#chapter-play').click();

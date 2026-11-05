@@ -1,8 +1,13 @@
+import { colliderPoint } from './colliderSpace.js';
 import { pushFootprints } from '../world/geo/footprints.js';
 // Small swept steps prevent fast trolleys/grapples crossing thin walls.
 // Uses the existing boxes/footprint hash, not a new physics engine.
 export function resolveHorizontal(pos, radius, zone, height = 1.7) {
-  for (const b of zone.colliders || []) {
+  const original=pos, worldRadius=radius;
+  for (const worldBox of zone.colliders || []) {
+    const b=worldBox.localBox||worldBox;
+    pos=worldBox.frame?colliderPoint(worldBox,original):original;
+    radius=worldBox.frame?worldRadius/worldBox.frame.scale:worldRadius;
     if (pos.y >= b.max.y - 0.18 || pos.y + height <= b.min.y) continue;
     const x = Math.max(b.min.x, Math.min(b.max.x, pos.x)),
       z = Math.max(b.min.z, Math.min(b.max.z, pos.z));
@@ -21,8 +26,9 @@ export function resolveHorizontal(pos, radius, zone, height = 1.7) {
       else if (side === 2) pos.z = b.min.z - radius;
       else pos.z = b.max.z + radius;
     }
+    if(worldBox.frame)worldBox.frame.world(pos,original);
   }
-  pushFootprints(pos, radius, pos.y, zone);
+  pushFootprints(original, worldRadius, original.y, zone);
 }
 export function moveHorizontal(pos, dx, dz, radius, zone, height = 1.7) {
   const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.3));

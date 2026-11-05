@@ -23,6 +23,8 @@ import { SurfaceIndex } from './surfaces.js';
 
 import { prepareGeography } from './stability.js';
 import { pushFootprints } from './footprints.js';
+import { buildVenueExteriors } from './venues.js';
+import { venueBuilding } from '../../story/venueData.js';
 const GEO = prepareGeography(SOURCE_GEO);
 const CHUNK = 240;
 
@@ -391,6 +393,7 @@ export function buildOsmBrisbane(game) {
     groundAt: (x, z) => T.propAt(x, z),
     nearMall: (x, z) => closestMall(GEO.mall, x, z).d,
     skip: (b, cx, cz) => {
+      if (venueBuilding(b)) return true;
       if (Math.hypot(cx - hallL.cx, cz - hallL.cz) < 15 && b.r.length > 40) {
         if (!hall || b.r.length > hall.ring.length) hall = { ring: b.r, cx, cz };
         return true;
@@ -471,6 +474,7 @@ export function buildOsmBrisbane(game) {
   const cbd = dressCbd(Z.group, GEO.buildings, GEO.mall, hall);
   const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors());
 
+  Z.venues = buildVenueExteriors(Z, GEO);
   const feet = indexFootprints(GEO.buildings);
   Z.footBuckets = feet.buckets;
   Z.footCell = feet.cell;

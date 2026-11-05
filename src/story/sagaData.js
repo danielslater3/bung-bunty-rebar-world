@@ -121,6 +121,7 @@ export const SCOOTER_PATH = [
 export function createSaga() {
   return {
     active: true,
+    venueVersion: 1,
     chapter: 0,
     step: 0,
     stepState: {},
@@ -350,7 +351,7 @@ export const CHAPTERS = [
       {
         id: 'brief', kind: 'scene', look: 'home', text: 'Open the brief', cast: ['ching'],
         lines: [
-          ['ching', 'Ten thousand dollars. Receipt, witness, photograph. Parliament lawn is sitting as our court, because that is where this story put the plaque.'],
+          ['ching', 'Ten thousand dollars. Receipt, witness, photograph. The Parliament lawn plaque started the claim; the hearing is now at the Magistrates Court on George Street.'],
           ['bung', 'I will bring the truth, the receipt, and a singlet. The singlet is not evidence. I checked.'],
         ],
       },
@@ -358,7 +359,7 @@ export const CHAPTERS = [
         id: 'proof', kind: 'evidence', text: 'Collect the receipt, the witness and the goggles box',
         items: [
           { id: 'receipt', at: 'receipt', who: 'doc', line: 'The receipt says ten thousand dollars and does not apologise.' },
-          { id: 'witness', at: 'witness', who: 'ching', line: 'South Bank saw the goggles and the swing. They will say so.' },
+          { id: 'witness', at: 'witness', who: 'witness', line: 'I saw the goggles, the forehead and the swing. Here is my signed statement. South Bank remembers.' },
           { id: 'goggles', at: 'gogbox', who: 'gabor', line: 'That box is private. It is also on the ground, which is a kind of public.' },
         ],
       },
@@ -367,9 +368,9 @@ export const CHAPTERS = [
         banner: 'EVIDENCE PRINT', help: 'Press F in the gold to lock the print.',
         sweet: 0.1, tries: 3, grant: 'photo',
       },
-      { id: 'approach', kind: 'reach', at: 'court', radius: 8, text: 'Reach the court on the Parliament lawn' },
+      { id: 'approach', kind: 'reach', at: 'court', radius: 5, text: 'Take the Parliament brief to 363 George Street, Magistrates Court' },
       {
-        id: 'trial', kind: 'trial', text: 'Present the right evidence to each question',
+        id: 'trial', kind: 'trial', at: 'court', text: 'Present the right evidence to each question',
         evidence: [
           { id: 'photo', label: 'PHOTOGRAPH' },
           { id: 'receipt', label: 'RECEIPT' },
@@ -379,11 +380,12 @@ export const CHAPTERS = [
         questions: [
           { prompt: 'What proves the phone was destroyed?', answer: 'photo', reply: 'There he is, mid-swing, and there is the blue glass.', bad: 'That does not show a broken phone.' },
           { prompt: 'What proves the value?', answer: 'receipt', reply: 'Ten thousand dollars. The court can read.', bad: 'Value is a number. Bring the number.' },
+          { prompt: 'Gabor says he never owned the goggles. Which exhibit contradicts him?', answer: 'goggles', reply: 'The same goggles, boxed with his name. A forehead-sized contradiction.', bad: 'Compare his claim with the physical goggles box.' },
           { prompt: 'Who puts Gabor at the scene?', answer: 'witness', reply: 'South Bank saw the forehead and the follow-through.', bad: 'The court wants a person, not a gadget.' },
         ],
       },
       {
-        id: 'verdict', kind: 'scene', look: 'court', text: 'Hear the verdict', cast: ['ching'],
+        id: 'verdict', kind: 'scene', look: 'court-stand', text: 'Hear the verdict', cast: ['ching', 'gabor'],
         lines: [
           ['judge', 'Ten thousand dollars to Bung Bunty. The phone is gone. The debt is not.'],
           ['gabor', 'I will pay it in instalments of resentment.'],
@@ -393,21 +395,30 @@ export const CHAPTERS = [
     ],
   },
   {
-    id: 'ch10', act: 3, n: 10, playable: true, start: 'wlawn',
+    id: 'ch10', act: 3, n: 10, playable: true, start: 'court',
     title: 'W BRISBANE: THE VICTORY CELEBRATION',
-    blurb: 'Hold the lawn while Gabor tries to break the dance.',
+    blurb: 'Check in at North Quay, discover the hotel, and celebrate at The Lex.',
     reward: { coins: 500, archive: 'w-brisbane' },
     steps: [
       {
-        id: 'invite', kind: 'scene', look: 'wlawn', text: 'Arrive at the victory lawn', cast: ['ching', 'gabor'],
+        id: 'invite', kind: 'scene', look: 'court', text: 'A victory worth celebrating', cast: ['ching', 'gabor'],
         lines: [
-          ['doc', 'The story\'s victory lawn stands in for the W Brisbane night. The hotel mesh is not in this map. The party is.'],
-          ['ching', 'New phone on the table. Old song on the lawn. If he bumps you, we start the song again.'],
+          ['ching', 'W Brisbane. Eighty-one North Quay. A room, a river view and a new phone on the dinner table. We are walking there.'],
+          ['bung', 'The Parliament lawn started a lawsuit. George Street finished it. The next receipt is dinner.'],
           ['gabor', 'I was not invited, which is why I am on time.'],
         ],
       },
-      { id: 'dance', kind: 'hold', at: 'wlawn', text: 'Keep the celebration going', seconds: 8, radius: 6, help: 'Stay on the lawn. A bump from Gabor restarts the song.' },
-      { id: 'newphone', kind: 'interact', at: 'wlawn', text: 'Pocket the replacement phone', prompt: '<b>[E]</b> Take the new phone' },
+      { id: 'arrival', kind: 'reach', at: 'hotel-entry', radius: 3, text: 'Walk to W Brisbane · 81 North Quay' },
+      { id: 'enter', kind: 'interact', at: 'hotel-enter', text: 'Enter beneath the W arrival canopy', prompt: '<b>[E]</b> Enter W Brisbane' },
+      { id: 'checkin', kind: 'interact', at: 'hotel-reception', text: 'Approach reception and check in', prompt: '<b>[E]</b> Check in' },
+      { id: 'room-door', kind: 'interact', at: 'hotel-room-door', text: 'Take the lift to level 9 · open room 901', prompt: '<b>[E]</b> Use the room key' },
+      { id: 'room', kind: 'reach', at: 'hotel-room', radius: 1.8, text: 'Step inside room 901' },
+      { id: 'room-tour', kind: 'interact', at: 'hotel-mixbar', text: 'Explore your room · inspect the Mixbar', prompt: '<b>[E]</b> Inspect the room' },
+      { id: 'facilities', kind: 'amenities', text: 'Discover Living Room Bar, WET Deck, AWAY Spa and FIT Gym' },
+      { id: 'dinner', kind: 'interact', at: 'hotel-meal', text: 'Take the lift to level 3 · celebrate at The Lex', prompt: '<b>[E]</b> Order the victory dinner' },
+      { id: 'dance', kind: 'hold', at: 'hotel-dance', text: 'Keep the celebration going', seconds: 8, radius: 3.8, help: 'Stay on the gold dance floor. A bump from Gabor restarts the song.' },
+      { id: 'newphone', kind: 'interact', at: 'newphone', text: 'Pocket the replacement phone at your table', prompt: '<b>[E]</b> Take the new phone' },
+      { id: 'night', kind: 'interact', at: 'hotel-night', text: 'Join Ching by the river windows', prompt: '<b>[E]</b> Brisbane at night' },
       {
         id: 'toast', kind: 'scene', look: 'home', go: 'home', text: 'Toast the glass that survived', cast: ['ching'],
         lines: [

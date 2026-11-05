@@ -1,6 +1,7 @@
 // The Game: renderer, camera, main loop, zone loading, damage/score logic,
 // and glue between every system. One instance runs the whole show.
 import * as THREE from 'three';
+import { colliderPoint } from './colliderSpace.js';
 import { footprintClearance } from '../world/geo/footprints.js';
 import { clamp, damp } from './utils.js';
 import { state, bus, SaveSystem } from './state.js';
@@ -415,6 +416,8 @@ export class Game {
 
   updatePlaying(dt) {
     const input = this.input;
+    if(document.getElementById('hotel-lift-menu')){if(input.pressed.Escape||input.pressed.KeyP)this.saga.venues.closeLiftMenu();return;}
+    if(this.saga?.venues?.pending)return;
 
     if (this.photo) {
       if (input.pressed['KeyV'] || input.pressed['Escape']) this.togglePhoto();
@@ -546,6 +549,7 @@ export class Game {
   }
 
   indoorRoom(x, y, z) {
+    const venue=this.saga?.venues?.room(x,y,z);if(venue)return venue;
     const rooms = this.saga?.actors?.house?.rooms;
     if (rooms) {
       for (let i = 0; i < rooms.length; i++) {
@@ -561,6 +565,7 @@ export class Game {
   }
 
   indoorCeiling(x, y, z) {
+    const venue=this.saga?.venues?.room(x,y,z);if(venue)return venue.ceil;
     const rooms = this.saga?.actors?.house?.rooms;
     if (rooms) {
       for (let i = 0; i < rooms.length; i++) {
@@ -588,6 +593,14 @@ export class Game {
     const ox = origin.x, oy = origin.y, oz = origin.z;
     for (let i = 0, n = list.length; i < n; i++) {
       const b = list[i];
+      if(b.frame){
+        const lr=this._venueRay||(this._venueRay=new THREE.Ray()),lh=this._venueHit||(this._venueHit=new THREE.Vector3());
+        colliderPoint(b,origin,lr.origin);const f=b.frame,d=ray.direction;
+        lr.direction.set((d.x*f.c-d.z*f.s)/f.scale,d.y,(d.x*f.s+d.z*f.c)/f.scale);
+        padded.copy(b.localBox).expandByScalar(.16/f.scale);
+        if(lr.intersectBox(padded,lh)){f.world(lh,lh);const distance=lh.distanceTo(origin);if(distance>.2&&distance<best)best=distance;}
+        continue;
+      }
       if (b.max.x < ox - far || b.min.x > ox + far) continue;
       if (b.max.z < oz - far || b.min.z > oz + far) continue;
       if (b.max.y < oy - 2 || b.min.y > oy + far + 2) continue;
