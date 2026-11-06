@@ -8,7 +8,7 @@ The join screen has a real rotatable 3D preview. All 19 identities are available
 
 - Normal movement and camera controls apply throughout the existing Brisbane map.
 - **B** opens the room board, games, leaderboard and four-player quest.
-- **Enter** opens chat; **Escape** closes the current panel or opens the board.
+- **Enter** opens chat. In the message field, **Enter** (including numpad Enter) sends once and keeps chat open for the next message. **Escape** closes the current panel or opens the board.
 - **T** calls the trolley; **E** mounts/dismounts. **F** claims nearby quest/rally checkpoints or performs the active timing game's action.
 - Each table needs the required number of players, everyone ready, and its captain to start. Back to City keeps the seat. Leave Table / Leave Match releases it; leaving an active match forfeits.
 - The board's Find in Brisbane action guides you to a friend. Quest and rally objectives take navigation priority.
@@ -102,3 +102,7 @@ The real city scene and character picker are inspected from browser screenshots.
 ### Canonical character name
 
 The partner and her family use Chung consistently in the entire game. Older character ids, campaign/replay archives, companion flags and saved multiplayer outfits migrate to the canonical ids while retaining progress, identity, score and custom colours. The source-cache version was refreshed. Validation: 45 native game checks and 18 multiplayer checks passed; loaded-scene Chapters 5–6 and the two-browser multiplayer suite passed with no browser errors.
+
+### Chat and trolley feedback fixes
+
+The multiplayer frame loop now advances dialogue timers even with chat or the room board open, so trolley speech bubbles expire normally. Enter explicitly submits the chat form, preserves text-field focus after sending and ignores held-key repeats / IME composition. The same E press is consumed after a room interaction so trolley physics cannot immediately undo a mount. Two-browser regression checks reproduced the trolley line, verified expiry while playing and chatting, checked mounting, sent Enter/numpad messages exactly once and passed the existing minigame/reconnect/save-isolation checks with no browser errors.

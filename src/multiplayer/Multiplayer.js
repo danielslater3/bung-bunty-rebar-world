@@ -38,15 +38,26 @@ export class Multiplayer {
     this.lastPing = 0;
     this.handleKeys = (e) => {
       if (!this.active) return;
+      const enter =
+        e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
       if (e.target.matches('input,textarea')) {
         e.stopPropagation();
+        if (
+          enter &&
+          e.target.id === 'mp-chat-input' &&
+          !e.isComposing &&
+          e.keyCode !== 229
+        ) {
+          e.preventDefault();
+          if (!e.repeat) e.target.form?.requestSubmit();
+        }
         if (e.code === 'Escape') {
           e.preventDefault();
           this.hidePanels();
         }
         return;
       }
-      if (e.code === 'Enter' && !this.focus) {
+      if (enter && !this.focus && !e.repeat && !e.isComposing) {
         e.preventDefault();
         e.stopPropagation();
         this.openChat();
@@ -360,12 +371,15 @@ export class Multiplayer {
     input.maxLength = 180;
     input.setAttribute('aria-label', 'Message to the room');
     input.id = 'mp-chat-input';
+    input.autocomplete = 'off';
+    send.type = 'submit';
     form.append(input, send);
     form.onsubmit = (e) => {
       e.preventDefault();
       if (input.value.trim()) {
         this.client.command('chat', { text: input.value });
         input.value = '';
+        input.focus();
       }
     };
     chat.append(form);
@@ -762,6 +776,9 @@ export class Multiplayer {
           g.trolley.riding ? g.trolley.dismount() : g.trolley.mount();
         } else if (Math.hypot(g.player.pos.x - 18, g.player.pos.z - 80) < 6)
           this.openBoard();
+        // The room owns E interactions. Trolley.update must not read the same
+        // press again and immediately undo a mount with a dismount.
+        delete g.input.pressed.KeyE;
       }
       const use = g.input.pressed.KeyF;
       delete g.input.pressed.KeyF;
@@ -770,6 +787,9 @@ export class Multiplayer {
       if (use) this.worldAction();
     }
     if (g.zone) g.zone.update(dt, g.elapsed);
+    // Multiplayer bypasses Game.updatePlaying: advance speech here as well,
+    // including while a room/chat panel has the player's input focus.
+    g.dialogue.update(dt);
     state.stability = 100;
     state.fuel = 100;
     g.fx.update(dt);

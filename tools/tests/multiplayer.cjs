@@ -215,14 +215,97 @@ const assert = require('node:assert/strict');
       return old.distanceTo(g.player.pos);
     });
     assert.ok(movement > 1);
-    await b.evaluate(() => BUNG.multiplayer.openChat());
+    await b.keyboard.press('Enter');
+    await b.getByLabel('Message to the room').waitFor({ state: 'visible' });
     await b.keyboard.type('hello with spaces');
     assert.equal(
       await b.getByLabel('Message to the room').inputValue(),
       'hello with spaces',
     );
+    // Enter sends from the text field through the same form as SEND.
+    await b.keyboard.press('Enter');
+    await a.waitForFunction(() =>
+      BUNG.multiplayer.room.chat.some((m) => m.text === 'hello with spaces'),
+    );
+    assert.equal(await b.getByLabel('Message to the room').inputValue(), '');
+    assert.equal(
+      await b
+        .getByLabel('Message to the room')
+        .evaluate((e) => e === document.activeElement),
+      true,
+    );
+    await b.getByLabel('Message to the room').fill('Numpad hello');
+    await b.keyboard.press('NumpadEnter');
+    await a.waitForFunction(() =>
+      BUNG.multiplayer.room.chat.some((m) => m.text === 'Numpad hello'),
+    );
+    await b.keyboard.press('Enter');
+    await b.getByLabel('Message to the room').fill('   ');
+    await b.keyboard.press('Enter');
+    await b.getByLabel('Message to the room').fill('composing draft');
+    await b
+      .getByLabel('Message to the room')
+      .dispatchEvent('keydown', { key: 'Enter', code: 'Enter', repeat: true });
+    assert.equal(
+      await b.getByLabel('Message to the room').inputValue(),
+      'composing draft',
+    );
+    await b.getByLabel('Message to the room').dispatchEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      isComposing: true,
+    });
+    assert.equal(
+      await b.getByLabel('Message to the room').inputValue(),
+      'composing draft',
+    );
     await b.keyboard.press('Escape');
     assert.equal(await b.evaluate(() => BUNG.multiplayer.focus), false);
+    // Reproduce the reported trolley bark, then let the actual MP loop time it
+    // out, both during movement and with chat open. E must still mount normally.
+    const bark = await b.evaluate(() => {
+      const g = BUNG,
+        m = g.multiplayer;
+      g.dialogue.clear();
+      g.trolley.summon();
+      const shown = g.dialogue.current?.text;
+      g.input.pressed.KeyE = true;
+      m.frame(1 / 60);
+      g.input.endFrame();
+      const mounted = g.trolley.riding;
+      g.trolley.dismount();
+      const clearSpeech = () => {
+        for (let i = 0; i < 480; i++) {
+          m.frame(1 / 60);
+          g.input.endFrame();
+        }
+        return (
+          !g.dialogue.busy &&
+          document.getElementById('dialogue').classList.contains('hidden')
+        );
+      };
+      const playingCleared = clearSpeech();
+      m.openChat();
+      g.say('bung', 'Golden trolley mode engaged!');
+      const chattingCleared = clearSpeech();
+      m.hidePanels();
+      return { shown, mounted, playingCleared, chattingCleared };
+    });
+    console.log('TROLLEY SPEECH CHECK', bark);
+    assert.equal(bark.shown, 'Golden trolley mode engaged!');
+    assert.equal(bark.mounted, true);
+    assert.equal(bark.playingCleared, true);
+    assert.equal(bark.chattingCleared, true);
+    assert.equal(
+      await a.evaluate(
+        () =>
+          BUNG.multiplayer.room.chat.filter(
+            (m) => m.text === 'hello with spaces',
+          ).length,
+      ),
+      1,
+    );
+    console.log('CHAT ENTER + TROLLEY SPEECH EXPIRY PASSED', bark);
     // Every shipped minigame must render its real two-player playing state.
     const gameIds = await a.evaluate(async () =>
       (await import('/src/multiplayer/catalog.js')).GAMES.map((g) => g.id),
