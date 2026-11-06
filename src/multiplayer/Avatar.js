@@ -192,6 +192,83 @@ export function buildAvatar(value) {
       0.4,
     );
   }
+  if (def.model === 'person') {
+    const hairColor =
+      def.id === 'judge'
+        ? '#d6d5d0'
+        : def.id.startsWith('ching-')
+          ? '#252630'
+          : '#685044';
+    for (const side of [-1, 1]) {
+      piece(
+        visual,
+        new THREE.SphereGeometry(0.043, 8, 6),
+        '#ffffff',
+        undefined,
+        side * 0.073,
+        1.61,
+        0.174,
+      );
+      piece(
+        visual,
+        new THREE.SphereGeometry(0.022, 8, 6),
+        '#20232a',
+        undefined,
+        side * 0.073,
+        1.61,
+        0.213,
+      );
+      const brow = piece(
+        visual,
+        new THREE.BoxGeometry(0.075, 0.018, 0.025),
+        hairColor,
+        undefined,
+        side * 0.073,
+        1.673,
+        0.178,
+      );
+      brow.rotation.z = side * -0.1;
+    }
+    piece(
+      visual,
+      new THREE.SphereGeometry(0.035, 8, 6),
+      '#dfae83',
+      undefined,
+      0,
+      1.55,
+      0.205,
+    );
+    const smile = piece(
+      visual,
+      new THREE.TorusGeometry(0.055, 0.009, 5, 12, Math.PI),
+      '#88483f',
+      undefined,
+      0,
+      1.51,
+      0.185,
+    );
+    smile.rotation.z = Math.PI;
+    const hair = piece(
+      visual,
+      new THREE.SphereGeometry(0.21, 12, 8),
+      hairColor,
+      undefined,
+      0,
+      1.73,
+      -0.025,
+    );
+    hair.scale.y = 0.43;
+    if (def.id.endsWith('-mum'))
+      piece(
+        visual,
+        new THREE.SphereGeometry(0.1, 10, 8),
+        hairColor,
+        undefined,
+        0,
+        1.79,
+        -0.15,
+      );
+  }
   if (def.model === 'girder') {
     for (let row = 0; row < 2; row++)
       for (let col = 0; col < 5; col++) {
