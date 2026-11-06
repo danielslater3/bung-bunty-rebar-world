@@ -55,7 +55,7 @@ export class ChainManager {
       this.game.shake(0.25, 0.4);
       if (state.combo === 10) this.game.say('bung', 'DOUBLE REBAR MODE! We are so back, mate!');
       if (state.combo === 20) this.game.say('bung', 'BUNG ASCENSION! Physics has entered negotiations!');
-      if (state.combo === 50) this.game.say('ching', 'That should be impossible. The trolley disagrees.');
+      if (state.combo === 50) this.game.say('chung', 'That should be impossible. The trolley disagrees.');
     }
     bus.emit('hud');
     return state.combo;

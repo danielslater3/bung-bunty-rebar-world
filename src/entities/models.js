@@ -186,7 +186,7 @@ export function setBungKit(mesh, { uniform = true, disguise = false } = {}) {
 // ============================================================
 // CHUNG — organised, strategic, futuristic travel outfit
 // ============================================================
-export function buildChing() {
+export function buildChung() {
   const g = new THREE.Group();
   // Body — sleek futuristic jacket
   const torso = cyl(0.22, 0.27, 0.7, mat(0x1fb8c9, { metalness: 0.4, roughness: 0.4, emissive: 0x052a30 }), 12);

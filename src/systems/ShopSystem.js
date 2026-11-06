@@ -134,7 +134,7 @@ export class ShopSystem {
     g.chain.resetChain('sold', true); // intentional chain reset (silent)
     g.audio.sfx('sell');
     g.toast(`SOLD ${sold} SCORE FOR ${coins} BUNGBUCKS`);
-    g.say('ching', 'BungBucks processed. Try not to spend them all on burgers.');
+    g.say('chung', 'BungBucks processed. Try not to spend them all on burgers.');
     bus.emit('hud');
     bus.emit('qe', { type: 'sell', target: 'any' });
     SaveSystem.save();

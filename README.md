@@ -19,10 +19,10 @@ Save Rebar World from **Gabor Mihala** in **OPERATION REBAR: BLUE TO RED**.
 ### What's new in 3.0
 - **Cartoon UI** — Fredoka/Nunito fonts, chunky outlined panels, speech-bubble
   dialogue, bouncy hover/squashy press buttons, low-fuel meter rattle.
-- **Cartoon ink outlines** (inverted hull) on Bung, Ching, Gabor, the scooter,
+- **Cartoon ink outlines** (inverted hull) on Bung, Chung, Gabor, the scooter,
   the Golden Trolley, enemies, rebars and coins.
 - **Character detail pass** — Bung: wristband, rebar necklace, crumbs, rosy
-  cheeks, grease smudge. Ching: headset, wrist tablet, shoulder pads, trolley
+  cheeks, grease smudge. Chung: headset, wrist tablet, shoulder pads, trolley
   charm. Gabor: villain cape, emblem, fake-rebar bag, goofy scooter exhaust.
 - **Brisbane Rebar District** rebuilt as a Queen Street Mall-inspired tiled
   pedestrian mall: shopfronts, McRebar + Burger Bung, shade sails, benches,
@@ -128,13 +128,13 @@ src/
     state.js            central state, event bus, save system
     utils.js            math/material/RNG helpers
   entities/
-    models.js           procedural Bung/Ching/Gabor/trolley/scooter/props
+    models.js           procedural Bung/Chung/Gabor/trolley/scooter/props
     Player.js           Bung controller (waddle, grapple, belly bounce, pulse)
     Trolley.js          arcade vehicle physics + drift + golden trail
     Portal.js           pass-through detection + tiers + combo scoring
     Collectible.js      rebars, coins, shards, fuel, burgers, the phone
     Enemies.js          enemy roster + spawners (difficulty scales with score)
-    NPC.js              Ching / Gabor world presence
+    NPC.js              Chung / Gabor world presence
   systems/
     DialogueSystem.js   subtitle/voice queue
     QuestSystem.js      campaign quest chain + event-driven objectives

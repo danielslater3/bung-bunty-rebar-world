@@ -580,11 +580,11 @@ export function buildOsmBrisbane(game) {
   const rx = Math.cos(hdg), rz = -Math.sin(hdg);
   Z.exchangeKiosk(mall.x + rx * 9, 0.02, mall.z + rz * 9, hdg);
   Z.deploymentBoard(mall.x - rx * 9, 0.02, mall.z - rz * 9, hdg + Math.PI);
-  Z.npc('ching', mall.x + rx * 6, 0, mall.z + rz * 6 + 4, hdg);
+  Z.npc('chung', mall.x + rx * 6, 0, mall.z + rz * 6 + 4, hdg);
   Z.interact(mall.x + rx * 6, 0, mall.z + rz * 6 + 4, '<b>[E]</b> Talk to Chung', () => {
-    bus.emit('qe', { type: 'talk', target: 'ching' });
+    bus.emit('qe', { type: 'talk', target: 'chung' });
     game.dialogue.conversation([
-      ['ching', 'This is the real Queen Street. The portals are still your fault.'],
+      ['chung', 'This is the real Queen Street. The portals are still your fault.'],
       ['bung', 'I can shop and save the rebar supply. I contain multitudes and very little trouser.'],
     ]);
   }, 3.5);
@@ -643,8 +643,8 @@ export function buildOsmBrisbane(game) {
     const rows = GEO.checks.filter((c) => c.a === 'cityHall').slice(0, 4)
       .map((c) => `${c.b}: ${c.enu.toFixed(1)} m in this world, ${c.vincenty.toFixed(1)} m on the ellipsoid`);
     game.dialogue.conversation([
-      ['ching', `OpenStreetMap, metre for metre. ${rows[0]}. ${rows[1]}.`],
-      ['ching', `${rows[2]}. ${rows[3]}. Ground is the 2019 Queensland LiDAR survey. River spans use the published clearances.`],
+      ['chung', `OpenStreetMap, metre for metre. ${rows[0]}. ${rows[1]}.`],
+      ['chung', `${rows[2]}. ${rows[3]}. Ground is the 2019 Queensland LiDAR survey. River spans use the published clearances.`],
       ['bung', 'So the river is real and the lawsuit is still personal. Perfect.'],
     ]);
   }, 4);

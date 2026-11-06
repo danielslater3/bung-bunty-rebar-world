@@ -63,7 +63,7 @@ const assert = require('node:assert/strict');
       }),
       b = await bcontext.newPage();
     await boot(b, 'Burger Mate');
-    await b.getByLabel('Your character', { exact: true }).selectOption('ching');
+    await b.getByLabel('Your character', { exact: true }).selectOption('chung');
     await b.getByLabel('Top / shell colour', { exact: true }).fill('#22aa77');
     await b.getByLabel('Eight-character room code').fill(code);
     await b
@@ -89,7 +89,7 @@ const assert = require('node:assert/strict');
     });
     assert.equal(outfits.self.character, 'gabor');
     assert.equal(outfits.self.colors[0], '#e84393');
-    assert.equal(outfits.remote.character, 'ching');
+    assert.equal(outfits.remote.character, 'chung');
     assert.equal(outfits.remote.colors[0], '#22aa77');
     await a.evaluate(() => {
       const g = BUNG;
@@ -309,7 +309,7 @@ const assert = require('node:assert/strict');
       await b.evaluate(
         () => BUNG.multiplayer.selfAvatar.userData.appearance.character,
       ),
-      'ching',
+      'chung',
     );
     console.log('ALL TEN GAME INTERFACES + RECONNECT PASSED');
     await b.evaluate(() => BUNG.multiplayer.leave());
@@ -328,7 +328,7 @@ const assert = require('node:assert/strict');
     await b.locator('#btn-multiplayer').click();
     assert.equal(
       await b.getByLabel('Your character', { exact: true }).inputValue(),
-      'ching',
+      'chung',
     );
     assert.equal(
       await b.getByLabel('Top / shell colour', { exact: true }).inputValue(),

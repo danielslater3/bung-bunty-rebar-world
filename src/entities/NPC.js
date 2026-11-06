@@ -1,14 +1,14 @@
 // World NPCs: Chung (mission controller / rebar ally) and Gabor (pest).
 import * as THREE from 'three';
-import { buildChing, buildGabor, buildScooter } from './models.js';
+import { buildChung, buildGabor, buildScooter } from './models.js';
 import { dampAngle } from '../core/utils.js';
 
 export class NPC {
   constructor(game, kind, pos, ry = 0) {
     this.game = game;
-    this.kind = kind; // 'ching' | 'gabor'
+    this.kind = kind; // 'chung' | 'gabor'
     this.pos = pos.clone();
-    this.mesh = kind === 'ching' ? buildChing() : buildGabor();
+    this.mesh = kind === 'chung' ? buildChung() : buildGabor();
     this.mesh.position.copy(pos);
     this.mesh.rotation.y = ry;
     this.baseRy = ry;
@@ -23,7 +23,7 @@ export class NPC {
     }
 
     // Floating marker
-    const markerColor = kind === 'ching' ? 0x2ee6ff : 0xff2e5f;
+    const markerColor = kind === 'chung' ? 0x2ee6ff : 0xff2e5f;
     this.marker = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.16),
       new THREE.MeshBasicMaterial({ color: markerColor })

@@ -22,10 +22,10 @@ export function dressMansion(Z, game) {
   Z.textSign(-14, 2.2, 34, 0, 'BILLIONAIRE POOL\n(BOMB-FREE)', { w: 4.4, h: 1.2, post: true, bg: '#14305a', fg: '#ffe9a8' });
 
   Z.interact(4, 0, 12, '<b>[E]</b> Ask Chung to come with you', () => {
-    state.flags.chingWithYou = !state.flags.chingWithYou;
-    game.toast(state.flags.chingWithYou ? 'CHUNG IS WITH YOU' : 'CHUNG IS STAYING PUT', 'blue');
-    game.say(state.flags.chingWithYou ? 'ching' : 'bung',
-      state.flags.chingWithYou
+    state.flags.chungWithYou = !state.flags.chungWithYou;
+    game.toast(state.flags.chungWithYou ? 'CHUNG IS WITH YOU' : 'CHUNG IS STAYING PUT', 'blue');
+    game.say(state.flags.chungWithYou ? 'chung' : 'bung',
+      state.flags.chungWithYou
         ? 'I will come. If you eat a fifth burger I am going home.'
         : 'Chung has standards. She is using them.');
   }, 3.2);
@@ -67,7 +67,7 @@ export function dressBrisbane(Z, game, places) {
     state.flags.sebContract = true;
     addCoins(180);
     game.toast('SEB DALY PAID 180 BUNGBUCKS', 'blue');
-    game.say('ching', 'You just sold steel to the Big Boss. Try to look like that was a plan.');
+    game.say('chung', 'You just sold steel to the Big Boss. Try to look like that was a plan.');
   }, 4);
 
   // McRebars and Hungry Bung are mounted on the real Queen Street frontages
@@ -92,7 +92,7 @@ export function dressBrisbane(Z, game, places) {
       return;
     }
     if ((state.stock.obsidian || 0) < 1) {
-      game.say('ching', 'The river wants Obsidian Rebar. I want you to think about that sentence.');
+      game.say('chung', 'The river wants Obsidian Rebar. I want you to think about that sentence.');
       return;
     }
     state.stock.obsidian -= 1;
@@ -128,7 +128,7 @@ export function dressBrisbane(Z, game, places) {
     game.toast('SIR GIRDERFACE AWAKENS — +2500 BUNGBUCKS', 'red');
     game.dialogue.conversation([
       ['bung', 'Ten eyes. Molten trail. I am choosing to be flattered.'],
-      ['ching', 'You woke the Rebar Overlord on a real bridge. We are leaving the river.'],
+      ['chung', 'You woke the Rebar Overlord on a real bridge. We are leaving the river.'],
     ]);
   }, 4.5);
   });
@@ -154,13 +154,13 @@ export function dressSydney(Z, game, gate) {
     unlockArchive('flight');
     if (!state.unlockedZones.includes('hongkong')) {
       game.dialogue.conversation([
-        ['ching', 'The board says Hong Kong. The passport booth beside this terminal has not stamped you.'],
+        ['chung', 'The board says Hong Kong. The passport booth beside this terminal has not stamped you.'],
         ['bung', 'I booked it in my head as CX100. The airport, rudely, has standards.'],
       ]);
       return;
     }
     game.dialogue.conversation([
-      ['ching', 'Rebar Pacific RP100. Sydney to Hong Kong. Window seat, because you will narrate the wing.'],
+      ['chung', 'Rebar Pacific RP100. Sydney to Hong Kong. Window seat, because you will narrate the wing.'],
       ['bung', 'International rebar diplomat, boarding. The trolley is emotional.'],
     ], () => {
       game.toast('RP100 DEPARTED — HONG KONG', 'red');
@@ -177,7 +177,7 @@ export function dressHongKong(Z, game, places) {
   Z.textSign(stall.x, 4.6, stall.z + 10, 0, 'DIGITECH BLUE MODE\nHARBOUR STREET', { w: 6, h: 1.4, post: true, bg: '#0b1c2e', fg: '#2ee6ff', glow: true });
   Z.interact(stall.x + 6, 0, stall.z - 4, '<b>[E]</b> Smuggler stall — forbidden rebar', () => {
     if ((state.stock.forbidden || 0) < 1) {
-      game.say('ching', 'They want Forbidden Rebar. Gabor\'s catalogue. Of course they do.');
+      game.say('chung', 'They want Forbidden Rebar. Gabor\'s catalogue. Of course they do.');
       return;
     }
     state.stock.forbidden -= 1;

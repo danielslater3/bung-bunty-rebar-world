@@ -474,7 +474,7 @@ export function interiorKit(manager, kind, level) {
       box(-10.5 + i * 2.6, 0.8, -13.8, 0.12, 2.9, 0.1, 'gold', false);
     round(1, 0.32, -9.2, 0.08, 0.08, 'dark');
     box(1, 0.4, -9.2, 0.5, 0.1, 0.15, 'wood', false);
-    sign(-6, 1.3, 1.1, 'BUNG / CHING', 2, 0.4);
+    sign(-6, 1.3, 1.1, 'BUNG / CHUNG', 2, 0.4);
     sign(6, 1.3, 1.1, 'GABOR', 2, 0.4);
     table(-6, 0, 4, 2);
     table(6, 0, 4, 2);

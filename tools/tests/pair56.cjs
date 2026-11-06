@@ -46,7 +46,7 @@ const assert = require('node:assert/strict');
         for (let f = 0; f < 60; f++) frameDialogue(s, 1 / 60);
         const p = g.camPos;
         if (g.zone.colliders.some((b) => b.containsPoint(p))) cameraBlocked++;
-        if (s.actors.ching.position.distanceTo(s.actors.gabor.position) < 1.3) overlap++;
+        if (s.actors.chung.position.distanceTo(s.actors.gabor.position) < 1.3) overlap++;
         g.dialogue.skip();
       }
       s.ensureStep();
@@ -72,7 +72,7 @@ const assert = require('node:assert/strict');
         tickMission(s, 1 / 60);
         s.poseActors();
         updateGuide(s);
-        const actor = ch === 4 ? s.actors.ching : s.actors.gabor;
+        const actor = ch === 4 ? s.actors.chung : s.actors.gabor;
         groundError = Math.max(
           groundError,
           Math.abs(

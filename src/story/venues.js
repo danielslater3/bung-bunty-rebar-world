@@ -231,11 +231,11 @@ export class StoryVenues {
       );
       g.camera.position.copy(g.camPos);
     }
-    if (this.saga.actors.ching) {
-      delete this.saga.actors.ching.userData.follow;
+    if (this.saga.actors.chung) {
+      delete this.saga.actors.chung.userData.follow;
       placeActor(
         this.saga,
-        this.saga.actors.ching,
+        this.saga.actors.chung,
         { x: p.x + 2.5, y: p.y, z: p.z + 1 },
         [g.player.mesh],
       );
@@ -390,7 +390,7 @@ export class StoryVenues {
       step = saga.currentStep(),
       s = this.hotel();
     const talk = (lines, done) => {
-      stageCast(saga, { cast: ['ching'] });
+      stageCast(saga, { cast: ['chung'] });
       saga.game.dialogue.conversation(lines, () => {
         done?.();
         SaveSystem.save(saga.game);
@@ -404,7 +404,7 @@ export class StoryVenues {
             'Welcome to W Brisbane. Room 901, Wonderful King. Lifts behind you. The Lex on three, WET on four, AWAY on five, FIT on six.',
           ],
           ['bung', 'A key card. My normal door accepts a trolley collision.'],
-          ['ching', 'We are trying the card first.'],
+          ['chung', 'We are trying the card first.'],
         ],
         () => {
           s.key = true;
@@ -423,7 +423,7 @@ export class StoryVenues {
             'bung',
             'A river view, a drum bath and a Mixbar. This room has more plot than my garage.',
           ],
-          ['ching', 'And the new phone stays away from the bath.'],
+          ['chung', 'And the new phone stays away from the bath.'],
         ],
         () => {
           s.roomSeen = true;
@@ -433,14 +433,14 @@ export class StoryVenues {
     if (HOTEL_STOPS.includes(id)) {
       const lines = {
         'hotel-bar': [
-          ['ching', 'A seat by the river. No chase, no evidence bags.'],
+          ['chung', 'A seat by the river. No chase, no evidence bags.'],
           [
             'bung',
             'I ordered something with an umbrella. The trolley asked for a load rating.',
           ],
         ],
         'hotel-pool': [
-          ['ching', 'Level four. A pool above the river.'],
+          ['chung', 'Level four. A pool above the river.'],
           [
             'bung',
             'I will stay poolside. Steel is a spectacularly poor flotation aid.',
@@ -451,14 +451,14 @@ export class StoryVenues {
             'bung',
             'The therapist asked where I hold tension. I said the rebar cupboard.',
           ],
-          ['ching', 'Try your shoulders.'],
+          ['chung', 'Try your shoulders.'],
         ],
         'hotel-gym': [
           [
             'bung',
             'Three controlled reps. Finally, a room that understands the rebar lifestyle.',
           ],
-          ['ching', "Put the weights back. This is a hotel, not Seb's yard."],
+          ['chung', "Put the weights back. This is a hotel, not Seb's yard."],
         ],
       };
       return talk(lines[id], () => {
@@ -494,7 +494,7 @@ export class StoryVenues {
           ],
           ['gabor', 'I was not invited, which is why I am on time.'],
           [
-            'ching',
+            'chung',
             'You can stay for the song. You cannot touch the new phone.',
           ],
         ],
@@ -507,7 +507,7 @@ export class StoryVenues {
     }
     if (id === 'hotel-night') {
       if (step?.id !== 'night') {
-        saga.game.say('ching', 'Brisbane has a good view. Stay a minute.');
+        saga.game.say('chung', 'Brisbane has a good view. Stay a minute.');
         return;
       }
       s.night = true;
@@ -515,7 +515,7 @@ export class StoryVenues {
       return talk(
         [
           [
-            'ching',
+            'chung',
             'Look at the river. One afternoon of broken glass; a whole city still lit up.',
           ],
           [
@@ -672,7 +672,7 @@ export class StoryVenues {
       const { saga } = this,
         b = this.floor.base;
       for (const [name, x, z] of [
-        ['ching', -4, 2],
+        ['chung', -4, 2],
         ['gabor', 6, -3],
       ]) {
         const a = saga.actors[name];

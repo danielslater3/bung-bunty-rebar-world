@@ -102,8 +102,8 @@ export function buildOsmSydney(game) {
   Z.interact(T.x + 3, 0.4, T.z + 2, '<b>[E]</b> Read the T1 survey post', () => {
     const rows = GEO.checks.slice(0, 3).map((c) => `${c.a} to ${c.b}: ${c.enu.toFixed(1)} m here, ${c.vincenty.toFixed(1)} m on the ellipsoid`);
     game.dialogue.conversation([
-      ['ching', `OpenStreetMap. ${rows[0]}. ${rows[1]}.`],
-      ['ching', `${rows[2]}. The T1 way is about 94 by 140 metres. I did not invent the rest of the building around it.`],
+      ['chung', `OpenStreetMap. ${rows[0]}. ${rows[1]}.`],
+      ['chung', `${rows[2]}. The T1 way is about 94 by 140 metres. I did not invent the rest of the building around it.`],
       ['bung', 'The runway is real. My declaration form is a napkin.'],
     ]);
   }, 4);

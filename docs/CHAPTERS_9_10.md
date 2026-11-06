@@ -12,7 +12,7 @@ Chapter 10 begins outside court and routes along the existing city streets to W 
 
 Nine selectable stops: Welcome/Living Room Bar, The Lex (3), WET Deck (4), AWAY Spa (5), FIT Gym (6), guest floors 9/12/18/24. Each guest floor has four doors that open and four furnished rooms; the upper-floor suite template adds lounge furniture. Beds, lamps, desks, wardrobes/Mixbars, drum-style baths, shower screens, basins, mirrors, curtains, windows, seating, dining settings, poolside loungers, treatment tables and individually assembled gym equipment are modelled. Selected furnishings and facility stations have interactions; this does not mean every decorative object is interactive.
 
-The lift UI supports normal buttons, keyboard focus, Back and Escape without leaving Bung frozen. Trolleys stay outside venue interiors. Ching uses grounded collision-aware following and is restaged at floor transitions. Active hotel-floor state, key, room access, visited facilities, evidence and trial question survive save/load. Legacy Chapter 10 steps migrate by their old narrative beat. Chapter replays keep the main save isolated.
+The lift UI supports normal buttons, keyboard focus, Back and Escape without leaving Bung frozen. Trolleys stay outside venue interiors. Chung uses grounded collision-aware following and is restaged at floor transitions. Active hotel-floor state, key, room access, visited facilities, evidence and trial question survive save/load. Legacy Chapter 10 steps migrate by their old narrative beat. Chapter replays keep the main save isolated.
 
 ## Geography, rendering and ownership
 

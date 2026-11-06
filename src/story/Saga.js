@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { state, bus, SaveSystem } from '../core/state.js';
 import { mat, damp, dampAngle } from '../core/utils.js';
 import { unlockArchive } from '../lore/universe.js';
-import { buildChing, buildGabor, buildScooter, setBungKit } from '../entities/models.js';
+import { buildChung, buildGabor, buildScooter, setBungKit } from '../entities/models.js';
 import { ACTS, CHAPTERS, PLACE, CHASE_PATH, createSaga } from './sagaData.js';
 import { buildHouse } from './house.js';
 import { buildMcRebar, buildCollectorLawn } from './mcrebar.js';
@@ -229,7 +229,7 @@ export class Saga {
     }
 
     for (const n of Z.npcs) {
-      if (n.kind === 'ching') {
+      if (n.kind === 'chung') {
         n.mesh.visible = false;
         if (n.marker) n.marker.visible = false;
       }
@@ -327,21 +327,21 @@ export class Saga {
   }
 
   followCompanion(dt) {
-    if (!state.saga?.companion || !this.actors?.ching) return;
+    if (!state.saga?.companion || !this.actors?.chung) return;
     if (['escort','scene'].includes(this.currentStep()?.kind)) return;
     if(state.saga.chapter===8&&this.currentStep()?.kind==='trial')return;
     if(state.saga.chapter>=6&&state.saga.chapter<=9&&['rhythm','photo'].includes(this.currentStep()?.kind))return;
     if(state.saga.chapter>=4 && state.saga.chapter<=9) {
-      followActor(this,this.actors.ching,dt);return;
+      followActor(this,this.actors.chung,dt);return;
     }
-    const a = this.actors.ching;
+    const a = this.actors.chung;
     a.visible = true;
     const p = this.here();
     const destY = (state.saga.mansion && Math.abs(p.y - this.ground(p.x, p.z)) > 1.2) ? p.y : this.ground(p.x + 1.15, p.z + 0.7);
     const dest = new THREE.Vector3(p.x + 1.15, destY, p.z + 0.7);
-    if (!this._chingSnapped) {
+    if (!this._chungSnapped) {
       a.position.copy(dest);
-      this._chingSnapped = true;
+      this._chungSnapped = true;
     } else a.position.lerp(dest, 1 - Math.exp(-4 * dt));
     a.rotation.y = Math.atan2(p.x - a.position.x, p.z - a.position.z);
   }
@@ -409,7 +409,7 @@ export class Saga {
       Z.box(-815.3, b + (c - b) * t - 0.16, z, 2.1, 0.16, 0.5, stepMat, { collide: false, ground: false });
     }
     Z.textSign(home.x, c + 3.2, home.z + 6.4, 0, 'REBAR MANSION\nTHREE STOREYS', { w: 5.2, h: 1.3, bg: '#004e92', fg: '#f2c14b' });
-    const labels = ['CHING\'S FAMILY', 'BUNG AND CHING', 'BUNG\'S FAMILY'];
+    const labels = ['CHUNG\'S FAMILY', 'BUNG AND CHUNG', 'BUNG\'S FAMILY'];
     this._floors.forEach((y, i) => {
       Z.textSign(home.x + 2.2, y + 1.6, home.z + 4.6, 0, labels[i], { w: 3.4, h: 0.55, bg: '#1a1d26', fg: '#fff6e8' });
     });
@@ -467,7 +467,7 @@ export class Saga {
     prop('workshop', 3.4, 0.16, 3, 0x39414d, 'HIDDEN WORKSHOP');
     prop('river', 5, 0.08, 5, 0x1a1d26, 'THE OFFERING');
     const spots = {
-      join: ['arrival', '<b>[E]</b> Ching'],
+      join: ['arrival', '<b>[E]</b> Chung'],
       phone: ['phone', '<b>[E]</b> The blue phone'],
       receipt: ['receipt', '<b>[E]</b> Take the receipt'],
       witness: ['witness', '<b>[E]</b> The witness'],
@@ -496,7 +496,7 @@ export class Saga {
       const p = PLACE[at];
       this.interact(id, p, at === 'phone' ? this.actors.house.y : gy(at), label, () => this.onStory(id));
     }
-    const ching = buildChing();
+    const chung = buildChung();
     const bike = makeBike();
     const drone = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.16, 0.55), mat(0x22262e, { emissive: 0x2ee6ff, emissiveIntensity: 0.6 }));
     const meteor = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 10), mat(0x8a5a32, { roughness: 0.8 }));
@@ -520,11 +520,11 @@ export class Saga {
       piles[id] = mesh;
       Z.group.add(mesh);
     }
-    for (const mesh of [ching, bike, drone, meteor, bomb, sat, hazard, girder, seb, cargo, ...shards, ...eyes]) {
+    for (const mesh of [chung, bike, drone, meteor, bomb, sat, hazard, girder, seb, cargo, ...shards, ...eyes]) {
       mesh.visible = false;
       Z.group.add(mesh);
     }
-    Object.assign(this.actors, { ching, bike, drone, meteor, bomb, sat, hazard, girder, seb, cargo, shards, eyes, piles, family: [] });
+    Object.assign(this.actors, { chung, bike, drone, meteor, bomb, sat, hazard, girder, seb, cargo, shards, eyes, piles, family: [] });
     prepSnow(this, THREE);
     if (!this._groundWrapped) {
       this._groundWrapped = true;
@@ -578,7 +578,7 @@ export class Saga {
     const hide = (m) => { m.visible = false; };
     const show = (m, x, y, z) => { m.visible = true; m.position.set(x, y, z); };
     hide(a.gabor); hide(a.scooter); hide(a.bag); hide(a.guard); hide(a.marker);
-    for (const mesh of [a.ching, a.bike, a.drone, a.meteor, a.bomb, a.sat, a.hazard, a.girder, a.seb, a.cargo]) {
+    for (const mesh of [a.chung, a.bike, a.drone, a.meteor, a.bomb, a.sat, a.hazard, a.girder, a.seb, a.cargo]) {
       if (mesh) hide(mesh);
     }
     for (const mesh of a.shards || []) hide(mesh);
@@ -1284,7 +1284,7 @@ export class Saga {
       this.game.dialogue.conversation([
         ['doc', 'The Brisbane chronicle is on the shelf. The suitcase stays closed.'],
         ['bung', 'Queen Street is still a street. That is enough world for today.'],
-        ['ching', 'I am not a quest marker. I am staying anyway.'],
+        ['chung', 'I am not a quest marker. I am staying anyway.'],
       ]);
       SaveSystem.save(this.game);
       return;
@@ -1328,7 +1328,7 @@ export class Saga {
     const ch = this.chapter();
     const act = ACTS.find((a) => a.id === ch?.act);
     if (state.saga.intermission) {
-      const lines = [{ text: 'Brisbane is open. Ching stays if she has arrived.', done: !!state.saga.companion }];
+      const lines = [{ text: 'Brisbane is open. Chung stays if she has arrived.', done: !!state.saga.companion }];
       if (state.saga.fortune) lines.push({ text: 'The cheque reads three billion dollars.', done: true });
       return {
         title: state.saga.legend ? 'THE LEGEND OF BUNG BUNTY' : `ACT ${act?.id || ''} — ${act?.title || ''}`,

@@ -2,7 +2,7 @@
 
 Two layers exist. **Original lore** is the biography the player asked the game to keep. **Game text** is what `src/lore/universe.js` `ARCHIVE` and `src/story/sagaData.js` actually say. Where they differ, the game text is the adaptation, and it should not be "corrected" back into a deleted joke or a real brand.
 
-The archive spells the partner **Chung** in several cards. Dialogue speaker id and most chapter titles use **Ching**. Both refer to the same character. Do not rename one without renaming the other on purpose.
+The partner is **Chung** throughout the game, including dialogue, chapter titles, lore, internal identifiers and multiplayer. Legacy saves and character selections migrate automatically.
 
 International cities are zones and archive flavour. The chronicle's own header says later cities stay out of this campaign. Brisbane is the playable setting.
 
@@ -10,9 +10,9 @@ International cities are zones and archive flavour. The chronicle's own header s
 
 **Bung Bunty.** Archive: born 3 March 1977 in Brisbane, stained singlet, brown boxers, four rebar hairs, a ten-hair goatee. Chapter 1's opening lines say he graduates in 1995 and that the school still talks about the rebar he brought to assembly. Personality in dialogue is loud, hungry, and sincere about the trolley. Model: `buildBung()` in `models.js`. Feet origin, head group at local y 1.78.
 
-**Ching / Chung.** Met Bung while he was travelling in China. She moves to Brisbane in this chronicle (chapter 5 starts at King George Square, not on a China map). She shares the rebar obsession and the second golden trolley in the archive text. She is the reason the mansion has not been condemned. Model: `buildChing()`.
+**Chung.** Met Bung while he was travelling in China. She moves to Brisbane in this chronicle (chapter 5 starts at King George Square, not on a China map). She shares the rebar obsession and the second golden trolley in the archive text. She is the reason the mansion has not been condemned. Model: `buildChung()`.
 
-**Gabor Mihala.** Wiry, enormous forehead, small orange beard, purple cape, bag of fake rebars, scooter. Jealous of Bung, interested in Ching, trying to monopolise rebar. The Parliament lawsuit in the archive is $10,000. Model: `buildGabor()`, scooter `buildScooter()`.
+**Gabor Mihala.** Wiry, enormous forehead, small orange beard, purple cape, bag of fake rebars, scooter. Jealous of Bung, interested in Chung, trying to monopolise rebar. The Parliament lawsuit in the archive is $10,000. Model: `buildGabor()`, scooter `buildScooter()`.
 
 **James Rebar.** A standard, not a man who walks around. The golden motorised trolley and the workshop use the name. Default trolley id `'james'` in `trolleySpec`.
 
@@ -42,7 +42,7 @@ International cities are zones and archive flavour. The chronicle's own header s
 
 **$3 billion.** Chapter 15, archive `three-billion`. A fictional cheque. `state.saga.fortune` is the story counter.
 
-**Mansion.** Chapter 16 builds it. Archive and chapter 24 agree on floors: Ching's family below, Bung and Ching in the middle, Bung's family on top. `Saga.ensureMansion` creates that shell in West End when `chapter >= 15` or `mansion` is set. It is not the mansion hub zone, which is a separate sandbox map at the origin of its own scene.
+**Mansion.** Chapter 16 builds it. Archive and chapter 24 agree on floors: Chung's family below, Bung and Chung in the middle, Bung's family on top. `Saga.ensureMansion` creates that shell in West End when `chapter >= 15` or `mansion` is set. It is not the mansion hub zone, which is a separate sandbox map at the origin of its own scene.
 
 **Rebar Expo.** Chapter 18. Kebab and photo booth on `PLACE.expo`.
 
@@ -68,7 +68,7 @@ International cities are zones and archive flavour. The chronicle's own header s
 | 1 | ch2 | 1 | THE GOLDEN MINI REBAR INCIDENT | scene at McRebar |
 | 2 | ch3 | 1 | MCREBAR MAX: BIG BOY MODE | scene at the garage |
 | 3 | ch4 | 1 | THE EMERALD REBAR HEIST | scene at McRebar |
-| 4 | ch5 | 2 | CHING'S ARRIVAL | scene at King George Square |
+| 4 | ch5 | 2 | CHUNG'S ARRIVAL | scene at King George Square |
 | 5 | ch6 | 2 | THE GABOR JEALOUSY CRISIS | scene at McRebar, then a scooter race |
 | 6 | ch7 | 3 | THE LEGENDARY RAP BATTLE | rhythm minigame on the square |
 | 7 | ch8 | 3 | THE SAMSUNG S24 ULTRA CATASTROPHE | phone, photo, shards |
@@ -94,7 +94,7 @@ Rewards and exact lines are on each chapter object. `finishChapter` pushes the c
 ## What not to rewrite
 
 - Do not delete the 1977 birth or the 1995 graduation lines.
-- Do not move Ching's arrival onto a China level.
+- Do not move Chung's arrival onto a China level.
 - Do not put the W hotel on the map by inventing a coordinate. The lawn stand-in is deliberate.
 - Do not import Sir Girderface from another project.
 - Do not reduce a chapter to a single "walk here and press E" if it already has a minigame. Also do not claim a minigame is a finished cinematic.

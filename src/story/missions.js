@@ -93,7 +93,7 @@ function bootJourney(saga, racing) {
     saga.game.toast('Route unavailable — pause and reload this checkpoint', 'gold');return;
   }
   saga.mission={kind:racing?'race':'escort',controller:new ChaseController(path,saved),tail:saved.tail||0,t:saved.dist? saved.dist / new ChaseController(path).length:0};
-  saga.game.toast(racing?'SCOOTER PURSUIT · Take the stairs, mount, follow the gold route':'WELCOME WALK · Stay near Ching; she waits if you fall behind', 'gold');
+  saga.game.toast(racing?'SCOOTER PURSUIT · Take the stairs, mount, follow the gold route':'WELCOME WALK · Stay near Chung; she waits if you fall behind', 'gold');
 }
 
 function tickJourney(saga,step,m,dt,racing) {
@@ -103,9 +103,9 @@ function tickJourney(saga,step,m,dt,racing) {
   m.t=c.length?c.dist/c.length:0;
   if(racing&&saga.game.trolley.riding&&result.gap<12)m.tail+=dt;
   // A brief separation stages the rivalry without resetting the entire walk.
-  if(!racing&&result.gap>12&&!m.warned){m.warned=true;saga.game.say('gabor','I can escort! I have a bicycle and no social awareness.');saga.game.say('ching','Bung, over here. I am waiting, not available.');}
+  if(!racing&&result.gap>12&&!m.warned){m.warned=true;saga.game.say('gabor','I can escort! I have a bicycle and no social awareness.');saga.game.say('chung','Bung, over here. I am waiting, not available.');}
   state.saga.stepState.journey={...c.snapshot(),path:c.path,tail:m.tail};
-  saga.game.hud.chaseHud({metres:Math.round(result.gap),target:racing?saga.actors.gabor.position:saga.actors.ching.position,note:racing?'FOLLOW THE SCOOTER · STAY WITHIN 12 m':`CHING · ${Math.round(m.t*100)}% · WALK TOGETHER`});
+  saga.game.hud.chaseHud({metres:Math.round(result.gap),target:racing?saga.actors.gabor.position:saga.actors.chung.position,note:racing?'FOLLOW THE SCOOTER · STAY WITHIN 12 m':`CHUNG · ${Math.round(m.t*100)}% · WALK TOGETHER`});
   if(result.finished) {
     // Follow controller completion requires the endpoint; race additionally
     // demands sustained proximity. Never finish merely because a route blocks.
@@ -182,7 +182,7 @@ const BOOT = {
   },
   hold(saga, step) {
     saga.mission = { kind: 'hold', t: 0, held: 0, bump: 0 };
-    saga.game.say('ching', step.help || 'Stay on the floor. If he bumps you, the song starts again.');
+    saga.game.say('chung', step.help || 'Stay on the floor. If he bumps you, the song starts again.');
   },
 };
 
@@ -311,7 +311,7 @@ const TICK = {
       return;
     }
     saga.game.audio.sfx('denied');
-    if (m.tries >= (step.tries || 3)) retry(saga, 'ching', 'The flash missed him. Hold still and take it again.');
+    if (m.tries >= (step.tries || 3)) retry(saga, 'chung', 'The flash missed him. Hold still and take it again.');
   },
   cricket(saga, step, m, dt) {
     m.t += dt;
@@ -348,7 +348,7 @@ const TICK = {
       if(m.droneTarget!==next){m.droneTarget=next;m.droneRoute=localRoute(saga._drone,next,(a,b)=>segmentClear(saga.game.zone,a,b,.45));m.droneIndex=1;}
       const waypoint=m.droneRoute[m.droneIndex];
       if(waypoint){const d=Math.hypot(waypoint.x-saga._drone.x,waypoint.z-saga._drone.z)||1,t=Math.min(1,dt*.75/d);saga._drone.x+=(waypoint.x-saga._drone.x)*t;saga._drone.z+=(waypoint.z-saga._drone.z)*t;if(d<.15)m.droneIndex++;}
-      if(Math.hypot(next.x-saga._drone.x,next.z-saga._drone.z)<.8){m.time=0;saga.game.say('ching','Tablet jammer online. Your secured evidence stays with us. Follow the gold rings.');}
+      if(Math.hypot(next.x-saga._drone.x,next.z-saga._drone.z)<.8){m.time=0;saga.game.say('chung','Tablet jammer online. Your secured evidence stays with us. Follow the gold rings.');}
 
     }
     if(!next){state.saga.phone='broken';if(!state.saga.evidence.includes('shards'))state.saga.evidence.push('shards');saga.advance();}
@@ -414,7 +414,7 @@ const TICK = {
     state.saga.stepState.piles = {};
     m.left = step.seconds || 110;
     saga.game.audio.sfx('denied');
-    saga.game.say('ching', 'Too long. The snow climbed back up. Clear it again.');
+    saga.game.say('chung', 'Too long. The snow climbed back up. Clear it again.');
   },
   deliver(saga, step, m, dt) {
     if (!state.saga.stepState.carrying) {
@@ -519,16 +519,16 @@ export function poseMission(saga) {
   };
   if (['escort','race'].includes(step.kind) && saga.mission?.controller) {
     const m=saga.mission,c=m.controller,at=atDistance(c.path,c.dist);
-    const actor=step.kind==='escort'?a.ching:a.gabor;
+    const actor=step.kind==='escort'?a.chung:a.gabor;
     actor.visible=true; actor.position.set(at.x,floorAt(saga,at),at.z); actor.rotation.y=c.heading;
     placeActor(saga,actor,actor.position,[saga.game.player.mesh],.5);
     if(step.kind==='escort') {
       a.gabor.visible=true;
       const back=atDistance(c.path,Math.max(0,c.dist-4));
-      placeActor(saga,a.gabor,back,[a.ching,saga.game.player.mesh],.55);
-      animateActor(a.ching,c.speed,saga.game.elapsed);
+      placeActor(saga,a.gabor,back,[a.chung,saga.game.player.mesh],.55);
+      animateActor(a.chung,c.speed,saga.game.elapsed);
       const bikeTarget={x:a.gabor.position.x+1.7,y:a.gabor.position.y,z:a.gabor.position.z};
-      a.bike.visible=placeActor(saga,a.bike,bikeTarget,[a.gabor,a.ching,saga.game.player.mesh],.55);
+      a.bike.visible=placeActor(saga,a.bike,bikeTarget,[a.gabor,a.chung,saga.game.player.mesh],.55);
       a.bike.rotation.y=c.heading;a.gabor.rotation.y=c.heading;
     } else {
       a.scooter.visible=true;a.scooter.position.copy(actor.position);a.scooter.rotation.y=c.heading;
@@ -537,8 +537,8 @@ export function poseMission(saga) {
   }
   if (state.saga.chapter===4 && step.id==='join') {
     const p=saga.point('arrival');
-    a.ching.visible=placeActor(saga,a.ching,p,[saga.game.player.mesh]);
-    a.gabor.visible=placeActor(saga,a.gabor,{x:p.x-3,y:p.y,z:p.z},[a.ching,saga.game.player.mesh]);
+    a.chung.visible=placeActor(saga,a.chung,p,[saga.game.player.mesh]);
+    a.gabor.visible=placeActor(saga,a.gabor,{x:p.x-3,y:p.y,z:p.z},[a.chung,saga.game.player.mesh]);
   }
   if (step.kind === 'shards') {
     const origin = saga.point(step.at);
@@ -594,14 +594,14 @@ export function poseMission(saga) {
     stageCast(saga,step);
     if(state.saga.chapter<=7){
       const vehicle=state.saga.chapter===4?a.bike:a.scooter,p=a.gabor.position;
-      if(placeActor(saga,vehicle,{x:p.x+1.7,y:p.y,z:p.z},[a.gabor,a.ching,saga.game.player.mesh],.6))vehicle.visible=true;
+      if(placeActor(saga,vehicle,{x:p.x+1.7,y:p.y,z:p.z},[a.gabor,a.chung,saga.game.player.mesh],.6))vehicle.visible=true;
     }
   }
   else if (step.cast) {
     for (const name of step.cast) {
-      if (name === 'ching' && a.ching && step.kind !== 'escort') {
+      if (name === 'chung' && a.chung && step.kind !== 'escort') {
         const p = saga.game.player.pos;
-        show(a.ching, p.x + 1.3, p.y, p.z + 0.4);
+        show(a.chung, p.x + 1.3, p.y, p.z + 0.4);
       }
       if (name === 'gabor' && a.gabor && !['escort', 'race', 'hold'].includes(step.kind)) {
         const p = saga.point(step.look || step.at || 'mcrebar');
@@ -630,7 +630,7 @@ function PLACE_Z(saga, id) { return saga.point(id).z; }
 
 export function missionMarker(saga, step) {
   if (!step || !HANDLED.has(step.kind)) return undefined;
-  if (step.kind === 'escort') return saga.actors.ching.position;
+  if (step.kind === 'escort') return saga.actors.chung.position;
   if (step.kind === 'race') return saga.actors.gabor.position;
   if (step.kind === 'sky' && saga.mission) return skyPoint(saga, step, saga.mission);
   if (step.kind === 'eyes') return saga._eye ? eyePos(saga, step, saga._eye.idx) : saga.point(step.at);
@@ -709,7 +709,7 @@ export function onInteract(saga, id) {
   if (id === 'phone' && step.id === 'phone') {
     state.saga.phone = 'blue';
     saga.game.dialogue.conversation([
-      ['ching', 'Samsung S24 Ultra. Rebar Edition. Blue, because the trolley already took gold.'],
+      ['chung', 'Samsung S24 Ultra. Rebar Edition. Blue, because the trolley already took gold.'],
       ['bung', 'I will guard it with my life and also with both hands, which is more.'],
     ], () => saga.advance());
     return true;
@@ -717,7 +717,7 @@ export function onInteract(saga, id) {
   if (id === 'newphone' && step.id === 'newphone') {
     state.saga.phone = 'replaced';
     saga.game.dialogue.conversation([
-      ['ching', 'Same phone. New glass. The court paid for the glass.'],
+      ['chung', 'Same phone. New glass. The court paid for the glass.'],
       ['bung', 'I will not let a forehead near this one without a witness and a receipt.'],
     ], () => saga.advance());
     return true;
@@ -727,7 +727,7 @@ export function onInteract(saga, id) {
     saga.game.dialogue.conversation([
       ['doc', 'The city writes a number with too many zeroes. Three billion dollars. Fictional, and still heavy.'],
       ['bung', 'I would like it in notes, and also in rebars, and also in a house tall enough for both our families.'],
-      ['ching', 'Sign it before Gabor offers to count it.'],
+      ['chung', 'Sign it before Gabor offers to count it.'],
     ], () => saga.advance());
     return true;
   }
@@ -735,7 +735,7 @@ export function onInteract(saga, id) {
     saga.game.dialogue.conversation([
       ['doc', 'The suitcase is packed for places this chronicle does not open yet. China is a stamp, not a level.'],
       ['bung', 'Brisbane first. The world can wait until the trolley has had a lie down.'],
-      ['ching', 'The shelf is full. The city is still here. That is the ending and the engine.'],
+      ['chung', 'The shelf is full. The city is still here. That is the ending and the engine.'],
     ], () => saga.advance());
     return true;
   }
@@ -758,13 +758,13 @@ export function onInteract(saga, id) {
     return true;
   }
   if (id === 'join' && step.id === 'join') {
-    stageCast(saga,{cast:['ching','gabor']});
+    stageCast(saga,{cast:['chung','gabor']});
     state.saga.companion = true;
     saga.game.dialogue.conversation([
-      ['ching', 'The visa is stamped. Queen Street is loud. I am staying.'],
+      ['chung', 'The visa is stamped. Queen Street is loud. I am staying.'],
       ['bung', 'Then the trolley has a second opinion, which it badly needed.'],
       ['gabor', 'I rode here on a bicycle to say welcome, and also to say I saw her first.'],
-      ['ching', 'You saw the queue at the airport. It is not the same achievement.'],
+      ['chung', 'You saw the queue at the airport. It is not the same achievement.'],
     ], () => saga.advance());
     return true;
   }
@@ -788,7 +788,7 @@ function takeEvidence(saga, step, id) {
     return true;
   }
   if(saga.game.dialogue.cinematic)return true;
-  stageCast(saga,{cast:[id==='witness'?'ching':'gabor']});
+  stageCast(saga,{cast:[id==='witness'?'chung':'gabor']});
   saga.game.dialogue.conversation([[item.who||'bung',item.line],['bung',id==='witness'?'Statement signed. The forehead is now on the record.':id==='goggles'?'Label, lens and ownership. Bagged for court.':'Ten thousand dollars. Filed, not folded into the singlet.']],()=>{
     got[id]=true;if(!state.saga.evidence.includes(id))state.saga.evidence.push(id);
     saga.game.audio.sfx('quest');saga.game.toast(`EVIDENCE SECURED · ${Object.keys(got).length}/${step.items.length}`, 'gold');

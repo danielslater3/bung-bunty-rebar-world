@@ -93,7 +93,7 @@ Centres come from the imported OSM geometry. Distances use those centres.
 - Admiralty Centre way 47117859 has no height or levels tag.
 - Road width uses the OSM width tag when it parses as metres. Otherwise a class default is used.
 - Tunnels, including the Central–Wan Chai Bypass where it is tagged tunnel=yes, are omitted.
-- Fictional overlays (portals, Ching at the Star Ferry pier, the smuggler stall, typhoon blobs, neon signs, streetlamps) are not OSM objects.
+- Fictional overlays (portals, Chung at the Star Ferry pier, the smuggler stall, typhoon blobs, neon signs, streetlamps) are not OSM objects.
 
 ## Aerial colour
 

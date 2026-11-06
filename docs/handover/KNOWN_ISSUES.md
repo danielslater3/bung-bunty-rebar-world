@@ -38,7 +38,7 @@ Do not raycast `zone.group` while fixing cameras. That was the 3 fps bug fixed i
 
 **What the code does now:** `DialogueSystem.conversation` sets `cinematic: true` and a line index. `say()` does not. `Game.frame` skips `updateCamera` while cinematic and calls `Saga.frameDialogue` → `dialogueCam.frameDialogue`. The shot is placed on the speaker's face side (toward the partner), rejected if it is inside a collider, outside the room, too close to the partner, or behind the face. Cutscenes use `aimCamera`, the same function. `endScene` does not call `snapCamera`.
 
-**Evidence:** bedroom Gabor close-up, camera y 7.87 under ceiling 8.91, look-dot on Gabor about 1. McRebar Gabor close-up inside the tenancy, camera y 15.54 under 16.75. Queen Street outdoor close-up, `indoorRoom` null. Ching in the bedroom, inside, look-dot 0.985. Garage conversation, camera inside the garage room AABB. A bark left FOV at 68 and `cinematic` false.
+**Evidence:** bedroom Gabor close-up, camera y 7.87 under ceiling 8.91, look-dot on Gabor about 1. McRebar Gabor close-up inside the tenancy, camera y 15.54 under 16.75. Queen Street outdoor close-up, `indoorRoom` null. Chung in the bedroom, inside, look-dot 0.985. Garage conversation, camera inside the garage room AABB. A bark left FOV at 68 and `cinematic` false.
 
 **Remaining gaps:** acting is a head nod, a mouth scale, and one arm. Wide shots only when `line.i % 4 === 0`. A legal shot can still look out a window. Characters brought in by `present()` appear 1.4 m in front of Bung if they were hidden, which is a pop, not a walk-in. Not every story scene in chapters 3–24 was shot.
 

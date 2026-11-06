@@ -57,8 +57,10 @@ try {
       character: 'gabor',
       colors: ['#abcdef', '#123456', '#998877', '#eecc00'],
     }),
-    b = await join('Burger Bung');
+    b = await join('Burger Bung', undefined, {character:'ch\u0069ng',colors:['#00ab99','#223344','#334455','#445566']});
   assert.equal(a.room.host, a.id);
+  assert.equal(b.room.players[b.id].appearance.character, 'chung');
+  assert.equal(b.room.players[b.id].appearance.colors[0], '#00ab99');
   await until(
     () => b.room.players[a.id]?.appearance?.character === 'gabor',
     'shared outfit',
@@ -126,6 +128,7 @@ try {
   await until(() => closed, 'status-less close handshake');
   const restoredB = await join('Burger Bung', b.token);
   assert.equal(restoredB.id, b.id);
+  assert.equal(restoredB.room.players[b.id].appearance.character, 'chung');
 
   assert.equal(reconnect.id, a.id);
   assert.equal(reconnect.room.players[a.id].score, 10);

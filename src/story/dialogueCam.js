@@ -8,7 +8,7 @@ import { placeActor, tickSceneActors } from './actors.js';
 import { clampMcRebar } from './mcrebar.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-const CAST = { bung: 1, gabor: 1, ching: 1, seb: 1, judge:1, witness:1 };
+const CAST = { bung: 1, gabor: 1, chung: 1, seb: 1, judge:1, witness:1 };
 
 function meshOf(saga, name) {
   if (name === 'bung') return saga.game.player.mesh;
@@ -50,14 +50,14 @@ function present(saga, name) {
     x = Math.max(room.minX + 0.5, Math.min(room.maxX - 0.5, x));
     z = Math.max(room.minZ + 0.5, Math.min(room.maxZ - 0.5, z));
   }
-  if (!placeActor(saga,mesh,{x,y:bung.pos.y,z},[bung.mesh,...Object.values(saga.actors).filter(a=>a?.isObject3D && a!==mesh && ['ching','gabor','seb'].some(n=>saga.actors[n]===a))])) return null;
+  if (!placeActor(saga,mesh,{x,y:bung.pos.y,z},[bung.mesh,...Object.values(saga.actors).filter(a=>a?.isObject3D && a!==mesh && ['chung','gabor','seb'].some(n=>saga.actors[n]===a))])) return null;
   mesh.visible = true;
   mesh.userData.camBrought = true;
   return mesh;
 }
 
 function partnerOf(saga, speakerName, speaker) {
-  const names = ['gabor', 'ching', 'bung', 'seb'];
+  const names = ['gabor', 'chung', 'bung', 'seb'];
   let best = null;
   let bestD = 12;
   for (let i = 0; i < names.length; i++) {
@@ -321,7 +321,7 @@ export function frameDialogue(saga, dt, overrideLine=null) {
 }
 
 export function resetTalk(saga) {
-  const meshes = [saga.game.player.mesh, saga.actors?.gabor, saga.actors?.ching, saga.actors?.seb];
+  const meshes = [saga.game.player.mesh, saga.actors?.gabor, saga.actors?.chung, saga.actors?.seb];
   for (let i = 0; i < meshes.length; i++) {
     const mesh = meshes[i];
     if (!mesh) continue;

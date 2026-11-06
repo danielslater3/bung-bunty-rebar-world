@@ -252,7 +252,7 @@ export class AudioManager {
   // Voice beeps: each speaker has a base pitch; text length drives blip count.
   voice(speaker, text) {
     if (!this.ctx) return;
-    const base = { bung: 130, ching: 360, gabor: 230, system: 600 }[speaker] || 200;
+    const base = { bung: 130, chung: 360, gabor: 230, system: 600 }[speaker] || 200;
     const words = Math.min(10, Math.ceil(text.length / 9));
     const t0 = this.ctx.currentTime;
     for (let i = 0; i < words; i++) {

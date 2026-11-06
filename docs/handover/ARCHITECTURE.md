@@ -87,7 +87,7 @@ Modes: `menu`, `playing`, `paused`, `cutscene`. A paused game still runs `update
 - `group`, `colliders` (array of `THREE.Box3`), `interactables`, `sampleGround(x, z)`, `spawn`.
 - Brisbane also has footprint helpers from `footprints.js`.
 
-`actors` on the saga (built in `Saga.dress`, Brisbane only): `house`, `bar`, `gabor`, `ching`, `scooter`, `bag`, `guide`, lawn props, mansion props when built. `onZone()` nulls `actors` and `_trail`.
+`actors` on the saga (built in `Saga.dress`, Brisbane only): `house`, `bar`, `gabor`, `chung`, `scooter`, `bag`, `guide`, lawn props, mansion props when built. `onZone()` nulls `actors` and `_trail`.
 
 ## Cameras
 

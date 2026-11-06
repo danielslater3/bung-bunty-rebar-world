@@ -65,6 +65,7 @@ export class RoomEngine {
     id = () => crypto.randomUUID(),
   ) {
     this.s = data;
+    for (const p of Object.values(this.s.players)) p.appearance = normalizeAppearance(p.appearance);
     this.now = now;
     this.random = random;
     this.id = id;

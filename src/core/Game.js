@@ -171,7 +171,7 @@ export class Game {
         setTimeout(() => {
           this.dialogue.conversation([
             ['bung', 'OIIII. 3 March was a long time ago and I am still enormous. Beautiful morning in Brisbane.'],
-            ['ching', 'Gabor is buying rebar he cannot lift. The shipments are wrong. This is a conspiracy, Bung.'],
+            ['chung', 'Gabor is buying rebar he cannot lift. The shipments are wrong. This is a conspiracy, Bung.'],
             ['bung', 'Say no more. THE GLOBAL REBAR CONSPIRACY IS OFFICIALLY DEPLOYED.'],
           ], () => this.quests.startActiveQuestBriefing());
         }, 1200);
@@ -368,7 +368,7 @@ export class Game {
     this.scoreAttack = { t: 60, startScore: state.score, portals: 0 };
     this.audio.sfx('quest');
     this.toast('PORTAL RUSH! 60 SECONDS — 2x SCORE!', 'red');
-    this.say('ching', 'Portal Rush engaged. Sixty seconds. Fly, Bung.');
+    this.say('chung', 'Portal Rush engaged. Sixty seconds. Fly, Bung.');
   }
 
   // ============ HELPERS ============

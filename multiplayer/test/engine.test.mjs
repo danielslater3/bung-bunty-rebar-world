@@ -349,10 +349,10 @@ test('display names and outfits are validated, shared, persisted and restored on
   });
   assert.equal(same.appearance.character, 'bung');
   const other = restored.join('Other', undefined, {
-    character: 'ching',
+    character: 'chung',
     colors: ['#112233'],
   });
-  assert.equal(other.appearance.character, 'ching');
+  assert.equal(other.appearance.character, 'chung');
   assert.notDeepEqual(other.appearance, same.appearance);
 });
 
@@ -373,4 +373,15 @@ test('a waiting table cannot pull an active quest player into another match, and
   for (const x of p) cmd(x, 'questJoin');
   cmd(p[0], 'startGame', { game: 'tictactoe' });
   assert.throws(() => cmd(p[0], 'questStart'), /minigames/);
+});
+
+test('stored room appearances migrate to the canonical partner name without losing scores or identity', () => {
+  const {e,p}=setup();
+  const old='ch\u0069ng';
+  p[0].appearance={character:old,colors:['#112233','#223344','#334455','#445566']};
+  p[0].score=42;
+  const restored=new RoomEngine(JSON.parse(JSON.stringify(e.s)));
+  assert.equal(restored.s.players[p[0].id].appearance.character,'chung');
+  assert.equal(restored.s.players[p[0].id].score,42);
+  assert.equal(restored.s.players[p[0].id].token,p[0].token);
 });

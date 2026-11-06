@@ -11,7 +11,7 @@
 | `data/geo/PROVENANCE.md` | OSM extract notes. Stale on terrain. See `WORLD_AND_MAP.md`. |
 | `data/geo/SYDNEY.md`, `data/geo/HONGKONG.md` | Other zones. |
 
-Character appearance is the code in `src/entities/models.js` (`buildBung`, `buildChing`, `buildGabor`, `buildTrolley`) plus the archive cards in `src/lore/universe.js`. There is no separate model sheet in git.
+Character appearance is the code in `src/entities/models.js` (`buildBung`, `buildChung`, `buildGabor`, `buildTrolley`) plus the archive cards in `src/lore/universe.js`. There is no separate model sheet in git.
 
 ## Not in the repository — McRebar photographs
 

@@ -1,3 +1,4 @@
+import { migrateCharacterState } from './characterNames.js';
 // Central game state, event bus, and save system.
 // Everything that needs to persist lives in `state`; everything that needs
 // cross-system communication goes through `bus`.
@@ -53,7 +54,7 @@ export const DEFAULT_STATE = () => ({
 
   // Rebirth: graded rebar yard + unlocked lore cards. Coins are BungBucks.
   stock: {},
-  archive: ['bung', 'ching', 'gabor', 'james', 'conspiracy'],
+  archive: ['bung', 'chung', 'gabor', 'james', 'conspiracy'],
 
   settings: { music: 0.6, sfx: 0.8, sensitivity: 1.0 },
   trolley: 'james',
@@ -73,7 +74,7 @@ export const SaveSystem = {
     try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
   },
   peek() {
-    try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { return null; }
+    try { return migrateCharacterState(JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch { return null; }
   },
   save(game) {
     if(state._multiplayer)return true;
@@ -107,7 +108,7 @@ export const SaveSystem = {
     } catch (e) { console.warn('Save failed', e); return false; }
   },
   peekReplay() {
-    try { const s=JSON.parse(localStorage.getItem(REPLAY_KEY)||'null');return s?._replay && s?.saga?.active ? s : null; } catch { return null; }
+    try { const s=migrateCharacterState(JSON.parse(localStorage.getItem(REPLAY_KEY)||'null'));return s?._replay && s?.saga?.active ? s : null; } catch { return null; }
   },
   beginReplay(prepared) {
     // Persist first: if storage is full, leave the active game untouched.
@@ -118,12 +119,12 @@ export const SaveSystem = {
     try {
       const raw = localStorage.getItem(replay ? REPLAY_KEY : SAVE_KEY);
       if (!raw) return false;
-      const data = JSON.parse(raw);
+      const data = migrateCharacterState(JSON.parse(raw));
       if (replay && (!data?._replay || !data?.saga?.active)) return false;
       Object.assign(state, DEFAULT_STATE(), data);
       if (!replay) state._replay = null;
       if (!state.stock || typeof state.stock !== 'object') state.stock = {};
-      if (!Array.isArray(state.archive)) state.archive = ['bung', 'ching', 'gabor', 'james', 'conspiracy'];
+      if (!Array.isArray(state.archive)) state.archive = ['bung', 'chung', 'gabor', 'james', 'conspiracy'];
       if (!state.trolley) state.trolley = 'james';
       if (!state.places || typeof state.places !== 'object') state.places = {};
       if (!state.picked || typeof state.picked !== 'object') state.picked = {};

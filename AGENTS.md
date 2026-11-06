@@ -23,6 +23,8 @@ Full notes: `docs/handover/START_HERE.md`.
 
 ## Conventions
 
+- The partner is Chung (`chung`) everywhere: dialogue, lore, actor ids, family labels and multiplayer. Preserve legacy save/profile migrations when editing these identifiers.
+
 - Match the surrounding file. Plain JavaScript, `export` functions and classes, no new framework.
 - Keep source imports query-free. `index.html` maps both root `/src/` and relative `./src/` aliases to the same versioned URL, including under GitHub Pages. Add both aliases for new modules and bump the source token consistently in the map and entry script. Never load `state.js` or `sagaData.js` from a second URL. See `docs/QUALITY_PASS.md`.
 - `DialogueSystem.say` is a bark and must not set `cinematic`. `conversation` is the cinematic path.

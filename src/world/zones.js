@@ -79,7 +79,7 @@ function buildMansion(game) {
       game.audio.sfx('unlock');
       game.toast('JAMES REBAR TROLLEY UNLOCKED — PRESS T TO SUMMON', 'blue');
       game.dialogue.conversation([
-        ['ching', 'Golden trolley systems online. Press T to summon it, E to mount, SHIFT to boost.'],
+        ['chung', 'Golden trolley systems online. Press T to summon it, E to mount, SHIFT to boost.'],
         ['bung', 'One of humanity\'s greatest inventions. Do not question the trolley.'],
       ]);
     } else {
@@ -119,15 +119,15 @@ function buildMansion(game) {
   Z.neonSign(0, 9.5, -21, 12, 0.8, 0xffc23d);
 
   // ---- NPCs & services ----
-  Z.npc('ching', 6, 0, 6, Math.PI);
+  Z.npc('chung', 6, 0, 6, Math.PI);
   Z.interact(6, 0, 6, '<b>[E]</b> Talk to Chung', () => {
-    bus.emit('qe', { type: 'talk', target: 'ching' });
+    bus.emit('qe', { type: 'talk', target: 'chung' });
     const lines = [
-      [['ching', 'Bung, stop eating burgers and collect the rebars.'],
+      [['chung', 'Bung, stop eating burgers and collect the rebars.'],
        ['bung', 'I can do both. I am a professional.']],
-      [['ching', 'The portal field is unstable. Aim properly this time.']],
-      [['ching', 'Rebar World needs you. Somehow.']],
-      [['ching', 'Check the Deployment Board when you are ready to travel.']],
+      [['chung', 'The portal field is unstable. Aim properly this time.']],
+      [['chung', 'Rebar World needs you. Somehow.']],
+      [['chung', 'Check the Deployment Board when you are ready to travel.']],
     ];
     game.dialogue.conversation(lines[Math.floor(Math.random() * lines.length)]);
   }, 3.5);
@@ -176,7 +176,7 @@ function buildMansion(game) {
   Z.interact(19, 0, 58, '<b>[E]</b> Read sign: BUNG TEST PADDOCK', () => {
     game.dialogue.conversation([
       ['bung', 'The Test Paddock. Where physics goes to apologise.'],
-      ['ching', 'Walk, jump, grapple, and boost through the portals. The rebar line tests pickups.'],
+      ['chung', 'Walk, jump, grapple, and boost through the portals. The rebar line tests pickups.'],
     ]);
   }, 4);
 
@@ -434,13 +434,13 @@ function buildHongKong(game) {
   // ---- Rooftop checkpoint with Chung (on the tallest route tower) ----
   const top = route[route.length - 1] || { x: 45, z: 45, h: 40 };
   Z.box(top.x, top.h, top.z, 8, 0.5, 8, mat(0x2ee6ff, { emissive: 0x0a4a55, metalness: 0.5, roughness: 0.4 }));
-  Z.npc('ching', top.x, top.h + 0.5, top.z, 0);
+  Z.npc('chung', top.x, top.h + 0.5, top.z, 0);
   Z.interact(top.x, top.h + 0.5, top.z, '<b>[E]</b> Rooftop checkpoint — Chung', () => {
-    bus.emit('qe', { type: 'talk', target: 'ching-rooftop' });
+    bus.emit('qe', { type: 'talk', target: 'chung-rooftop' });
     game.dialogue.conversation([
-      ['ching', 'You actually made it up here. The rain has not even slowed you down.'],
+      ['chung', 'You actually made it up here. The rain has not even slowed you down.'],
       ['bung', 'Hong Kong rain mode activated, Chung. Nothing can stop the singlet.'],
-      ['ching', 'Gabor is moving his machine to Shenzhen. The Cyber Rebar Core opens next.'],
+      ['chung', 'Gabor is moving his machine to Shenzhen. The Cyber Rebar Core opens next.'],
     ]);
   }, 4);
 

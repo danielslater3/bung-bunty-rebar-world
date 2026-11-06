@@ -46,7 +46,7 @@ const assert = require('node:assert/strict');
         for (let f = 0; f < 60; f++) frameDialogue(s, 1 / 60);
         const p = g.camPos;
         if (g.zone.colliders.some((b) => b.containsPoint(p))) cameraBlocked++;
-        if (s.actors.ching.position.distanceTo(s.actors.gabor.position) < 1.3) overlap++;
+        if (s.actors.chung.position.distanceTo(s.actors.gabor.position) < 1.3) overlap++;
         g.dialogue.skip();
       }
       s.ensureStep();
@@ -73,7 +73,7 @@ const assert = require('node:assert/strict');
       let routeIndex = 1;
       for (; frames < 24000 && S.saga.step === 1; frames++) {
         const p = c.path[Math.min(routeIndex, c.path.length - 1)],
-          actor = ch === 4 ? s.actors.ching : s.actors.gabor;
+          actor = ch === 4 ? s.actors.chung : s.actors.gabor;
         const here = ch === 4 ? g.player.pos : g.trolley.pos,
           dx = p.x - here.x,
           dz = p.z - here.z;

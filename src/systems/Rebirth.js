@@ -2,7 +2,7 @@
 // These systems are real and small on purpose. They do not pretend to be a GIS city.
 import * as THREE from 'three';
 import { state, addCoins } from '../core/state.js';
-import { buildChing } from '../entities/models.js';
+import { buildChung } from '../entities/models.js';
 
 export class Rebirth {
   constructor(game) {
@@ -16,7 +16,7 @@ export class Rebirth {
 
   ensureFollower() {
     if (this.follower) return;
-    this.follower = buildChing();
+    this.follower = buildChung();
     this.follower.visible = false;
     this.game.scene.add(this.follower);
   }
@@ -24,7 +24,7 @@ export class Rebirth {
   update(dt) {
     this.ensureFollower();
     const g = this.game;
-    const withYou = !!state.flags.chingWithYou && g.mode === 'playing' && !g.photo;
+    const withYou = !!state.flags.chungWithYou && g.mode === 'playing' && !g.photo;
     this.follower.visible = withYou;
     if (withYou) {
       const back = g.player.facing + Math.PI;

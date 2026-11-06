@@ -1,3 +1,4 @@
+import { canonicalCharacterId } from '../core/characterNames.js';
 // Shared, versioned rules. These anchors use the existing Brisbane metre grid.
 export const PROTOCOL = 1,
   MAX_PLAYERS = 10;
@@ -173,9 +174,9 @@ export const CHARACTERS = [
     colors: ['#f4f1ea', '#7a5230', '#2266cc', '#d9d4c4'],
   },
   {
-    id: 'ching',
-    name: 'Ching / Chung',
-    model: 'ching',
+    id: 'chung',
+    name: 'Chung',
+    model: 'chung',
     detail: 'Mission control, trolley royalty.',
     colors: ['#1fb8c9', '#23262e', '#eeeeee', '#2ee6ff'],
   },
@@ -208,15 +209,15 @@ export const CHARACTERS = [
     colors: ['#9aa3ad', '#39414d', '#ffce36', '#2ee6ff'],
   },
   {
-    id: 'ching-mum',
-    name: 'Ching’s Mother',
+    id: 'chung-mum',
+    name: 'Chung’s Mother',
     model: 'person',
     detail: 'The mansion’s ground-floor authority.',
     colors: ['#1fb8c9', '#29384b', '#eeeeee', '#ffcf5e'],
   },
   {
-    id: 'ching-dad',
-    name: 'Ching’s Father',
+    id: 'chung-dad',
+    name: 'Chung’s Father',
     model: 'person',
     detail: 'The family has arrived.',
     colors: ['#39414d', '#23262e', '#242834', '#2ee6ff'],
@@ -300,7 +301,7 @@ export const CHARACTERS = [
   },
 ];
 export const characterDefinition = (id) =>
-  CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
+  CHARACTERS.find((c) => c.id === canonicalCharacterId(id)) || CHARACTERS[0];
 export function normalizeAppearance(value) {
   const v = value && typeof value === 'object' ? value : {};
   const character = characterDefinition(v.character);

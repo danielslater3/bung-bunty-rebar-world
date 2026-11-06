@@ -188,7 +188,7 @@ function objective(saga, step) {
   const venue=saga.venues?.target(step);if(venue)return venue;
   if (['escort', 'race'].includes(step.kind) && saga.mission?.controller) {
     const c=saga.mission.controller;
-    return {target: atDistance(c.path,c.dist), label:step.kind==='escort'?'CHING':'GABOR'};
+    return {target: atDistance(c.path,c.dist), label:step.kind==='escort'?'CHUNG':'GABOR'};
   }
   if (step.kind === 'follow' || step.kind === 'catch') {
     const pts = saga.chasePts().map(([x, z]) => ({ x, z, y: saga.ground(x, z) }));

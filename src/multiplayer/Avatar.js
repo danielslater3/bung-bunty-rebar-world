@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import {
   buildBung,
-  buildChing,
+  buildChung,
   buildGabor,
   buildTrolley,
 } from '../entities/models.js';
@@ -36,8 +36,8 @@ export function buildAvatar(value) {
   const visual =
     def.model === 'bung'
       ? buildBung()
-      : def.model === 'ching'
-        ? buildChing()
+      : def.model === 'chung'
+        ? buildChung()
         : def.model === 'gabor'
           ? buildGabor()
           : def.model === 'girder'
@@ -50,7 +50,7 @@ export function buildAvatar(value) {
   const palette =
     def.model === 'bung'
       ? ['f4f1ea', '7a5230', '2266cc', 'd9d4c4']
-      : def.model === 'ching'
+      : def.model === 'chung'
         ? ['1fb8c9', '23262e', 'eeeeee', '2ee6ff']
         : def.model === 'gabor'
           ? ['3d2a52', '2a1d3a', '242834', '8f1fff']
@@ -196,7 +196,7 @@ export function buildAvatar(value) {
     const hairColor =
       def.id === 'judge'
         ? '#d6d5d0'
-        : def.id.startsWith('ching-')
+        : def.id.startsWith('chung-')
           ? '#252630'
           : '#685044';
     for (const side of [-1, 1]) {

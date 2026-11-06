@@ -59,7 +59,7 @@ export class GaborChase {
     g.audio.playMusic('boss');
     g.bossBanner('GABOR SCOOTER CHASE');
     g.shake(0.25, 0.5);
-    g.say('ching', 'Warning: Gabor scooter activity detected.');
+    g.say('chung', 'Warning: Gabor scooter activity detected.');
     g.say('gabor', 'You cannot stop the Gabor Scooter! WHEEEEE!');
     g.toast('CHASE GABOR! HIT HIM 3x WITH REBAR PULSE (G)', 'red');
   }
@@ -242,7 +242,7 @@ export class MegaForeheadMachine {
       this.phase = 'core';
       this.core.visible = true;
       g.toast('CORE EXPOSED! PULSE THE MACHINE 3x!', 'blue');
-      g.say('ching', 'The core is exposed! Hit it with everything, Bung!');
+      g.say('chung', 'The core is exposed! Hit it with everything, Bung!');
       g.audio.sfx('unlock');
     }
   }

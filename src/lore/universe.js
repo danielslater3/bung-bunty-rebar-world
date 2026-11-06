@@ -42,7 +42,7 @@ export const DISTRICTS = [
 
 export const ARCHIVE = [
   { id: 'bung', title: 'Bung Bunty', body: 'Born 3 March 1977. Brisbane. Stained singlet, brown boxers, four rebar hairs, a ten-hair goatee. Became a billionaire by treating falling bombs like a cricket delivery. Has no idea this is unusual.' },
-  { id: 'ching', title: 'Chung', body: 'Met Bung while he was travelling in China. Moved to Brisbane. Shares the rebar obsession, owns the second golden James Rebar trolley, and is the reason the mansion has not been condemned.' },
+  { id: 'chung', title: 'Chung', body: 'Met Bung while he was travelling in China. Moved to Brisbane. Shares the rebar obsession, owns the second golden James Rebar trolley, and is the reason the mansion has not been condemned.' },
   { id: 'gabor', title: 'Gabor Mihala', body: 'Wiry. Enormous forehead. Small orange beard. Scooter. Jealous of Bung, interested in Chung, and now trying to monopolise the international rebar supply. The Parliament House lawsuit was $10,000 and somehow made him prouder.' },
   { id: 'james', title: 'James Rebar', body: 'Not a man so much as a standard. The golden motorised trolley, the workshop, and every serious piece of rebar engineering answers to this name.' },
   { id: 'seb', title: 'Seb Daly', body: 'Big Boss of Brisbane. If a shipment moves through the CBD without a receipt, Seb already knows the colour of the truck.' },
@@ -55,7 +55,7 @@ export const ARCHIVE = [
   { id: 'golden-mini', title: 'Golden Mini Rebar', body: 'One in a hundred thousand McRebar meals. Gabor tried to see it through the box. Bung saw him instead.' },
   { id: 'platinum-diamond', title: 'Platinum Diamond Rebar', body: 'The McRebar Max prize. One in a million. It arrived after a spoon was removed from the axle and Big Boy Mode was installed.' },
   { id: 'emerald-mini', title: 'Emerald Rebar', body: 'One in a hundred million. It left a South Bank collector lawn inside a singlet, which is not a recognised transport category.' },
-  { id: 'ching-arrives', title: 'Ching Arrives', body: 'The visa cleared into Brisbane. Ching walked Queen Street with Bung. Gabor brought a bicycle and was not invited to keep it.' },
+  { id: 'chung-arrives', title: 'Chung Arrives', body: 'The visa cleared into Brisbane. Chung walked Queen Street with Bung. Gabor brought a bicycle and was not invited to keep it.' },
   { id: 'scooter-feud', title: 'The Scooter', body: 'Gabor retired the bicycle. The scooter was jealousy with a throttle. The trolley stayed with it through the city.' },
   { id: 'rap-battle', title: 'The First Rap Battle', body: 'King George Square. Bars on the beat. The singlet took the applause.' },
   { id: 'samsung', title: 'The Blue Rebar Edition', body: 'A Samsung S24 Ultra, Rebar Edition, blue. Gabor turned it into evidence. The photograph survived.' },
@@ -66,9 +66,9 @@ export const ARCHIVE = [
   { id: 'bomb-save', title: 'The Second Save', body: 'Two cartoon bombs by Victoria Bridge. They swayed. He did not miss twice in a row.' },
   { id: 'third-save', title: 'The Third Save', body: 'A rebar satellite over King George Square. It only counted because the trolley was moving.' },
   { id: 'three-billion', title: 'Three Billion', body: 'A fictional cheque with too many zeroes. Brisbane said his name in three places first.' },
-  { id: 'rebar-mansion', title: 'The Rebar Mansion', body: 'Three storeys in West End. Ching\'s family below. Bung and Ching in the middle. Bung\'s family on top.' },
+  { id: 'rebar-mansion', title: 'The Rebar Mansion', body: 'Three storeys in West End. Chung\'s family below. Bung and Chung in the middle. Bung\'s family on top.' },
   { id: 'tornado', title: 'The Tornado Machine', body: 'Gabor\'s critique of the mansion, installed on a South Bank lawn and switched off in person.' },
-  { id: 'rebar-expo', title: 'The Rebar Expo', body: 'A self-heating kebab, a flash Ching would not retake, and a booth that stayed standing.' },
+  { id: 'rebar-expo', title: 'The Rebar Expo', body: 'A self-heating kebab, a flash Chung would not retake, and a booth that stayed standing.' },
   { id: 'brisbane-snow', title: 'The Snow', body: 'A metre of it, briefly, from West End to the CBD. It melted when the piles did.' },
   { id: 'seb-daly', title: 'Seb Daly', body: 'Three standard rebars. Three addresses. The trolley was not a suggestion.' },
   { id: 'rebar-man', title: 'Rebar Man', body: 'Scraps in order, then a workshop behind the house, then the poses.' },
@@ -90,8 +90,8 @@ export const ARCHIVE = [
 
 export function migrateState() {
   if (!state.stock || typeof state.stock !== 'object') state.stock = {};
-  if (!Array.isArray(state.archive)) state.archive = ['bung', 'ching', 'gabor', 'james', 'conspiracy'];
-  for (const id of ['bung', 'ching', 'gabor', 'james', 'conspiracy']) {
+  if (!Array.isArray(state.archive)) state.archive = ['bung', 'chung', 'gabor', 'james', 'conspiracy'];
+  for (const id of ['bung', 'chung', 'gabor', 'james', 'conspiracy']) {
     if (!state.archive.includes(id)) state.archive.push(id);
   }
 }

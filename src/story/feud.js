@@ -202,10 +202,10 @@ export function poseFeud(saga, step) {
       f.crowdHeads.instanceMatrix.needsUpdate = true;
     }
     if (!f.cast) {
-      stageCast(saga, { cast: ['gabor', 'ching'] });
-      f.cast = { gabor: a.gabor.position.clone(), ching: a.ching.position.clone() };
+      stageCast(saga, { cast: ['gabor', 'chung'] });
+      f.cast = { gabor: a.gabor.position.clone(), chung: a.chung.position.clone() };
     }
-    for (const name of ['gabor', 'ching']) {
+    for (const name of ['gabor', 'chung']) {
       a[name].visible = true;
       a[name].position.copy(f.cast[name]);
       a[name].rotation.y = Math.atan2(
@@ -217,15 +217,15 @@ export function poseFeud(saga, step) {
       arm = saga.game.player.mesh.userData.parts?.armR;
     if (arm) arm.rotation.x = -0.7 + beat * 0.22;
     if (a.gabor.userData.armR) a.gabor.userData.armR.rotation.x = -0.6 - beat * 0.25;
-    if (a.ching.userData.armR) a.ching.userData.armR.rotation.x = -1.1 + beat * 0.2;
+    if (a.chung.userData.armR) a.chung.userData.armR.rotation.x = -1.1 + beat * 0.2;
   }
   if (state.saga.chapter === 7) {
     if (step.kind === 'photo' && !f.cast) {
-      stageCast(saga, { cast: ['gabor', 'ching'] });
-      f.cast = { gabor: a.gabor.position.clone(), ching: a.ching.position.clone() };
+      stageCast(saga, { cast: ['gabor', 'chung'] });
+      f.cast = { gabor: a.gabor.position.clone(), chung: a.chung.position.clone() };
     }
     if (step.kind === 'photo' && f.cast)
-      for (const name of ['gabor', 'ching']) {
+      for (const name of ['gabor', 'chung']) {
         a[name].visible = true;
         a[name].position.copy(f.cast[name]);
         a[name].rotation.y = Math.atan2(
@@ -233,7 +233,7 @@ export function poseFeud(saga, step) {
           saga.game.player.pos.z - a[name].position.z,
         );
       }
-    const holder = ['snap', 'smash'].includes(step.id) ? a.gabor : a.ching;
+    const holder = ['snap', 'smash'].includes(step.id) ? a.gabor : a.chung;
     if (['gift', 'phone', 'snap', 'smash'].includes(step.id)) {
       f.phone.visible = true;
       const p =

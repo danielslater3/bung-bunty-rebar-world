@@ -12,7 +12,7 @@ Keep `cameraClearance` on boxes. Walk every interior and fix any boom that leave
 
 ### 1.2 Keep dialogue cinematic and indoor (Bug B, partial)
 
-Use the existing `frameDialogue`. Add a shot only for a scene that fails. Accept when each of Bung, Gabor, and Ching has a face-on line indoors and outdoors, a bark leaves FOV at 68, and McRebar's camera y stays under `bar.ceil`. Files: `dialogueCam.js`, `DialogueSystem.js`.
+Use the existing `frameDialogue`. Add a shot only for a scene that fails. Accept when each of Bung, Gabor, and Chung has a face-on line indoors and outdoors, a bark leaves FOV at 68, and McRebar's camera y stays under `bar.ceil`. Files: `dialogueCam.js`, `DialogueSystem.js`.
 
 ### 1.3 Prove the street arrow on one real drive (Bug C, partial)
 
@@ -72,7 +72,7 @@ Already a kit toggle on chapter index 3. Improve the vest so it reads in a South
 
 ## Phase 4 — Story and cinematics
 
-Play chapter 1, then 2, then 3, then 4. For each stuck step, fix that step's handler before writing new lines. Dialogue stays in the `lines` arrays and in the `conversation([...])` calls. New lines use speaker ids `bung`, `gabor`, `ching`, `doc`, `system`. `doc` is narration and should keep framing Bung.
+Play chapter 1, then 2, then 3, then 4. For each stuck step, fix that step's handler before writing new lines. Dialogue stays in the `lines` arrays and in the `conversation([...])` calls. New lines use speaker ids `bung`, `gabor`, `chung`, `doc`, `system`. `doc` is narration and should keep framing Bung.
 
 Acceptance for the phase is a finish of all four chapters from **NEW SAGA** with no console edits, plus the screenshots from phases 1–3.
 

@@ -2,7 +2,7 @@
 
 Open the game and choose **MULTIPLAYER · BRISBANE**. Choose a character, set four outfit colours and a display name, then create a room or enter a friend's eight-character code. The invite button copies a room link. This is guest multiplayer: names are display names, not verified accounts. There is no purchase, subscription or paid unlock in the game.
 
-The join screen has a real rotatable 3D preview. All 19 identities are available immediately: Bung, Ching/Chung, Gabor, Seb, Sir Girderface, Rebar Man, both sets of parents, the collector's guard, the Court, James Rebar and all six enemy types. Nonhuman characters use shell/panel/trim colours. Their movement and collision abilities are identical; cosmetic size does not grant extra reach. Story models and single-player clothing remain independent. Character and outfit preferences are stored on this browser; each room stores and broadcasts the validated selection. Reconnecting keeps the player's room identity, score and role. Returning through the join screen permits a fresh appearance and display name.
+The join screen has a real rotatable 3D preview. All 19 identities are available immediately: Bung, Chung, Gabor, Seb, Sir Girderface, Rebar Man, both sets of parents, the collector's guard, the Court, James Rebar and all six enemy types. Nonhuman characters use shell/panel/trim colours. Their movement and collision abilities are identical; cosmetic size does not grant extra reach. Story models and single-player clothing remain independent. Character and outfit preferences are stored on this browser; each room stores and broadcasts the validated selection. Reconnecting keeps the player's room identity, score and role. Returning through the join screen permits a fresh appearance and display name.
 
 ## Controls
 
@@ -94,7 +94,11 @@ The real city scene and character picker are inspected from browser screenshots.
 
 - 41 native game checks and 17 authoritative multiplayer checks passed. The avatar check covers all 19 identities and verifies finite geometry, all four colour channels and material isolation.
 - Real local and public Worker tests passed with ten independent WebSocket clients; the eleventh was rejected. Outfit data, chat, complete tic-tac-toe, four quest seats, host migration and rejoining were checked, including a close without a status code.
-- Two independent Chrome browser contexts passed against both the local setup and the public GitHub Pages + Cloudflare service: custom Gabor and Ching outfits, names, all ten game interfaces, a played tic-tac-toe win, actual movement, reconnect and campaign-save protection. Character-picker, all 19 character portraits and in-city screenshots were visually inspected.
+- Two independent Chrome browser contexts passed against both the local setup and the public GitHub Pages + Cloudflare service: custom Gabor and Chung outfits, names, all ten game interfaces, a played tic-tac-toe win, actual movement, reconnect and campaign-save protection. Character-picker, all 19 character portraits and in-city screenshots were visually inspected.
 - Existing chapter-dashboard gameplay checks passed for Chapters 1–10, with movement, camera recovery and no browser errors.
 - Reconnect fix: status-less WebSocket closes now receive a valid close reply, preventing a delayed handshake from outlasting the reserved player seat.
 - Production backend deployed successfully; startup reported 3 ms. This is Worker startup, not game frame rate.
+
+### Canonical character name
+
+The partner and her family use Chung consistently in the entire game. Older character ids, campaign/replay archives, companion flags and saved multiplayer outfits migrate to the canonical ids while retaining progress, identity, score and custom colours. The source-cache version was refreshed. Validation: 45 native game checks and 18 multiplayer checks passed; loaded-scene Chapters 5–6 and the two-browser multiplayer suite passed with no browser errors.

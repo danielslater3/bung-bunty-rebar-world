@@ -57,13 +57,13 @@ export function buildOsmHongKong(game) {
   }, 12);
 
   const ferry = L.starFerry;
-  Z.npc('ching', ferry.x, 0, ferry.z, spawn.heading || 0);
+  Z.npc('chung', ferry.x, 0, ferry.z, spawn.heading || 0);
   Z.interact(ferry.x, 0.4, ferry.z, '<b>[E]</b> Chung — Central Star Ferry Pier', () => {
-    bus.emit('qe', { type: 'talk', target: 'ching-rooftop' });
+    bus.emit('qe', { type: 'talk', target: 'chung-rooftop' });
     game.dialogue.conversation([
-      ['ching', 'Central Star Ferry Pier. The harbour in front of you is the mapped coastline, not a texture I invented.'],
+      ['chung', 'Central Star Ferry Pier. The harbour in front of you is the mapped coastline, not a texture I invented.'],
       ['bung', 'DIGITECH BLUE MODE. I can see Two IFC and I am still not wearing trousers.'],
-      ['ching', 'Gabor\'s stall is back toward the tower. The rooftop chain is a harbourfront chain now. The portals are on the real streets.'],
+      ['chung', 'Gabor\'s stall is back toward the tower. The rooftop chain is a harbourfront chain now. The portals are on the real streets.'],
     ]);
   }, 4);
 
@@ -77,8 +77,8 @@ export function buildOsmHongKong(game) {
     const rows = GEO.checks.filter((c) => c.a === 'twoIfc').slice(0, 4)
       .map((c) => `${c.b}: ${c.enu.toFixed(1)} m here, ${c.vincenty.toFixed(1)} m on the ellipsoid`);
     game.dialogue.conversation([
-      ['ching', `OpenStreetMap, metre for metre, origin on Two IFC. ${rows[0]}. ${rows[1]}.`],
-      ['ching', `${rows[2]}. ${rows[3]}. Bank of China Tower has no height tag in this extract, so that extrusion is the 9 m default.`],
+      ['chung', `OpenStreetMap, metre for metre, origin on Two IFC. ${rows[0]}. ${rows[1]}.`],
+      ['chung', `${rows[2]}. ${rows[3]}. Bank of China Tower has no height tag in this extract, so that extrusion is the 9 m default.`],
       ['bung', 'The harbour is real. The singlet remains a rumour.'],
     ]);
   }, 4);

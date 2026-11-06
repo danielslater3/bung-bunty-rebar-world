@@ -36,14 +36,14 @@ export function placeActor(saga, actor, target, others = [], radius = 0.5) {
 export function stageCast(saga, step) {
   const p = saga.game.player.pos,
     used = [saga.game.player.mesh];
-  for (const [i, name] of (step.cast || ['ching', 'gabor']).entries()) {
+  for (const [i, name] of (step.cast || ['chung', 'gabor']).entries()) {
     const a = saga.actors[name];
     if (!a) continue;
     const target = { x: p.x + (i ? -2.5 : 2.5), y: p.y, z: p.z + 1.5 };
     if (placeActor(saga, a, target, used)) a.visible = true;
     a.rotation.y = Math.atan2(p.x - a.position.x, p.z - a.position.z);
     used.push(a);
-    if (step.id === 'landed' && name === 'ching') {
+    if (step.id === 'landed' && name === 'chung') {
       const destination = a.position.clone(),
         start = destination.clone();
       start.z += 3;
@@ -115,7 +115,7 @@ export function followActor(saga, actor, dt) {
 }
 
 export function tickSceneActors(saga, dt) {
-  for (const actor of [saga.actors.ching, saga.actors.gabor]) {
+  for (const actor of [saga.actors.chung, saga.actors.gabor]) {
     const target = actor?.userData.arrival;
     if (!target) continue;
     const d = distance(actor.position, target),

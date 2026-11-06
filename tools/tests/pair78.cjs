@@ -87,7 +87,7 @@ const assert = require('node:assert/strict');
       reloaded,
       step: S.saga.step,
       score: S.saga.rapScore,
-      actorsVisible: BUNG.saga.actors.gabor.visible && BUNG.saga.actors.ching.visible,
+      actorsVisible: BUNG.saga.actors.gabor.visible && BUNG.saga.actors.chung.visible,
     };
   });
   console.log('RAP', rap);
