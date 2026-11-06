@@ -25,7 +25,7 @@ export const ENEMY_DEFS = {
   },
 };
 
-function buildEnemyMesh(kind) {
+export function buildEnemyMesh(kind) {
   const def = ENEMY_DEFS[kind];
   const g = new THREE.Group();
   if (kind === 'drone' || kind === 'bug') {

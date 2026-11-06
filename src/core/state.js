@@ -43,6 +43,7 @@ export const DEFAULT_STATE = () => ({
 
   // Progression
   saga: null,
+  _multiplayer: false,
   _replay: null, // Isolated replay slot; never replaces the campaign save.
   currentZone: 'mansion',
   unlockedZones: ['mansion', 'brisbane'],
@@ -75,6 +76,7 @@ export const SaveSystem = {
     try { return JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch { return null; }
   },
   save(game) {
+    if(state._multiplayer)return true;
     try {
       if (game?.player && (game.mode === 'playing' || game.mode === 'paused')) {
         const p = game.player;

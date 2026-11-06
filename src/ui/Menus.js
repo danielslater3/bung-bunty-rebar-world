@@ -57,6 +57,7 @@ export class Menus {
         <button class="mbtn ${sagaSave ? '' : 'gold'}" id="btn-new">NEW SAGA</button>
         <button class="mbtn" id="btn-chapters">CHAPTER DASHBOARD</button>
         ${SaveSystem.peekReplay() ? '<button class="mbtn" id="btn-replay">RESUME CHAPTER REPLAY</button>' : ''}
+        <button class="mbtn gold" id="btn-multiplayer">MULTIPLAYER · BRISBANE</button>
         <button class="mbtn" id="btn-roam">FREE ROAM</button>
         <button class="mbtn" id="btn-lore">LORE ARCHIVE</button>
         <button class="mbtn" id="btn-settings">SETTINGS</button>
@@ -69,6 +70,7 @@ export class Menus {
     s.querySelector('#btn-new').onclick = () => this.game.startGame(true, 'saga');
     s.querySelector('#btn-chapters').onclick = () => this.showChapters();
     const replay=s.querySelector('#btn-replay');if(replay)replay.onclick=()=>this.game.startGame('replay','saga');
+    s.querySelector('#btn-multiplayer').onclick=()=>this.game.multiplayer.showLobby();
     s.querySelector('#btn-roam').onclick = () => this.game.startGame(true, 'roam');
     s.querySelector('#btn-lore').onclick = () => {
       if (saved?.archive) state.archive = saved.archive;

@@ -1,0 +1,1 @@
+{"name":"bung-bunty-multiplayer","private":true,"type":"module","scripts":{"dev":"wrangler dev --port 8787","deploy":"wrangler deploy","test":"node --test test/*.test.mjs","types":"wrangler types"},"devDependencies":{"wrangler":"4.158.0","@cloudflare/workers-types":"latest"}}

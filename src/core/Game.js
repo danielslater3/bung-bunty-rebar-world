@@ -19,6 +19,7 @@ import { Menus } from '../ui/Menus.js';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
+import { Multiplayer } from '../multiplayer/Multiplayer.js';
 import { Saga, createSaga } from '../story/Saga.js';
 
 export class Game {
@@ -62,6 +63,7 @@ export class Game {
     this.chain = new ChainManager(this); // central Rebar Chain manager
     this.rebirth = new Rebirth(this);
     this.photo = false;
+    this.multiplayer = new Multiplayer(this);
 
     // ---- World ----
     this.zone = null;
@@ -112,6 +114,7 @@ export class Game {
 
   // ============ FLOW ============
   async startGame(fresh, mode = 'roam') {
+    if(this.multiplayer?.active)await this.multiplayer.leave();
     if(this.loading)return;
     this.loading=true;
     document.body.classList.add('chapter-loading');
@@ -380,6 +383,7 @@ export class Game {
     this.elapsed += dt;
 
     if(this.loading){this.input.endFrame();return;}
+    if(this.multiplayer?.active){this.multiplayer.frame(dt);this.input.endFrame();this.renderer.render(this.scene,this.camera);return;}
     if (this.mode === 'playing') this.updatePlaying(dt);
     else if (this.mode === 'cutscene') {
       this.zone?.update(dt, this.elapsed);
