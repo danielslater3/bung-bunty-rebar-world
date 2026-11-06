@@ -24,6 +24,7 @@ import { SurfaceIndex } from './surfaces.js';
 import { prepareGeography } from './stability.js';
 import { pushFootprints } from './footprints.js';
 import { buildVenueExteriors } from './venues.js';
+import { installCityLife } from './cityLife.js';
 import { venueBuilding } from '../../story/venueData.js';
 const GEO = prepareGeography(SOURCE_GEO);
 const CHUNK = 240;
@@ -211,28 +212,6 @@ function along(flat, spacing, fn) {
     }
     acc -= seg;
   }
-}
-
-function pointOnPolyline(pts, dist) {
-  let left = dist;
-  for (let i = 1; i < pts.length; i++) {
-    const dx = pts[i][0] - pts[i - 1][0];
-    const dz = pts[i][1] - pts[i - 1][1];
-    const seg = Math.hypot(dx, dz);
-    if (left <= seg) {
-      const t = seg ? left / seg : 0;
-      return [pts[i - 1][0] + dx * t, pts[i - 1][1] + dz * t, Math.atan2(dx, dz)];
-    }
-    left -= seg;
-  }
-  const last = pts[pts.length - 1];
-  return [last[0], last[1], 0];
-}
-
-function polylineLength(pts) {
-  let n = 0;
-  for (let i = 1; i < pts.length; i++) n += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-  return n;
 }
 
 export function buildOsmBrisbane(game) {
@@ -460,12 +439,14 @@ export function buildOsmBrisbane(game) {
     const hw = [];
     const hr = [];
     const hallG = T.propAt(hall.cx, hall.cz);
-    extrude(hw, hr, hall.ring, hallG - 3, hallG + 22, white, new THREE.Color(0x8d7358));
+    let hallFooting=hallG-3;
+    for(let i=0;i<hall.ring.length;i+=2)hallFooting=Math.min(hallFooting,T.walkAt(hall.ring[i],hall.ring[i+1])-.5);
+    extrude(hw, hr, hall.ring, hallFooting, hallG + 22, white, new THREE.Color(0x8d7358));
     const wall = coloredMesh(hw, kit.sandstone, true, 4);
     const roof = coloredMesh(hr, kit.roof, false);
     if (wall) { Z.group.add(wall); Z.blockers.push(wall); }
     if (roof) { Z.group.add(roof); Z.blockers.push(roof); }
-    Z.withLift(hallG, () => { hallInfo = addCityHall(Z.group, hall.ring, hall.cx, hall.cz, GEO.buildings, kit); });
+    Z.withLift(hallG, () => { hallInfo = addCityHall(Z.group, hall.ring, hall.cx, hall.cz, GEO.buildings, kit, (x,z)=>T.walkAt(x,z)); });
   } else {
     console.warn('[brisbane street] City Hall footprint was not matched');
   }
@@ -475,7 +456,7 @@ export function buildOsmBrisbane(game) {
   const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors());
 
   Z.venues = buildVenueExteriors(Z, GEO);
-  const feet = indexFootprints(GEO.buildings);
+  const feet = indexFootprints(GEO.buildings,48,(x,z)=>T.walkAt(x,z));
   Z.footBuckets = feet.buckets;
   Z.footCell = feet.cell;
 
@@ -547,26 +528,6 @@ export function buildOsmBrisbane(game) {
     Z.group.add(head);
   }
 
-  const traffic = [];
-  for (let i = 0; i < GEO.traffic.length; i += 2) traffic.push([GEO.traffic[i], GEO.traffic[i + 1]]);
-  const trafficLen = polylineLength(traffic);
-  if (trafficLen > 40) {
-    const colors = [0xd94a3a, 0xf4f1e8, 0x35588a, 0xe0a030, 0x22262e, 0x2f9d62];
-    const cars = colors.map((c) => {
-      const car = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.15, 4.1), mat(c, { roughness: 0.55, metalness: 0.2 }));
-      car.castShadow = true;
-      car.userData.abs = true;
-      Z.group.add(car);
-      return car;
-    });
-    Z.updaters.push((dt, t) => {
-      cars.forEach((car, i) => {
-        const at = pointOnPolyline(traffic, (t * (8 + i * 1.4) + i * trafficLen / cars.length) % trafficLen);
-        car.position.set(at[0], Z.groundAt(at[0], at[1], car.position.y + 0.8) + 0.7, at[1]);
-        car.rotation.y = at[2];
-      });
-    });
-  }
 
   const L = GEO.landmarks;
   const mall = L.queenMall;
@@ -605,8 +566,8 @@ export function buildOsmBrisbane(game) {
 
   Z.spawner('drone', L.botanic.cx, 8, L.botanic.cz, 36, 3);
   Z.spawner('drone', mall.x + 40, 6, mall.z - 20, 22, 2);
-  Z.pedestrians(mall.x, mall.z, 8, 28, 8, 11);
-  Z.pedestrians(mall.x + Math.sin(hdg) * 70, mall.z + Math.cos(hdg) * 70, 8, 24, 6, 19);
+  Z.pedestrians(mall.x, mall.z, 8, 28, 12, 11);
+  Z.pedestrians(mall.x + Math.sin(hdg) * 70, mall.z + Math.cos(hdg) * 70, 8, 24, 10, 19);
 
   const chasePts = [];
   for (let i = 0; i < GEO.chase.length; i += 8) {
@@ -626,12 +587,12 @@ export function buildOsmBrisbane(game) {
   sign(L.southBank, 'SOUTH BANK PARKLANDS', 3.2, '#43d96b', '#1a1d26');
   if (L.daviesPark) {
     sign(L.daviesPark, 'DAVIES PARK · WEST END', 3.2, '#43d96b', '#1a1d26');
-    Z.pedestrians(L.daviesPark.x, L.daviesPark.z, 6, 24, 5, 31);
+    Z.pedestrians(L.daviesPark.x, L.daviesPark.z, 6, 24, 8, 31);
     Z.rebar(L.daviesPark.x + 8, 0, L.daviesPark.z + 4);
   }
   if (L.raymondPark) {
     sign(L.raymondPark, 'RAYMOND PARK · KANGAROO POINT', 3.2, '#43d96b', '#1a1d26');
-    Z.pedestrians(L.raymondPark.x, L.raymondPark.z, 5, 18, 4, 37);
+    Z.pedestrians(L.raymondPark.x, L.raymondPark.z, 5, 18, 8, 37);
   }
   if (L.kangarooBridge) {
     Z.withLift(L.kangarooBridge.ya, () => Z.textSign(L.kangarooBridge.x + 12, 3.6, L.kangarooBridge.z, 0.4, 'KANGAROO POINT BRIDGE', { w: 6.2, h: 0.9, bg: '#1a1d26', fg: '#ffc23d', post: true }));
@@ -683,6 +644,11 @@ export function buildOsmBrisbane(game) {
   const furniture = addMallFurniture(Z.group, GEO.mall, GEO.buildings, Z.spawn, kit);
   const canopies = addMallCanopy(Z.group, GEO.mall, GEO.buildings);
   Z.liftFlat((x, z) => T.propAt(x, z));
+  if(hallInfo?.plaza) {
+    surfaces.add(Array.from(hallInfo.plaza.geometry.attributes.position.array));
+    Z.grounds.push(hallInfo.plaza); Z._baseGrounds.push(hallInfo.plaza);
+  }
+  Z.cityLife = installCityLife(Z, GEO);
   Z.spawn.y = T.walkAt(Z.spawn.x, Z.spawn.z) + 0.5;
   const bridgeGroup = new THREE.Group();
   bridgeGroup.userData.abs = true;

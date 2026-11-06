@@ -28,6 +28,7 @@ export function segmentClear(zone, a, b, radius = 0.6) {
     pushFootprints(p, radius, y, zone);
     if (Math.hypot(p.x - x, p.z - z) > 0.04) return false;
     for (const worldBox of zone.colliders) {
+      if(worldBox.transient)continue; // Moving traffic yields; it must not sever the static street graph.
       const box=worldBox.localBox||worldBox,q=colliderPoint(worldBox,p,scratch);
       const qr=worldBox.frame?radius/worldBox.frame.scale:radius;
       if (y + 0.15 >= box.max.y || y + 1.8 <= box.min.y) continue;

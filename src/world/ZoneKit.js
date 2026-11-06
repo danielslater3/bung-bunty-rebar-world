@@ -10,6 +10,8 @@ import { Portal } from '../entities/Portal.js';
 import { Collectible } from '../entities/Collectible.js';
 import { Spawner } from '../entities/Enemies.js';
 import { NPC } from '../entities/NPC.js';
+import { buildCityPedestrian } from './geo/cityModels.js';
+import { moveHorizontal, positionClear } from '../core/motion.js';
 import { state, bus } from '../core/state.js';
 
 export class ZoneKit {
@@ -680,44 +682,50 @@ export class ZoneKit {
     return g;
   }
 
-  // Simple wandering pedestrian NPCs — colourful capsule people who stroll
-  // between waypoints inside a rectangle. Pure set dressing, no collision.
+  // Detailed, grounded walkers. Rectangles define a sampling area, never a
+  // licence to walk through buildings; blocked steps choose another target.
   pedestrians(cx, cz, w, d, count = 8, seed = 11) {
-    const rand = rng(seed);
-    const palette = [0xe06a5a, 0x5aa0e0, 0x6ec46e, 0xd9a13d, 0xb07ad9, 0x4dc6c6];
-    for (let i = 0; i < count; i++) {
-      const g = new THREE.Group();
-      const c = pick(rand, palette);
-      const body = cyl(0.16, 0.21, 0.75, mat(c, { roughness: 0.85 }), 8);
-      body.position.y = 0.75; body.castShadow = true;
-      g.add(body);
-      const head = sphere(0.16, mat(0xe8b88a, { roughness: 0.8 }), 8, 6);
-      head.position.y = 1.32;
-      g.add(head);
-      const hat = Math.random() < 0.4 ? cyl(0.17, 0.17, 0.08, mat(pick(rand, palette), { roughness: 0.9 }), 8) : null;
-      if (hat) { hat.position.y = 1.46; g.add(hat); }
-      const px = cx + (rand() - 0.5) * w, pz = cz + (rand() - 0.5) * d;
-      g.position.set(px, 0, pz);
-      this.group.add(g);
-      const ped = { g, tx: px, tz: pz, speed: 1 + rand() * 0.8, wait: rand() * 3 };
-      this.updaters.push((dt, t) => {
-        const dx = ped.tx - ped.g.position.x, dz = ped.tz - ped.g.position.z;
-        const dist = Math.hypot(dx, dz);
-        const gy = this.groundAt?.(ped.g.position.x, ped.g.position.z) ?? 0;
-        if (dist < 0.3) {
-          ped.wait -= dt;
-          if (ped.wait <= 0) {
-            ped.tx = cx + (Math.random() - 0.5) * w;
-            ped.tz = cz + (Math.random() - 0.5) * d;
-            ped.wait = 1 + Math.random() * 4;
-          }
-          ped.g.position.y = gy;
-        } else {
-          ped.g.position.x += (dx / dist) * ped.speed * dt;
-          ped.g.position.z += (dz / dist) * ped.speed * dt;
-          ped.g.rotation.y = Math.atan2(dx, dz);
-          ped.g.position.y = gy + Math.abs(Math.sin(t * 8 + ped.speed * 9)) * 0.05;
+    const random=rng(seed);
+    const floor=(x,z)=>this.groundAt?.(x,z,(this.terrain?.walkAt(x,z)??0)+.3)??0;
+    const sample=()=>{
+      for(let attempt=0;attempt<24;attempt++){
+        const x=cx+(random()-.5)*w,z=cz+(random()-.5)*d,y=floor(x,z);
+        if(this.terrain?.isWater(x,z)||!positionClear({x,y,z},.38,this))continue;
+        return {x,y,z};
+      }
+      return null;
+    };
+    this.cityPedestrians ||= [];
+    for(let i=0;i<count;i++){
+      const start=sample();if(!start)continue;
+      const mesh=buildCityPedestrian(seed+i),g=new THREE.Group();g.add(mesh);
+      g.position.set(start.x,start.y,start.z);g.userData.abs=true;this.group.add(g);
+      const low=new THREE.Group(),lowBody=cyl(.17,.22,.82,mesh.userData.shirtMaterial,7),lowHead=sphere(.2,mesh.userData.skinMaterial,8,6);
+      lowBody.position.y=.82;lowHead.position.y=1.58;low.add(lowBody,lowHead);
+      for(const side of [-1,1]){const leg=cyl(.075,.085,.5,mesh.userData.pantsMaterial,6);leg.position.set(side*.12,.25,0);low.add(leg);}
+      g.add(low);
+      const shadows=[];mesh.traverse(o=>{if(o.isMesh)shadows.push(o);});
+      const materials=new Set(shadows.map(o=>o.material));this.cleanups.push(()=>materials.forEach(m=>m.dispose()));
+      const ped={g,mesh,low,target:start,speed:.85+random()*.55,wait:random()*2,stalled:0,detailClock:0};this.cityPedestrians.push(ped);
+      this.updaters.push((dt,t)=>{
+        const player=this.game.player.pos,distance=Math.hypot(g.position.x-player.x,g.position.z-player.z);
+        g.visible=distance<150;if(distance>180)return;
+        const dx=ped.target.x-g.position.x,dz=ped.target.z-g.position.z,length=Math.hypot(dx,dz);
+        let moving=false;
+        if(length<.25||ped.stalled>.4){ped.wait-=dt;if(ped.wait<=0){ped.target=sample()||start;ped.wait=.4+random()*2;ped.stalled=0;}}
+        else{
+          const step=Math.min(length,ped.speed*dt),oldX=g.position.x,oldZ=g.position.z;
+          moveHorizontal(g.position,dx/length*step,dz/length*step,.35,this);
+          const travelled=Math.hypot(g.position.x-oldX,g.position.z-oldZ);
+          ped.stalled=travelled<step*.3?ped.stalled+dt:0;moving=travelled>.001;
+          const desired=Math.atan2(dx,dz),angle=Math.atan2(Math.sin(desired-g.rotation.y),Math.cos(desired-g.rotation.y));g.rotation.y+=angle*(1-Math.exp(-8*dt));
         }
+        g.position.y=floor(g.position.x,g.position.z);
+        mesh.visible=distance<55;low.visible=!mesh.visible;
+        ped.detailClock-=dt;if(ped.detailClock<=0){ped.detailClock=.3;for(const o of shadows)o.castShadow=distance<45;}
+        if(!mesh.visible)return;
+        for(const [j,leg] of mesh.userData.legs.entries())leg.rotation.x=moving?Math.sin(t*7+seed+j*Math.PI)*.42:0;
+        for(const [j,arm] of mesh.userData.arms.entries())arm.rotation.x=moving?-Math.sin(t*7+seed+j*Math.PI)*.3:0;
       });
     }
   }
@@ -1264,6 +1272,7 @@ export class ZoneKit {
     this.game.scene.remove(this.group);
     this.group.traverse((o) => {
       o.userData.dispose?.();
+      if(o.isInstancedMesh)o.dispose();
       if (o.isMesh) {
         o.geometry?.dispose?.();
       }

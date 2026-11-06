@@ -635,7 +635,11 @@ export function buildShells(buildings, opts) {
     // Mall ways tagged building:levels=1 are the shop tenancy, not a 3 m kiosk.
     if (b.s === 1 && b.h < 8 && retailish && area > 200 && nearMall && nearMall(cx, cz) < 42) top = g + base + 11;
     const elevated = base > 0.5;
-    const yb = elevated ? g + base : gm - 1.5;
+    // Keep ground-level shells rooted even where the repaired terrain differs
+    // from the precompiled building datum. Elevated/bridge structures stay open.
+    let bottom = gm - 1.5;
+    if (!elevated && opts.groundAt) for (const [x,z] of pts) bottom = Math.min(bottom,opts.groundAt(x,z)-.35);
+    const yb = elevated ? g + base : bottom;
     const ys = g + base;
     const W = bufFor(walls, WallBuf, cx, cz);
     const T = bufFor(trims, TrimBuf, cx, cz);

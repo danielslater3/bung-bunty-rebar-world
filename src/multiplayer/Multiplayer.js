@@ -194,6 +194,7 @@ export class Multiplayer {
     if (['playing', 'paused'].includes(g.mode)) SaveSystem.save(g);
     this.previous = structuredClone(state);
     this.active = true;
+    document.body.classList.add('multiplayer-active');
     Object.assign(state, DEFAULT_STATE(), {
       _multiplayer: true,
       currentZone: 'brisbane',
@@ -428,6 +429,7 @@ export class Multiplayer {
     this.board = null;
     this.mini.close();
     document.getElementById('mp-chat')?.classList.add('expanded');
+    this.ui?.classList.add('chat-open');
     this.setFocus(true);
     document.getElementById('mp-chat-input')?.focus();
   }
@@ -436,6 +438,7 @@ export class Multiplayer {
     this.board = null;
     this.mini.close();
     document.getElementById('mp-chat')?.classList.remove('expanded');
+    this.ui?.classList.remove('chat-open');
     document.activeElement?.blur();
     this.setFocus(false);
   }
@@ -446,6 +449,7 @@ export class Multiplayer {
     }
     this.mini.close();
     document.getElementById('mp-chat')?.classList.remove('expanded');
+    this.ui?.classList.remove('chat-open');
     this.setFocus(true);
     this.board?.remove();
     this.board = el('div', 'mp-overlay');
@@ -774,6 +778,8 @@ export class Multiplayer {
       if (g.input.pressed.KeyE) {
         if (g.trolley.summoned && g.player.pos.distanceTo(g.trolley.pos) < 3) {
           g.trolley.riding ? g.trolley.dismount() : g.trolley.mount();
+        } else if (g.zone.cityLife?.interactAt(g.player.pos)) {
+          // The stop board uses the room notice, keeping chat and HUD clear.
         } else if (Math.hypot(g.player.pos.x - 18, g.player.pos.z - 80) < 6)
           this.openBoard();
         // The room owns E interactions. Trolley.update must not read the same
@@ -881,7 +887,8 @@ export class Multiplayer {
       }
     } else if (hud)
       hud.textContent =
-        'B · ROOM BOARD   ENTER · CHAT   T · TROLLEY   E · MOUNT   F · QUEST / CHECKPOINT';
+        g.zone.cityLife?.hintAt(g.player.pos) ||
+        'B · ROOM  |  ENTER · CHAT  |  T · TROLLEY  |  E · MOUNT / ARRIVALS  |  F · QUEST';
     const q = this.room.quest;
     this.questMarkers.forEach((m, i) => {
       m.visible = q.status === 'playing';
@@ -907,6 +914,7 @@ export class Multiplayer {
   async leave() {
     this.client?.close();
     this.active = false;
+    document.body.classList.remove('multiplayer-active');
     this.hidePanels();
     this.ui?.remove();
     for (const a of this.peers.values()) {

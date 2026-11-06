@@ -2,6 +2,8 @@
 // Facades are materials and massing, not roof pixels and not the orthophoto.
 // Estimates are named in the comments. Published figures are named with their source.
 import * as THREE from 'three';
+import { drapePolygon } from './drape.js';
+import { buildStreetTree } from './cityModels.js';
 
 const SANDSTONE = 0xe9c99a; // sunlit stone sampled from the Kgbo CC BY-SA 4.0 City Hall photograph
 const PLAZA = 0xa59d90; // paving sampled from the same photograph
@@ -27,13 +29,13 @@ function std(opts) {
 
 export function createStreetKit() {
   const mallTex = canvasTex(128, (g) => {
-    g.fillStyle = '#5c574f';
+    g.fillStyle = '#aaa498';
     g.fillRect(0, 0, 128, 128);
-    const tones = ['#b7b1a6', '#c8c2b6', '#aea89d', '#d0c9bd'];
+    const tones = ['#c2bdb3', '#beb9ae', '#c8c2b7', '#c4beb2'];
     for (let y = 0; y < 2; y++) {
       for (let x = 0; x < 2; x++) {
         g.fillStyle = tones[(x + y) % tones.length];
-        g.fillRect(x * 64 + 5, y * 64 + 5, 54, 54);
+        g.fillRect(x * 64 + 1, y * 64 + 1, 62, 62);
       }
     }
   });
@@ -440,13 +442,8 @@ export function addMallFurniture(group, mallFlat, buildings, spawn, kit) {
       pot.castShadow = true;
       pot.receiveShadow = true;
       group.add(pot);
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 1.6, 6), kit.trunk);
-      trunk.position.set(px, 1.3, pz);
-      group.add(trunk);
-      const crown = new THREE.Mesh(new THREE.SphereGeometry(0.85, 8, 6), kit.foliage);
-      crown.position.set(px, 2.35, pz);
-      crown.castShadow = true;
-      group.add(crown);
+      const tree = buildStreetTree(placed);
+      tree.scale.setScalar(.55); tree.position.set(px,.55,pz);group.add(tree);
       placed++;
     }
     acc -= seg;
@@ -468,7 +465,7 @@ function addMesh(group, mesh) {
 const TOWER_TOP = 92;
 const BODY = 22;
 
-export function addCityHall(group, ring, cx, cz, buildings, kit) {
+export function addCityHall(group, ring, cx, cz, buildings, kit, groundAt = () => 0) {
   // Adelaide Street (OSM way 198003875) lies to the east of this footprint, which is the
   // King George Square side. The public front faces that way.
   const dirx = 0.976;
@@ -572,8 +569,11 @@ export function addCityHall(group, ring, cx, cz, buildings, kit) {
   const b = corner(width / 2, 2);
   const c = corner(width / 2, depth);
   const d = corner(-width / 2, depth);
-  const plazaPos = [...a, ...b, ...c, ...a, ...c, ...d];
-  group.add(tiledMesh(plazaPos, kit.plaza, 2.4));
+  // Sample the actual ground throughout the plaza, not one elevation at the
+  // centre of City Hall. The enclosing withLift adds the building datum once.
+  const datum = groundAt(cx,cz), plazaPos=[];
+  drapePolygon(plazaPos,[a[0],a[2],b[0],b[2],c[0],c[2],d[0],d[2]],(x,z)=>groundAt(x,z)-datum+.08,2);
+  const plaza=tiledMesh(plazaPos,kit.plaza,2.4);plaza.name='Grounded City Hall plaza';group.add(plaza);
 
   let palms = 0;
   for (const u of [-width / 2 + 4, width / 2 - 4]) {
@@ -581,14 +581,11 @@ export function addCityHall(group, ring, cx, cz, buildings, kit) {
       const x = cx + px * u + fx * (front + v);
       const z = cz + pz * u + fz * (front + v);
       if (blocked(buildings, x, z)) continue;
-      const trunk = addMesh(group, new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 6.2, 6), kit.trunk));
-      trunk.position.set(x, 3.1, z);
-      const crown = addMesh(group, new THREE.Mesh(new THREE.SphereGeometry(1.35, 8, 6), kit.foliage));
-      crown.position.set(x, 6.5, z);
+      const palm=buildStreetTree(palms,true);palm.position.set(x,groundAt(x,z)-datum,z);group.add(palm);
       palms++;
     }
   }
-  return { body: BODY, tower: TOWER_TOP, front, palms };
+  return { body: BODY, tower: TOWER_TOP, front, palms, plaza };
 }
 
 // Glass shade roofs along Queen Street. The mall photos show covered sections and open sky,

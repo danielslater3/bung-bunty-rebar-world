@@ -1,6 +1,6 @@
 # Agents
 
-Bung Bunty: Rebar World is a static Three.js game. Preserve the opening chapters and real Brisbane map. The current user request is Brisbane multiplayer: rooms capped at 10, ten themed minigames, chat and a four-player city quest. See docs/MULTIPLAYER.md. Chapters 9–10 are already released. Preserve the chapter dashboard and replay-loading hotfix. Do not begin Chapters 11–12 until a later user request. Quality and correctness beat a longer feature list.
+Bung Bunty: Rebar World is a static Three.js game. Preserve the opening chapters and real Brisbane map. The current user request is Brisbane multiplayer: rooms capped at 10, ten themed minigames, chat and a four-player city quest. See docs/MULTIPLAYER.md. The Brisbane city-life/HUD pass is in docs/BRISBANE_CITY_LIFE.md. Chapters 9–10 are already released. Preserve the chapter dashboard and replay-loading hotfix. Do not begin Chapters 11–12 until a later user request. Quality and correctness beat a longer feature list.
 
 Full notes: `docs/handover/START_HERE.md`.
 
