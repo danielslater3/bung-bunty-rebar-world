@@ -93,7 +93,8 @@ The real city scene and character picker are inspected from browser screenshots.
 ### Release checks — 6 November 2026
 
 - 41 native game checks and 17 authoritative multiplayer checks passed. The avatar check covers all 19 identities and verifies finite geometry, all four colour channels and material isolation.
-- Real local and public Worker tests passed with ten independent WebSocket clients; the eleventh was rejected. Outfit data, chat, complete tic-tac-toe, four quest seats, host migration and rejoining were checked.
-- Two independent Chrome browser contexts passed: custom Gabor and Ching outfits, names, all ten game interfaces, a played tic-tac-toe win, actual movement, reconnect and campaign-save protection. Character-picker and in-city screenshots were visually inspected.
+- Real local and public Worker tests passed with ten independent WebSocket clients; the eleventh was rejected. Outfit data, chat, complete tic-tac-toe, four quest seats, host migration and rejoining were checked, including a close without a status code.
+- Two independent Chrome browser contexts passed against both the local setup and the public GitHub Pages + Cloudflare service: custom Gabor and Ching outfits, names, all ten game interfaces, a played tic-tac-toe win, actual movement, reconnect and campaign-save protection. Character-picker, all 19 character portraits and in-city screenshots were visually inspected.
 - Existing chapter-dashboard gameplay checks passed for Chapters 1–10, with movement, camera recovery and no browser errors.
-- Production backend deployed successfully; startup reported 2 ms. This is Worker startup, not game frame rate.
+- Reconnect fix: status-less WebSocket closes now receive a valid close reply, preventing a delayed handshake from outlasting the reserved player seat.
+- Production backend deployed successfully; startup reported 3 ms. This is Worker startup, not game frame rate.

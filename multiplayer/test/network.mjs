@@ -120,6 +120,13 @@ try {
   const reconnect = await join('First Bung', a.token);
   assert.equal(reconnect.room.players[a.id].appearance.character, 'gabor');
   assert.equal(reconnect.room.players[a.id].appearance.colors[0], '#abcdef');
+  let closed = false;
+  b.ws.addEventListener('close', () => (closed = true), { once: true });
+  b.ws.close(); // A status-less close must receive a valid close reply.
+  await until(() => closed, 'status-less close handshake');
+  const restoredB = await join('Burger Bung', b.token);
+  assert.equal(restoredB.id, b.id);
+
   assert.equal(reconnect.id, a.id);
   assert.equal(reconnect.room.players[a.id].score, 10);
   assert.equal(reconnect.room.quest.status, 'playing');

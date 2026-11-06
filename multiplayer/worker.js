@@ -294,7 +294,11 @@ export class BungRoom extends DurableObject {
       }
     }
     try {
-      ws.close(code === 1006 ? 1000 : code, reason);
+      // 1005 means the peer omitted a close status. It is an event-only
+      // sentinel, like 1006/1015, and cannot be put into a close frame.
+      // Echoing it throws and leaves the browser waiting for a handshake.
+      const replyCode = [1004, 1005, 1006, 1015].includes(code) ? 1000 : code;
+      ws.close(replyCode, reason);
     } catch {}
     await this.schedule();
   }

@@ -57,6 +57,7 @@ const assert = require('node:assert/strict');
         throw e;
       });
     const code = await a.evaluate(() => BUNG.multiplayer.room.code);
+    console.log('ROOM', code);
     const bcontext = await browser.newContext({
         viewport: { width: 1365, height: 900 },
       }),
@@ -149,11 +150,15 @@ const assert = require('node:assert/strict');
     });
     console.log('CITY', checks);
     assert.ok(checks.saveSafe);
-    for (const p of [a, b])
-      await p.evaluate(() => {
-        BUNG.multiplayer.hidePanels();
-        BUNG.multiplayer.client.command('joinGame', { game: 'tictactoe' });
-      });
+    await a.evaluate(() => {
+      BUNG.multiplayer.hidePanels();
+      BUNG.multiplayer.client.command('joinGame', { game: 'tictactoe' });
+    });
+    await a.waitForFunction(() => !!BUNG.multiplayer.room.games.tictactoe);
+    await b.evaluate(() => {
+      BUNG.multiplayer.hidePanels();
+      BUNG.multiplayer.client.command('joinGame', { game: 'tictactoe' });
+    });
     await a.waitForFunction(
       () => BUNG.multiplayer.room.games.tictactoe?.players.length === 2,
     );
@@ -223,11 +228,15 @@ const assert = require('node:assert/strict');
       (await import('/src/multiplayer/catalog.js')).GAMES.map((g) => g.id),
     );
     for (const id of gameIds.filter((id) => id !== 'tictactoe')) {
-      for (const p of [a, b])
-        await p.evaluate((id) => {
-          BUNG.multiplayer.hidePanels();
-          BUNG.multiplayer.client.command('joinGame', { game: id });
-        }, id);
+      await a.evaluate((id) => {
+        BUNG.multiplayer.hidePanels();
+        BUNG.multiplayer.client.command('joinGame', { game: id });
+      }, id);
+      await a.waitForFunction((id) => !!BUNG.multiplayer.room.games[id], id);
+      await b.evaluate((id) => {
+        BUNG.multiplayer.hidePanels();
+        BUNG.multiplayer.client.command('joinGame', { game: id });
+      }, id);
       await a.waitForFunction(
         (id) => BUNG.multiplayer.room.games[id]?.players.length === 2,
         id,
@@ -286,7 +295,14 @@ const assert = require('node:assert/strict');
       );
     }
     const identity = await b.evaluate(() => BUNG.multiplayer.client.id);
-    await b.evaluate(() => BUNG.multiplayer.client.ws.close());
+    await b.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const ws = BUNG.multiplayer.client.ws;
+          ws.addEventListener('close', () => resolve(), { once: true });
+          ws.close();
+        }),
+    );
     await b.waitForFunction(() => BUNG.multiplayer.client.connected);
     assert.equal(await b.evaluate(() => BUNG.multiplayer.client.id), identity);
     assert.equal(
