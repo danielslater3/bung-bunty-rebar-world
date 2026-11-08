@@ -13,6 +13,7 @@ const assert = require('node:assert/strict');
       }),
       errors = [];
     page.on('pageerror', (e) => errors.push(e.stack));
+    page.on('console', m => { if (m.type() === 'error' && m.text().includes('Shader Error')) errors.push(m.text()); });
     await page.goto(process.env.GAME_URL || 'http://127.0.0.1:8765/');
     await page.waitForFunction(() => !!window.BUNG);
     await page.evaluate(() => {
@@ -112,7 +113,18 @@ const assert = require('node:assert/strict');
           blockedFor: s.blockedFor,
           blockedReason: s.blockedReason,
         }));
+      const street = z.streetDetail;
+      const streetGroundError = Math.max(...[...street.lamps, ...street.rests]
+        .map(p => Math.abs(p.y - z.terrain.walkAt(p.x, p.z))));
       return {
+        street: {
+          lamps: street.lamps.length,
+          benches: street.rests.length,
+          drains: street.drains.length,
+          batches: street.batches,
+          streetGroundError,
+        },
+        bridges: z.bridgeDetail,
         cars: life.services.filter((s) => !s.bus).length,
         buses,
         stops: life.stops.length,
@@ -126,6 +138,11 @@ const assert = require('node:assert/strict');
       };
     });
     console.log('WORLD CHECKS', JSON.stringify(checks));
+    assert.ok(checks.street.lamps >= 100 && checks.street.lamps <= 300);
+    assert.ok(checks.street.benches >= 12 && checks.street.benches <= 84);
+    assert.ok(checks.street.drains >= 25);
+    assert.equal(checks.street.streetGroundError, 0);
+    assert.ok(checks.bridges.trussSections >= 25 && checks.bridges.railPanels >= 50);
     assert.equal(checks.cars, 12);
     assert.equal(checks.buses.length, 3);
     assert.ok(checks.stops >= 6);
@@ -141,8 +158,8 @@ const assert = require('node:assert/strict');
     }
     // Capture real rendered models in their real geography, without leaving the
     // test player teleported across the online room between network frames.
-    for (const type of ['bus', 'car', 'park', 'mall']) {
-      await page.evaluate((type) => {
+    for (const type of ['bus', 'car', 'park', 'mall', 'apple', 'hall', 'story-bridge', 'park-bench']) {
+      await page.evaluate(async (type) => {
         const g = BUNG,
           z = g.zone,
           life = z.cityLife,
@@ -152,7 +169,7 @@ const assert = require('node:assert/strict');
         let x,
           y,
           zp,
-          back = 12;
+          back = 12, rise = 5, lookY = 2;
         if (type === 'bus' || type === 'car') {
           const s = life.services.find((s) => s.bus === (type === 'bus'));
           angle = s.pose.yaw + 0.9;
@@ -166,6 +183,40 @@ const assert = require('node:assert/strict');
             life.trees.locations[0];
           ({ x, y, z: zp } = p);
           back = 18;
+        } else if (type === 'apple') {
+          const front = z.group.getObjectByName('MacArthur Chambers shopfront');
+          ({ x, y, z: zp } = front.position);
+          angle = front.rotation.y + .08;
+          back = 17;
+          lookY = 3.9;
+        } else if (type === 'hall') {
+          const hall = g.geoBrisbane.landmarks.cityHall;
+          ({ cx: x, cz: zp } = hall);
+          angle = 1.78;
+          y = z.groundAt(x, zp);
+          back = 65;
+          rise = 8;
+          lookY = 24;
+        } else if (type === 'story-bridge') {
+          const b = g.geoBrisbane.bridges.find(b => b.name === 'Story Bridge');
+          const { bridgeSection } = await import('/src/world/geo/bridges.js');
+          const dx = b.bx - b.ax, dz = b.bz - b.az, l = Math.hypot(dx, dz);
+          x = (b.ax + b.bx) / 2; zp = (b.az + b.bz) / 2;
+          const section = bridgeSection(b.ring, x, zp, dx / l, dz / l);
+          const off = (section.left + section.right) / 2;
+          x -= dz * off / l; zp += dx * off / l;
+          y = z.groundAt(x, zp);
+          angle = Math.atan2(-dz, dx) + .15;
+          back = 130;
+          rise = 27;
+          lookY = 7;
+        } else if (type === 'park-bench') {
+          const p = z.streetDetail.rests.find(p => Math.hypot(p.x, p.z) < 1450);
+          ({ x, y, z: zp } = p);
+          angle = p.yaw + .45;
+          back = 5.5;
+          rise = 2.6;
+          lookY = .65;
         } else {
           x = 173;
           y = z.groundAt(173, 90);
@@ -177,10 +228,10 @@ const assert = require('node:assert/strict');
         life.trees.update({ x, z: zp });
         g.camera.position.set(
           x + Math.sin(angle) * back,
-          y + 5,
+          y + rise,
           zp + Math.cos(angle) * back,
         );
-        g.camera.lookAt(x, y + (type === 'bus' ? 1.5 : 2), zp);
+        g.camera.lookAt(x, y + (type === 'bus' ? 1.5 : lookY), zp);
         g.scene.updateMatrixWorld(true);
         window.cityDraw(g.scene, g.camera);
         g.player.teleport(old);

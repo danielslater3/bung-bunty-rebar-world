@@ -2,8 +2,9 @@
 // Facades are materials and massing, not roof pixels and not the orthophoto.
 // Estimates are named in the comments. Published figures are named with their source.
 import * as THREE from 'three';
+import { rng } from '../../core/utils.js';
 import { drapePolygon } from './drape.js';
-import { buildStreetTree } from './cityModels.js';
+import { buildStreetTree, mergeStatic } from './cityModels.js';
 
 const SANDSTONE = 0xe9c99a; // sunlit stone sampled from the Kgbo CC BY-SA 4.0 City Hall photograph
 const PLAZA = 0xa59d90; // paving sampled from the same photograph
@@ -28,15 +29,25 @@ function std(opts) {
 }
 
 export function createStreetKit() {
-  const mallTex = canvasTex(128, (g) => {
-    g.fillStyle = '#aaa498';
-    g.fillRect(0, 0, 128, 128);
-    const tones = ['#c2bdb3', '#beb9ae', '#c8c2b7', '#c4beb2'];
-    for (let y = 0; y < 2; y++) {
-      for (let x = 0; x < 2; x++) {
-        g.fillStyle = tones[(x + y) % tones.length];
-        g.fillRect(x * 64 + 1, y * 64 + 1, 62, 62);
+  const mallTex = canvasTex(256, (g, size) => {
+    g.fillStyle = '#a39d91';
+    g.fillRect(0, 0, size, size);
+    const tones = ['#c3bdb0', '#bbb5a9', '#c9c1b4', '#c0baaf', '#b7b1a6'];
+    for (let y = 0; y < 4; y++) {
+      const shift = y % 2 * 32;
+      for (let x = -1; x < 4; x++) {
+        const u = x * 64 + shift, v = y * 64;
+        g.fillStyle = tones[((x + 1) * 3 + y * 7) % tones.length];
+        g.fillRect(u + 1, v + 1, 63, 63);
+        g.fillStyle = 'rgba(255,247,228,.15)';
+        g.fillRect(u + 1, v + 1, 62, 1);
+        g.fillStyle = 'rgba(47,41,34,.07)';
+        g.fillRect(u + 1, v + 63, 62, 1);
       }
+    }
+    for (let i = 0; i < 5500; i++) {
+      g.fillStyle = i % 2 ? 'rgba(52,42,28,.09)' : 'rgba(255,254,234,.14)';
+      g.fillRect((i * 73.11) % size, (i * 49.77) % size, 1 + i % 3, 1);
     }
   });
   const landTex = canvasTex(128, (g) => {
@@ -60,13 +71,14 @@ export function createStreetKit() {
     g.fillStyle = 'rgba(70,58,46,0.45)';
     g.fillRect(0, 60, 64, 4);
   });
-  const asphaltTex = canvasTex(64, (g) => {
-    g.fillStyle = '#3c4148';
-    g.fillRect(0, 0, 64, 64);
-    g.fillStyle = '#32373d';
-    for (let i = 0; i < 80; i++) g.fillRect((i * 17) % 64, (i * 29) % 64, 2, 1);
-    g.fillStyle = '#4a5158';
-    for (let i = 0; i < 40; i++) g.fillRect((i * 23) % 64, (i * 11) % 64, 1, 1);
+  const asphaltTex = canvasTex(128, (g, size) => {
+    const random = rng(522);
+    g.fillStyle = '#41454a';
+    g.fillRect(0, 0, size, size);
+    for (let i = 0; i < 2400; i++) {
+      g.fillStyle = i % 2 ? 'rgba(163,159,147,.13)' : 'rgba(23,24,24,.21)';
+      g.fillRect(random() * size, random() * size, 1 + random() * 2, 1);
+    }
   });
   const plazaTex = canvasTex(128, (g) => {
     g.fillStyle = '#8f877c';
@@ -278,22 +290,23 @@ export function streetEdge(ring, flat) {
   return edge;
 }
 
-export function addMallFronts(group, buildings, mallFlat, hall, kit) {
+export function addMallFronts(group, buildings, mallFlat, hall, kit, groundAt, appleHost) {
   const candidates = [];
   for (const b of buildings) {
-    if (!b.r || b.r.length < 6) continue;
+    if (b === appleHost || !b.r || b.r.length < 6 || (b.b || 0) > .5 || b.h < 4) continue;
     let cx = 0, cz = 0, n = 0;
     for (let i = 0; i < b.r.length; i += 2) { cx += b.r[i]; cz += b.r[i + 1]; n++; }
     cx /= n; cz /= n;
     if (hall && Math.hypot(cx - hall.cx, cz - hall.cz) < 20) continue;
     const edge = streetEdge(b.r, mallFlat);
     if (!edge || edge.hit.d > 18) continue;
-    candidates.push(edge);
+    candidates.push({ ...edge, floor: b.g ?? groundAt(edge.mx, edge.mz) });
   }
   candidates.sort((a, b) => a.hit.d - b.hit.d);
   const glass = [];
   const awnings = [];
   const fascia = [];
+  const trim = [];
   let fronts = 0;
   for (const edge of candidates) {
     if (fronts >= 200) break;
@@ -303,9 +316,19 @@ export function addMallFronts(group, buildings, mallFlat, hall, kit) {
     let nz = (edge.x1 - edge.x0) / edge.len;
     if ((hit.x - edge.mx) * nx + (hit.z - edge.mz) * nz < 0) { nx = -nx; nz = -nz; }
     const yaw = Math.atan2(nx, nz);
-    pushBox(glass, edge.mx + nx * 0.22, 2.05, edge.mz + nz * 0.22, len, 3.7, 0.34, yaw);
-    pushBox(fascia, edge.mx + nx * 0.16, 3.95, edge.mz + nz * 0.16, len, 0.28, 0.22, yaw);
-    pushBox(awnings, edge.mx + nx * 0.62, 3.72, edge.mz + nz * 0.62, len, 0.07, 0.85, yaw);
+    const tx = Math.cos(yaw), tz = -Math.sin(yaw);
+    const place = (buf, u, y, offset, w, h, d) => pushBox(
+      buf, edge.mx + nx * offset + tx * u, edge.floor + y, edge.mz + nz * offset + tz * u,
+      w, h, d, yaw,
+    );
+    place(glass, 0, 1.96, .10, len, 3.58, .16);
+    place(fascia, 0, 3.92, .16, len, .31, .24);
+    place(awnings, 0, 3.68, .50, len, .12, 1.04);
+    place(trim, 0, 3.61, 1.02, len, .13, .07);
+    place(trim, 0, 2.85, .195, len, .055, .055);
+    place(fascia, 0, .29, .13, len, .26, .23);
+    const bays = Math.max(2, Math.ceil(len / 2.8));
+    for (let i = 0; i <= bays; i++) place(trim, (i / bays - .5) * (len - .10), 2.05, .194, .065, 3.35, .07);
     fronts++;
   }
   const add = (positions, material) => {
@@ -314,6 +337,7 @@ export function addMallFronts(group, buildings, mallFlat, hall, kit) {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.computeVertexNormals();
     const mesh = new THREE.Mesh(geo, material);
+    mesh.userData.abs = true;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
@@ -321,101 +345,11 @@ export function addMallFronts(group, buildings, mallFlat, hall, kit) {
   add(glass, kit.shop);
   add(fascia, kit.fascia);
   add(awnings, kit.awning);
+  add(trim, kit.clockRim);
   return fronts;
 }
 
-// Ground-floor glass on retail and commercial buildings that face a road.
-// The Queen Street mall pass already covers the mall edges.
-export function addDistrictFronts(group, buildings, roads, mallFlat, hall, kit) {
-  const CELL = 56;
-  const buckets = new Map();
-  for (const road of roads) {
-    if (road.py || !road.p) continue;
-    const p = road.p;
-    for (let i = 0; i + 3 < p.length; i += 2) {
-      const ax = p[i], az = p[i + 1], bx = p[i + 2], bz = p[i + 3];
-      const key = `${Math.floor((ax + bx) / 2 / CELL)},${Math.floor((az + bz) / 2 / CELL)}`;
-      let segs = buckets.get(key);
-      if (!segs) buckets.set(key, segs = []);
-      segs.push(ax, az, bx, bz);
-    }
-  }
-  const nearby = (x, z) => {
-    const ix = Math.floor(x / CELL), iz = Math.floor(z / CELL);
-    const out = [];
-    for (let dz = -1; dz <= 1; dz++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        const segs = buckets.get(`${ix + dx},${iz + dz}`);
-        if (segs) out.push(segs);
-      }
-    }
-    return out;
-  };
-  const distSeg = (segs, x, z) => {
-    let best = Infinity;
-    for (let s = 0; s < segs.length; s += 4) {
-      const ax = segs[s], az = segs[s + 1], bx = segs[s + 2], bz = segs[s + 3];
-      const dx = bx - ax, dz = bz - az;
-      const len2 = dx * dx + dz * dz || 1;
-      let t = ((x - ax) * dx + (z - az) * dz) / len2;
-      if (t < 0) t = 0;
-      else if (t > 1) t = 1;
-      const d = (x - (ax + dx * t)) ** 2 + (z - (az + dz * t)) ** 2;
-      if (d < best) best = d;
-    }
-    return best;
-  };
-  const RETAIL = 0xc45a4a;
-  const COMMERCIAL = 0xb7b1a4;
-  const glass = [];
-  const awnings = [];
-  let fronts = 0;
-  for (const b of buildings) {
-    if (!b.r || b.r.length < 6 || b.h >= 36) continue;
-    if (b.c !== RETAIL && b.c !== COMMERCIAL) continue;
-    let cx = 0, cz = 0, n = 0;
-    for (let i = 0; i < b.r.length; i += 2) { cx += b.r[i]; cz += b.r[i + 1]; n++; }
-    cx /= n; cz /= n;
-    if (hall && Math.hypot(cx - hall.cx, cz - hall.cz) < 20) continue;
-    if (closestMall(mallFlat, cx, cz).d < 18) continue;
-    let best = null;
-    let bestD = 14 * 14;
-    for (let i = 0; i < b.r.length; i += 2) {
-      const j = (i + 2) % b.r.length;
-      const x0 = b.r[i], z0 = b.r[i + 1], x1 = b.r[j], z1 = b.r[j + 1];
-      const len = Math.hypot(x1 - x0, z1 - z0);
-      if (len < 4) continue;
-      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-      let d = Infinity;
-      for (const segs of nearby(mx, mz)) d = Math.min(d, distSeg(segs, mx, mz));
-      if (d < bestD) { bestD = d; best = { x0, z0, x1, z1, mx, mz, len }; }
-    }
-    if (!best) continue;
-    const len = Math.min(best.len, 28);
-    let nx = -(best.z1 - best.z0) / best.len;
-    let nz = (best.x1 - best.x0) / best.len;
-    if ((cx - best.mx) * nx + (cz - best.mz) * nz > 0) { nx = -nx; nz = -nz; }
-    const yaw = Math.atan2(nx, nz);
-    pushBox(glass, best.mx + nx * 0.2, 1.9, best.mz + nz * 0.2, len, 3.2, 0.28, yaw);
-    pushBox(awnings, best.mx + nx * 0.55, 3.55, best.mz + nz * 0.55, len, 0.07, 0.7, yaw);
-    fronts++;
-  }
-  const add = (positions, material) => {
-    if (!positions.length) return;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, material);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  };
-  add(glass, kit.shop);
-  add(awnings, kit.awning);
-  return fronts;
-}
-
-export function addMallFurniture(group, mallFlat, buildings, spawn, kit) {
+export function addMallFurniture(group, mallFlat, buildings, spawn, kit, groundAt) {
   let placed = 0;
   const pts = [];
   for (let i = 0; i < mallFlat.length; i += 2) pts.push([mallFlat[i], mallFlat[i + 1]]);
@@ -436,14 +370,31 @@ export function addMallFurniture(group, mallFlat, buildings, spawn, kit) {
       const px = x + ox, pz = z + oz;
       acc += step;
       if (Math.hypot(px - spawn.x, pz - spawn.z) < 9) continue;
-      if (blocked(buildings, px, pz)) continue;
-      const pot = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 1.5), kit.planter);
-      pot.position.set(px, 0.28, pz);
-      pot.castShadow = true;
-      pot.receiveShadow = true;
-      group.add(pot);
+      const corners = [-.8, .8].flatMap(x => [-.8, .8].map(z => [
+        px + dz / seg * x + dx / seg * z, pz - dx / seg * x + dz / seg * z,
+      ]));
+      if (corners.some(([x, z]) => blocked(buildings, x, z) || Math.abs(groundAt(x, z) - groundAt(px, pz)) > .23)) continue;
+      const planter = new THREE.Group();
+      const yaw = Math.atan2(dx, dz);
+      const base = groundAt(px, pz) + .05;
+      const box = (w, h, d, y, material, offset = 0) => {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+        mesh.position.set(offset, y, 0);
+        planter.add(mesh);
+      };
+      box(1.48, .74, 1.48, .13, kit.planter);
+      box(1.55, .12, 1.55, .49, kit.curb);
+      box(1.22, .025, 1.22, .559, kit.recess);
+      for (const offset of [-.57, -.43, -.29]) box(.105, .055, 1.56, .58, kit.bench, offset * side);
+      mergeStatic(planter);
       const tree = buildStreetTree(placed);
-      tree.scale.setScalar(.55); tree.position.set(px,.55,pz);group.add(tree);
+      tree.scale.setScalar(.55);
+      tree.position.y = .57;
+      planter.add(tree);
+      planter.position.set(px, base, pz);
+      planter.rotation.y = yaw;
+      planter.userData.abs = true;
+      group.add(planter);
       placed++;
     }
     acc -= seg;
@@ -495,14 +446,38 @@ export function addCityHall(group, ring, cx, cz, buildings, kit, groundAt = () =
   const beacon = addMesh(group, new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), kit.beacon));
   beacon.position.set(cx, TOWER_TOP - 0.4, cz);
 
+  const dial = canvasTex(256, (g, size) => {
+    const center = size / 2;
+    g.translate(center, center);
+    g.fillStyle = '#f3e8cd';
+    g.fillRect(-center, -center, size, size);
+    g.fillStyle = '#363536';
+    for (let i = 0; i < 60; i++) {
+      const hour = i % 5 === 0;
+      g.fillRect(hour ? -2.3 : -1, -116, hour ? 4.6 : 2, hour ? 15 : 6);
+      g.rotate(Math.PI / 30);
+    }
+    const hand = (angle, length, width) => {
+      g.save();
+      g.rotate(angle);
+      g.fillRect(-width / 2, -length, width, length + 12);
+      g.restore();
+    };
+    hand(Math.PI / 3, 62, 7);
+    hand(-Math.PI / 3, 90, 4);
+    g.beginPath();
+    g.arc(0, 0, 6, 0, Math.PI * 2);
+    g.fill();
+  });
+  const dialMaterial = std({ map: dial, roughness: .5 });
   const faces = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   for (const [sx, sz] of faces) {
     const ox = sx * 6.05, oz = sz * 6.05;
-    const clock = addMesh(group, new THREE.Mesh(new THREE.CircleGeometry(2.4, 28), kit.clock));
+    const clock = addMesh(group, new THREE.Mesh(new THREE.CircleGeometry(2.4, 28), dialMaterial));
     clock.position.set(cx + ox, 64, cz + oz);
     clock.lookAt(cx + ox * 2, 64, cz + oz * 2);
     const rim = addMesh(group, new THREE.Mesh(new THREE.RingGeometry(2.15, 2.5, 28), kit.clockRim));
-    rim.position.copy(clock.position);
+    rim.position.set(cx + sx * 6.067, 64, cz + sz * 6.067);
     rim.lookAt(cx + ox * 2, 64, cz + oz * 2);
     const opening = addMesh(group, new THREE.Mesh(new THREE.BoxGeometry(
       Math.abs(sx) > 0 ? 0.4 : 3.2,
@@ -521,6 +496,12 @@ export function addCityHall(group, ring, cx, cz, buildings, kit, groundAt = () =
     const z = cz + pz * u + fz * (front + 0.8);
     const col = addMesh(group, new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, 12.6, 10), stone));
     col.position.set(x, 7.5, z);
+    const foot = groundAt(x, z) - groundAt(cx, cz) - .12;
+    if (foot < 1.36) {
+      const plinth = addMesh(group, new THREE.Mesh(new THREE.BoxGeometry(1.38, 1.36 - foot, 1.38), stone));
+      plinth.position.set(x, (1.36 + foot) / 2, z);
+      plinth.rotation.y = yaw;
+    }
     const capital = addMesh(group, new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.5, 0.55, 10), stone));
     capital.position.set(x, 13.9, z);
   }
@@ -549,12 +530,55 @@ export function addCityHall(group, ring, cx, cz, buildings, kit, groundAt = () =
     const tread = 1.35;
     const out = 1.15 + i * tread;
     const step = addMesh(group, new THREE.Mesh(new THREE.BoxGeometry(span + 3.2, rise, tread), stone));
-    step.position.set(cx + fx * (front + 0.8 + out), rise * (4 - i) - rise / 2, cz + fz * (front + 0.8 + out));
+    const x = cx + fx * (front + .8 + out), z = cz + fz * (front + .8 + out);
+    const top = rise * (4 - i);
+    const base = Math.min(top - rise, ...[-1, 0, 1].map(side =>
+      groundAt(x + side * px * (span + 3.2) / 2, z + side * pz * (span + 3.2) / 2) - groundAt(cx, cz) - .16));
+    step.position.set(x, (top + base) / 2, z);
+    step.scale.y = (top - base) / rise;
     step.rotation.y = yaw;
   }
 
-  // Wing windows are not placed on a single plane. The real footprint steps,
-  // and a flat row of recesses was floating off the walls.
+  // Recesses and stone mouldings follow each real footprint edge.
+  const wings = new THREE.Group();
+  let area = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length;
+    area += ring[i] * ring[j + 1] - ring[j] * ring[i + 1];
+  }
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length, x0 = ring[i], z0 = ring[i + 1];
+    const dx = ring[j] - x0, dz = ring[j + 1] - z0, len = Math.hypot(dx, dz);
+    if (len < 4.3) continue;
+    const sign = area > 0 ? 1 : -1;
+    const nx = dz / len * sign, nz = -dx / len * sign;
+    const wallYaw = Math.atan2(nx, nz);
+    const piece = (u, y, offset, w, h, d, material) => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+      mesh.position.set(x0 - cx + dx / len * u + nx * offset, y, z0 - cz + dz / len * u + nz * offset);
+      mesh.rotation.y = wallYaw;
+      wings.add(mesh);
+    };
+    piece(len / 2, 20.55, .08, len - .04, .55, .40, stone);
+    piece(len / 2, 21.25, .14, len - .04, .21, .44, stone);
+    piece(len / 2, 5.86, .05, len - .06, .26, .29, stone);
+    const bays = Math.floor(len / 3.65);
+    for (let k = 0; k < bays; k++) {
+      const u = (k + .5) * len / bays;
+      const x = x0 - cx + dx / len * u, z = z0 - cz + dz / len * u;
+      if (x * fx + z * fz > front - 3.5 && Math.abs(x * px + z * pz) < 15.5) continue;
+      for (const y of [8.3, 14.5]) {
+        piece(u, y, .055, 1.48, 2.55, .15, kit.recess);
+        piece(u, y, .14, .055, 2.36, .06, stone);
+        piece(u, y + .19, .14, 1.37, .055, .06, stone);
+        piece(u, y - 1.29, .15, 1.72, .15, .34, stone);
+        piece(u, y + 1.28, .13, 1.70, .22, .31, stone);
+      }
+    }
+  }
+  mergeStatic(wings);
+  wings.position.set(cx, 0, cz);
+  group.add(wings);
 
   // Plaza extent is the gap from this front to Adelaide Street, not a surveyed square polygon.
   const depth = 48;
@@ -585,13 +609,13 @@ export function addCityHall(group, ring, cx, cz, buildings, kit, groundAt = () =
       palms++;
     }
   }
-  return { body: BODY, tower: TOWER_TOP, front, palms, plaza };
+  return { body: BODY, tower: TOWER_TOP, front, palms, plaza, dispose: () => { dial.dispose(); dialMaterial.dispose(); } };
 }
 
 // Glass shade roofs along Queen Street. The mall photos show covered sections and open sky,
 // so these are separate bays, not one tunnel. The steel-and-glass form is modelled from that
 // public structure. Shop names in those photos are not reproduced.
-export function addMallCanopy(group, mallFlat, buildings) {
+export function addMallCanopy(group, mallFlat, buildings, groundAt) {
   const steel = std({ color: 0xf3f5f7, roughness: 0.32, metalness: 0.28 });
   const glass = std({
     color: 0xd5e4ea, roughness: 0.06, metalness: 0.08,
@@ -614,15 +638,22 @@ export function addMallCanopy(group, mallFlat, buildings) {
       if (blocked(buildings, x, z)) continue;
       const yaw = Math.atan2(dx, dz);
       const bay = new THREE.Group();
-      bay.position.set(x, 0, z);
-      bay.rotation.y = yaw;
-      for (const sx of [-4.2, 4.2]) {
-        for (const sz of [-6.2, 6.2]) {
-          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 6.2, 8), steel);
-          post.position.set(sx, 3.1, sz);
-          post.castShadow = true;
-          bay.add(post);
-        }
+      const feet = [-4.2, 4.2].flatMap(sx => [-6.2, 6.2].map(sz => ({
+        sx, sz, x: x + Math.cos(yaw) * sx + Math.sin(yaw) * sz,
+        z: z - Math.sin(yaw) * sx + Math.cos(yaw) * sz,
+      })));
+      if (feet.some(p => blocked(buildings, p.x, p.z))) continue;
+      const y = groundAt(x, z);
+      const frame = new THREE.Group();
+      for (const p of feet) {
+        const foot = groundAt(p.x, p.z) - y - .12;
+        const height = 6.02 - foot;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(.11, .15, height, 10), steel);
+        post.position.set(p.sx, foot + height / 2, p.sz);
+        frame.add(post);
+        const collar = new THREE.Mesh(new THREE.CylinderGeometry(.21, .24, .25, 10), steel);
+        collar.position.set(p.sx, foot + .19, p.sz);
+        frame.add(collar);
       }
       for (const side of [-1, 1]) {
         const panel = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.05, 13.2), glass);
@@ -632,12 +663,23 @@ export function addMallCanopy(group, mallFlat, buildings) {
       }
       const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 13.4), steel);
       ridge.position.set(0, 6.72, 0);
-      bay.add(ridge);
-      for (const sz of [-6.4, 0, 6.4]) {
-        const rib = new THREE.Mesh(new THREE.BoxGeometry(9.2, 0.1, 0.12), steel);
-        rib.position.set(0, 6.45, sz);
-        bay.add(rib);
+      frame.add(ridge);
+      for (const side of [-1, 1]) {
+        const eave = new THREE.Mesh(new THREE.BoxGeometry(.13, .15, 13.3), steel);
+        eave.position.set(side * 4.24, 5.94, 0);
+        frame.add(eave);
+        for (const z of [-6.4, -3.2, 0, 3.2, 6.4]) {
+          const rib = new THREE.Mesh(new THREE.BoxGeometry(4.42, .09, .12), steel);
+          rib.position.set(side * 2.15, 6.29, z);
+          rib.rotation.z = side * -.16;
+          frame.add(rib);
+        }
       }
+      mergeStatic(frame);
+      bay.add(frame);
+      bay.position.set(x, y, z);
+      bay.rotation.y = yaw;
+      bay.userData.abs = true;
       group.add(bay);
       bays++;
     }

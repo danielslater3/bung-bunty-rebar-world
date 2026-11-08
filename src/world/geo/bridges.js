@@ -20,6 +20,7 @@ const PIER = std(0x9ea19c, 0.84);
 const STEEL = std(0x8e9398, 0.45, 0.35);
 const WHITE = std(0xf2f4f6, 0.38, 0.2);
 const CABLE = std(0xf7f8f8, 0.25, 0.55);
+const JOINT = std(0x51565a, 0.61, 0.2);
 const LANE = std(0xf4f5f2, 0.48);
 
 function pushBox(buf, cx, cy, cz, sx, sy, sz, yaw) {
@@ -36,7 +37,7 @@ function pushBox(buf, cx, cy, cz, sx, sy, sz, yaw) {
     0, 3, 7, 0, 7, 4, 1, 5, 6, 1, 6, 2,
   ];
   for (let i = 0; i < tris.length; i++) {
-    const q = v[tris[i]];
+    const q = v[tris[i + (i % 3 === 1 ? 1 : i % 3 === 2 ? -1 : 0)]];
     buf.push(q[0], q[1], q[2]);
   }
 }
@@ -51,7 +52,7 @@ function pushBeam(buf, a, b, width, height) {
   for (const p of [a, b]) for (const y of [-height / 2, height / 2]) {
     v.push([p[0] - nx, p[1] + y, p[2] - nz], [p[0] + nx, p[1] + y, p[2] + nz]);
   }
-  for (const i of [0,2,1,1,2,3,4,5,6,5,7,6,0,4,2,2,4,6,1,3,5,3,7,5,2,6,3,3,6,7,0,1,4,1,5,4]) buf.push(...v[i]);
+  for (const i of [0,1,2,1,3,2,4,6,5,5,6,7,0,2,4,2,6,4,1,5,3,3,5,7,2,3,6,3,7,6,0,4,1,1,4,5]) buf.push(...v[i]);
 }
 
 function flush(group, buf, material) {
@@ -108,6 +109,68 @@ function centerAxis(pts) {
     bx: cx + raw.dx * half, bz: cz + raw.dz * half,
     dx: raw.dx, dz: raw.dz, len: half * 2, yaw: raw.yaw,
   };
+}
+
+// Find the real left and right deck boundaries at a cross-section. A vertex
+// centroid can sit off-centre on outlines with more samples on one bank.
+export function bridgeSection(ring, x, z, dx, dz) {
+  const cuts = [];
+  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+    const ax = ring[j] - x, az = ring[j + 1] - z;
+    const bx = ring[i] - x, bz = ring[i + 1] - z;
+    const a = ax * dx + az * dz, b = bx * dx + bz * dz;
+    if ((a > 0) === (b > 0)) continue;
+    const t = a / (a - b);
+    cuts.push((ax + (bx - ax) * t) * -dz + (az + (bz - az) * t) * dx);
+  }
+  cuts.sort((a, b) => a - b);
+  let best = null;
+  for (let i = 0; i + 1 < cuts.length; i += 2) {
+    const left = cuts[i], right = cuts[i + 1];
+    if (left <= 0 && right >= 0) return { left, right };
+    if (!best || Math.abs(left + right) < Math.abs(best.left + best.right)) best = { left, right };
+  }
+  return best;
+}
+
+function storyTruss(bridge, axis, yOf, steel, joint, plantPier) {
+  const sections = [];
+  for (let i = 0; i <= 28; i++) {
+    const t = .10 + .80 * i / 28;
+    const [x, z] = along(axis, t);
+    const cut = bridgeSection(bridge.ring, x, z, axis.dx, axis.dz);
+    if (!cut || cut.right - cut.left < 12) continue;
+    const profile = Math.max(0, 1 - Math.min(Math.abs(i - 7), Math.abs(i - 21)) / 7);
+    const height = 7.3 + 21 * profile;
+    const sides = [cut.left + .35, cut.right - .35].map(offset => {
+      const px = x - axis.dz * offset, pz = z + axis.dx * offset;
+      const y = yOf(px, pz);
+      return { bottom: [px, y + .40, pz], top: [px, y + height, pz] };
+    });
+    sections.push({ i, sides });
+    if (i === 7 || i === 21) plantPier(x - axis.dz * (cut.left + cut.right) / 2, z + axis.dx * (cut.left + cut.right) / 2,
+      yOf(x, z), cut.right - cut.left - 2);
+  }
+  for (let j = 0; j < sections.length; j++) {
+    const { i, sides } = sections[j];
+    const previous = sections[j - 1];
+    for (let s = 0; s < 2; s++) {
+      const { bottom, top } = sides[s];
+      pushBox(steel, bottom[0], (top[1] + bottom[1]) / 2, bottom[2], .60, top[1] - bottom[1], .72, axis.yaw);
+      pushBox(joint, top[0], top[1] - .15, top[2], .87, .74, 1.06, axis.yaw);
+      if (!previous || previous.i + 1 !== i) continue;
+      const other = previous.sides[s];
+      pushBeam(steel, other.top, top, .74, .83);
+      pushBeam(steel, other.bottom, bottom, .67, .60);
+      pushBeam(steel, i % 2 ? other.bottom : other.top, i % 2 ? top : bottom, .45, .55);
+    }
+    if (i % 2 === 0) pushBeam(steel, sides[0].top, sides[1].top, .48, .64);
+    if (previous?.i + 1 === i && i % 2 === 0) {
+      pushBeam(steel, previous.sides[0].top, sides[1].top, .29, .32);
+      pushBeam(steel, previous.sides[1].top, sides[0].top, .29, .32);
+    }
+  }
+  return sections.length;
 }
 
 function cable(group, x, y0, z, px, py, pz, radius = 0.055) {
@@ -193,6 +256,7 @@ export function buildBridges(group, geo, terrain) {
     const h = top - base;
     if (h < 1.2) return;
     pushBox(buf, x, (top + base) / 2, z, sx, h, sz, yaw);
+    pushBox(buf, x, top - .18, z, sx + .32, .36, sz + .36, yaw);
   };
   const parapet = [];
   const concrete = [];
@@ -200,6 +264,8 @@ export function buildBridges(group, geo, terrain) {
   const steel = [];
   const white = [];
   const lane = [];
+  const joint = [];
+  let trussSections = 0, railPanels = 0;
   let named = 0;
 
   const seen = new Set();
@@ -228,7 +294,21 @@ export function buildBridges(group, geo, terrain) {
           const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t;
           return [x, yOf(x, z) + lift, z];
         };
-        pushBeam(rail, at(k / sections, 0.55), at((k + 1) / sections, 0.55), 0.34, 1.05);
+        const from = k / sections, to = (k + 1) / sections;
+        if (rail === white) {
+          pushBeam(rail, at(from, .24), at(to, .24), .22, .34);
+          pushBeam(rail, at(from, 1.12), at(to, 1.12), .14, .14);
+          pushBeam(rail, at(from, .73), at(to, .73), .065, .052);
+          const n = Math.max(1, Math.ceil(len / sections / 1.35));
+          for (let p = 0; p < n; p++) {
+            const [x, py, z] = at(from + (to - from) * (p + .5) / n, .67);
+            pushBox(white, x, py, z, .085, .94, .10, yaw);
+          }
+          railPanels++;
+        } else {
+          pushBeam(rail, at(from, .45), at(to, .45), .34, .79);
+          pushBeam(rail, at(from, .88), at(to, .88), .43, .10);
+        }
         pushBeam(concrete, at(k / sections, -0.25), at((k + 1) / sections, -0.25), 0.5, 0.6);
       }
     }
@@ -255,14 +335,8 @@ export function buildBridges(group, geo, terrain) {
       pushBox(concrete, (axis.ax + axis.bx) / 2, y - 1.35, (axis.az + axis.bz) / 2, 11, 0.9, axis.len * 0.86, axis.yaw);
       named++;
     } else if (name === 'Story Bridge') {
-      for (const t of [0.32, 0.68]) {
-        const [x, z] = along(axis, t);
-        const dy = yOf(x, z);
-        pushBox(steel, x, dy + 16, z, 14, 32, 3.4, axis.yaw);
-        pushBox(steel, x, dy + 30, z, 14, 2.2, 2.4, axis.yaw);
-      }
-      const mx = (axis.ax + axis.bx) / 2, mz = (axis.az + axis.bz) / 2;
-      pushBox(steel, mx, yOf(mx, mz) + 7, mz, 1.2, 3.4, axis.len * 0.62, axis.yaw);
+      trussSections = storyTruss(bridge, axis, yOf, steel, joint, (x, z, y, width) =>
+        plantPier(pier, x, z, y - .2, axis.yaw, width, 5.2));
       named++;
     } else if (name === 'William Jolly Bridge') {
       // Concrete arches spring near the water and crown under the deck.
@@ -389,5 +463,6 @@ export function buildBridges(group, geo, terrain) {
   flush(group, steel, STEEL);
   flush(group, white, WHITE);
   flush(group, lane, LANE);
-  return { named, raised };
+  flush(group, joint, JOINT);
+  return { named, raised, trussSections, railPanels };
 }

@@ -10,8 +10,8 @@ import { GaborChase } from '../../systems/BossEvents.js';
 import { bus } from '../../core/state.js';
 import { dressBrisbane } from '../rebirthZones.js';
 import { aerialBounds, aerialTexture, worldUvMesh } from './aerial.js';
-import { createStreetKit, tiledMesh, closestMall, addMallFronts, addDistrictFronts, addMallFurniture, addCityHall, addMallCanopy } from './brisbaneDetail.js';
-import { dressCbd, signAnchors } from './cbdFronts.js';
+import { createStreetKit, tiledMesh, closestMall, addMallFronts, addMallFurniture, addCityHall, addMallCanopy } from './brisbaneDetail.js';
+import { dressCbd, macArthurFootprint, signAnchors } from './cbdFronts.js';
 import { dressShops } from './shopSigns.js';
 import { RIVER_SURFACE, riverMaterial, attachRiverClock, waterSheet } from './river.js';
 import { buildBridges } from './bridges.js';
@@ -22,7 +22,7 @@ import { buildShells, roofCollector } from '/src/world/geo/facades.js';
 import { SurfaceIndex } from './surfaces.js';
 
 import { prepareGeography } from './stability.js';
-import { pushFootprints } from './footprints.js';
+import { installStreetDetail } from './streetDetail.js';
 import { buildVenueExteriors } from './venues.js';
 import { installCityLife } from './cityLife.js';
 import { venueBuilding } from '../../story/venueData.js';
@@ -292,7 +292,7 @@ export function buildOsmBrisbane(game) {
     attachRiverClock(Z, riverMat);
   }
 
-  const curbs = [], asphalt = [], paving = [], paths = [], cycle = [], bus = [], marks = [];
+  const curbs = [], asphalt = [], paving = [], paths = [], cycle = [], bus = [];
   const walkPos = new Map();
   const bucket = { 0: asphalt, 1: asphalt, 2: paving, 3: paths, 4: cycle, 5: bus };
   const gH = (x, z) => Math.max(T.heightAt(x, z), BANK_Y);
@@ -315,7 +315,6 @@ export function buildOsmBrisbane(game) {
     const dest = bucket[road.k] || paths;
     if (road.k <= 1) drapeRibbon(curbs, flat2, road.w * 0.5 + 0.22, gH, 0.02, 2, 0.9);
     drapeRibbon(dest, flat2, road.w * 0.5, gH, 0.04, road.w >= 7 ? 3 : 2);
-    if (road.k === 0) drapeRibbon(marks, flat2, 0.08, gH, 0.06);
   }
   for (const [m, f] of [[kit.curb, -1], [kit.asphalt, -2], [kit.mall, -2], [kit.path, -2], [kit.cycle, -2], [kit.bus, -2], [kit.mark, -4]]) {
     m.polygonOffset = true;
@@ -336,7 +335,6 @@ export function buildOsmBrisbane(game) {
   addRoad(paths, kit.path);
   addRoad(cycle, kit.cycle);
   addRoad(bus, kit.bus);
-  addRoad(marks, kit.mark);
   // Queen Street Mall pavement fills out to the building edges.
   const mallFill = [];
   const mallPts = [];
@@ -367,8 +365,10 @@ export function buildOsmBrisbane(game) {
   const hallL = GEO.landmarks.cityHall;
   let hall = null;
   const roofs = roofCollector();
+  const macArthur = macArthurFootprint(GEO.buildings);
   const shells = buildShells(GEO.buildings, {
     roofOut: roofs,
+    macArthur,
     groundAt: (x, z) => T.propAt(x, z),
     nearMall: (x, z) => closestMall(GEO.mall, x, z).d,
     skip: (b, cx, cz) => {
@@ -450,9 +450,10 @@ export function buildOsmBrisbane(game) {
   } else {
     console.warn('[brisbane street] City Hall footprint was not matched');
   }
-  const mallFronts = addMallFronts(Z.group, GEO.buildings, GEO.mall, hall, kit);
+  if (hallInfo) Z.cleanups.push(hallInfo.dispose);
+  const cbd = dressCbd(Z.group, GEO.buildings, GEO.mall, hall, T.walkAt);
+  const mallFronts = addMallFronts(Z.group, GEO.buildings, GEO.mall, hall, kit, T.walkAt, macArthur);
   const streetFronts = shells.stats.awnings;
-  const cbd = dressCbd(Z.group, GEO.buildings, GEO.mall, hall);
   const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors());
 
   Z.venues = buildVenueExteriors(Z, GEO);
@@ -475,59 +476,6 @@ export function buildOsmBrisbane(game) {
     Z.group.add(mesh);
     walkMeshes.push({ mesh, bounds: mesh.geometry.boundingBox });
   }
-
-  // Streetlights at a regular spacing along major and pedestrian centrelines.
-  // These are not surveyed pole positions.
-  const lampSpots = [];
-  for (const road of GEO.roads) {
-    if (road.k !== 0 && road.k !== 2) continue;
-    if (road.py) continue;
-    const flat = road.p;
-    let acc = 20;
-    for (let i = 2; i < flat.length; i += 2) {
-      const seg = Math.hypot(flat[i] - flat[i - 2], flat[i + 1] - flat[i - 1]);
-      acc += seg;
-      if (acc >= 38) {
-        acc = 0;
-        // Put lights at the mapped road edge, never on its centreline.
-        const dx=flat[i]-flat[i-2], dz=flat[i+1]-flat[i-1], length=Math.hypot(dx,dz)||1;
-        const side=road.w*.5+.7;
-        const x=flat[i]-dz/length*side,z=flat[i+1]+dx/length*side,p={x,z};
-        pushFootprints(p,.45,T.walkAt(x,z),Z);
-        if(Math.hypot(p.x-x,p.z-z)<.01)lampSpots.push([x,z]);
-        if (lampSpots.length >= 420) break;
-      }
-    }
-    if (lampSpots.length >= 420) break;
-  }
-  if (lampSpots.length) {
-    const pole = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.07, 0.09, 5.2, 6),
-      mat(0x2c3138, { metalness: 0.6, roughness: 0.4 }),
-      lampSpots.length,
-    );
-    const head = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(0.22, 8, 6),
-      mat(0xfff1c4, { emissive: 0xffe2a0, emissiveIntensity: 0.8 }),
-      lampSpots.length,
-    );
-    const dummy = new THREE.Object3D();
-    lampSpots.forEach(([x, z], i) => {
-      dummy.position.set(x, 2.6, z);
-      dummy.scale.set(1, 1, 1);
-      dummy.updateMatrix();
-      pole.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(x, 5.15, z);
-      dummy.updateMatrix();
-      head.setMatrixAt(i, dummy.matrix);
-    });
-    pole.castShadow = true;
-    pole.instanceMatrix.needsUpdate = true;
-    head.instanceMatrix.needsUpdate = true;
-    Z.group.add(pole);
-    Z.group.add(head);
-  }
-
 
   const L = GEO.landmarks;
   const mall = L.queenMall;
@@ -641,19 +589,21 @@ export function buildOsmBrisbane(game) {
   game.geoBrisbane = GEO;
   const ms = Math.round(performance.now() - t0);
   console.log(`[brisbane geo] ${GEO.meta.counts.buildings} buildings, ${GEO.meta.counts.roads} roads, ${waterOk} water polygons, ${feet.kept} footprint colliders, terrain chunks ${terr.chunks}, ${ms} ms. ${GEO.meta.attribution}`);
-  const furniture = addMallFurniture(Z.group, GEO.mall, GEO.buildings, Z.spawn, kit);
-  const canopies = addMallCanopy(Z.group, GEO.mall, GEO.buildings);
+  const furniture = addMallFurniture(Z.group, GEO.mall, GEO.buildings, Z.spawn, kit, T.walkAt);
+  const canopies = addMallCanopy(Z.group, GEO.mall, GEO.buildings, T.walkAt);
   Z.liftFlat((x, z) => T.propAt(x, z));
   if(hallInfo?.plaza) {
     surfaces.add(Array.from(hallInfo.plaza.geometry.attributes.position.array));
     Z.grounds.push(hallInfo.plaza); Z._baseGrounds.push(hallInfo.plaza);
   }
+  Z.streetDetail = installStreetDetail(Z, GEO, kit.mark);
   Z.cityLife = installCityLife(Z, GEO);
   Z.spawn.y = T.walkAt(Z.spawn.x, Z.spawn.z) + 0.5;
   const bridgeGroup = new THREE.Group();
   bridgeGroup.userData.abs = true;
   Z.group.add(bridgeGroup);
   const bridgeInfo = buildBridges(bridgeGroup, GEO, T);
+  Z.bridgeDetail = bridgeInfo;
   console.log(`[brisbane street] City Hall body ${hallInfo ? hallInfo.body : 'missing'} m estimated, tower ${hallInfo ? hallInfo.tower : 'missing'} m (Brisbane City Council). Mall shopfronts ${mallFronts}. Street shopfronts ${streetFronts}. Shop signs ${shopSigns}. Hipped roofs ${hips}. Named signs ${cbd.signs}. Verandahs ${cbd.verandahs}. Planters ${furniture}. Canopy bays ${canopies}. Bridge structures ${bridgeInfo.named}, raised roads dressed ${bridgeInfo.raised}.`);
   if (game.mode === 'playing') game.toast('BRISBANE · QUEEN STREET MALL · CITY HALL · © OSM · 1 m = 1 m', 'blue');
   return Z;

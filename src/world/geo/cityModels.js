@@ -139,6 +139,11 @@ export function buildCityVehicle({
         cube(g, 0.06, 0.27, 0.72, m.dark, side * 1.25, 0.95, z);
     }
     cube(g, 2.08, 1.03, 0.035, m.glass, 0, 2.2, 4.82);
+    for (const x of [-.5, .5]) {
+      const wiper = cube(g, .48, .034, .026, m.dark, x, 1.83, 4.85);
+      wiper.rotation.z = .22;
+    }
+    cube(g, .41, .13, .027, m.rim, 0, .72, 4.85);
     cube(g, 2.12, 0.45, 0.035, m.dark, 0, 2.92, 4.83);
     cube(g, 1.75, 0.24, 3, m.paint, 0, 3.15, -0.8);
     for (const side of [-1, 1]) {
@@ -215,11 +220,15 @@ export function buildCityVehicle({
       cube(g, 0.45, 0.17, 0.055, m.light, side * 0.58, 0.81, length / 2 + 0.03);
       cube(g, 0.35, 0.18, 0.055, m.red, side * 0.62, 0.8, -length / 2 - 0.03);
     }
-    cube(g, 0.66, 0.14, 0.055, m.dark, 0, 0.65, length / 2 + 0.05);
+    const front = length / 2;
+    cube(g, .72, .15, .055, m.dark, 0, .65, front + .05);
+    for (const y of [.61, .65, .69]) cube(g, .68, .014, .028, m.rim, 0, y, front + .085);
+    cube(g, .26, .082, .026, m.rim, 0, .52, front + .04);
     cube(g, 0.36, 0.12, 0.06, m.trim, 0, 0.61, -length / 2 - 0.05);
     mergeStatic(g);
     wheels(g, 0.87, [-1.25, 1.25], 0.31, m);
   }
+  g.userData.brakeLights = m.red;
   g.userData.length = length;
   g.userData.width = width;
   return g;
@@ -291,6 +300,9 @@ export function buildStreetTree(seed = 0, palm = false) {
         Math.cos(a) * r,
       );
       crown.scale.set(1.16, 1.1, 1.05);
+      const tuft = part(g, new THREE.IcosahedronGeometry(.59, 1), leaves[(i + 1) % 3],
+        Math.sin(a) * (r + .46), 3.58 + (i % 3) * .29, Math.cos(a) * (r + .46));
+      tuft.scale.set(1.1, .84, .97);
     }
   }
   mergeStatic(g);
@@ -392,7 +404,8 @@ export function buildCityPedestrian(seed = 0) {
       -0.18,
       0,
     );
-    part(arm, new THREE.SphereGeometry(0.075, 8, 6), skin, 0, -0.44, 0);
+    part(arm, new THREE.CylinderGeometry(.042, .047, .13, 7), skin, 0, -.36, 0);
+    part(arm, new THREE.SphereGeometry(.059, 8, 6), skin, 0, -.44, 0);
     arms.push(arm);
   }
   g.userData.pantsMaterial = pants;

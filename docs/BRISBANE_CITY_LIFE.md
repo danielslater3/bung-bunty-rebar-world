@@ -15,6 +15,13 @@ The real compiled Brisbane street, building, river and bridge data remains in us
 
 These are **fictional Rebar shuttle services**, not published Translink routes or timetables. Buses currently provide ambient service and arrival information; passenger boarding is not implemented. The source extract does not retain every traffic restriction, so these are stylised ambient circuits rather than a traffic-law simulation. Ambient traffic/pedestrians are simulated locally, not replicated room entities. Multiplayer players, chat, minigames and quest authority are unchanged.
 
+## Street and landmark detail pass — 8 November 2026
+
+- Mapped road and park edges guide 300 lamps, 84 benches, 901 drain grates and broken lane markings. Furniture clearance checks reject water, steep ground, building footprints and protected mission areas. Lane markings stop at mapped intersections. Placements are in-game estimates.
+- Queen Street has staggered stone paving, shopfront frames, rooted canopies and timber seating built into planters. Shop signs stay within their host wall edges. MacArthur Chambers uses sandstone cladding on the existing footprint. City Hall has clock faces, a supported square sign, grounded column plinths and wing windows fitted to the outline.
+- Story Bridge has a modelled steel truss with an open road deck. Nearby pedestrian bridges use open handrails and the Brisbane River has small wind-driven ripples. The bridge detail is stylised, based on the [Brisbane City Council heritage trail](https://www.brisbane.qld.gov.au/events-arts-and-culture/art-and-culture/heritage-trails/brisbane-river-heritage-trail). The [MacArthur Museum](https://mmb.org.au/location/) identifies the chambers as sandstone.
+- City cars and buses have additional trim and working brake lights. Broadleaf trees have more layered crowns. The native tests check Story Bridge traffic clearance and the new furniture placement. The loaded-scene browser check also captures City Hall, MacArthur Chambers, Story Bridge and a park bench.
+
 ## UI
 
 Multiplayer hides the unrelated single-player score, trolley-name and currency counters; room points remain on the room board. The room bar reserves space for the status meters on desktop and moves below a compact meter row on small screens. Chat, route instructions, notices and incidental speech have separate space/visibility rules. Chat hides the route hint while expanded. Dialogue retains the expiry and Enter-to-send fixes from the previous release. Leaving multiplayer restores the normal campaign HUD.

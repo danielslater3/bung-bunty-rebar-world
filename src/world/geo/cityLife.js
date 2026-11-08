@@ -575,15 +575,19 @@ export function installCityLife(zone, geo) {
       )
         speed = 0;
       s.dt = dt;
+      const previousSpeed = s.speed;
       advanceService(s, dt, speed);
       s.blockedFor =
         s.speed < 0.05 && s.dwell <= 0 ? (s.blockedFor || 0) + dt : 0;
       groundVehicle(s, zone);
       s.model.visible =
         Math.hypot(s.pose.x - player.x, s.pose.z - player.z) < 260;
-      if (s.model.visible)
+      if (s.model.visible) {
+        const braking = s.dwell > 0 || s.speed < .08 || previousSpeed - s.speed > dt * .6;
+        s.model.userData.brakeLights.emissiveIntensity = braking ? 1.35 : .25;
         for (const wheel of s.model.userData.wheels)
           wheel.rotation.x += (s.speed * dt) / s.model.userData.wheelRadius;
+      }
     }
     signClock -= dt;
     if (signClock <= 0) {

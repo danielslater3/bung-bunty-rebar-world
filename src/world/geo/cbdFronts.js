@@ -7,6 +7,7 @@
 // gold. The coat of arms is not drawn.
 import * as THREE from 'three';
 import { CBD_STREETS } from './cbdStreets.js';
+import { mergeStatic } from './cityModels.js';
 import { closestMall } from './brisbaneDetail.js';
 
 const COUNCIL_BLUE = '#004e92';
@@ -202,7 +203,7 @@ function drawSign(place) {
   return mesh;
 }
 
-function addVerandah(group, edge, face) {
+function addVerandah(group, edge, face, y, groundAt) {
   const steel = new THREE.MeshStandardMaterial({ color: 0x2f4a3c, roughness: 0.6 });
   const cream = new THREE.MeshStandardMaterial({ color: 0xefe6d4, roughness: 0.8 });
   const { nx, nz, yaw } = face;
@@ -212,19 +213,26 @@ function addVerandah(group, edge, face) {
   const posts = Math.max(2, Math.round(span / 4));
   for (let i = 0; i < posts; i++) {
     const t = (i / (posts - 1) - 0.5) * span;
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.3, 6), steel);
-    post.position.set(edge.mx + ex * t + nx * 1.15, 1.65, edge.mz + ez * t + nz * 1.15);
+    const x = edge.mx + ex * t + nx * 1.15, z = edge.mz + ez * t + nz * 1.15;
+    const foot = groundAt(x, z) - .10;
+    const height = y + 3.35 - foot;
+    if (height < .3 || height > 6) continue;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(.08, .11, height, 8), steel);
+    post.position.set(x, foot + height / 2, z);
+    post.userData.abs = true;
     post.castShadow = true;
     group.add(post);
   }
   const beam = new THREE.Mesh(new THREE.BoxGeometry(span, 0.16, 0.16), steel);
-  beam.position.set(edge.mx + nx * 1.15, 3.35, edge.mz + nz * 1.15);
+  beam.position.set(edge.mx + nx * 1.15, y + 3.35, edge.mz + nz * 1.15);
   beam.rotation.y = yaw;
+  beam.userData.abs = true;
   group.add(beam);
   const deck = new THREE.Mesh(new THREE.BoxGeometry(span, 0.1, 1.5), cream);
-  deck.position.set(edge.mx + nx * 0.9, 6.15, edge.mz + nz * 0.9);
+  deck.position.set(edge.mx + nx * 0.9, y + 3.48, edge.mz + nz * 0.9);
   deck.rotation.y = yaw;
   deck.castShadow = true;
+  deck.userData.abs = true;
   group.add(deck);
 }
 
@@ -258,7 +266,12 @@ function hostBuilding(buildings, x, z) {
   return contained >= 0 ? contained : nearest;
 }
 
-export function dressCbd(group, buildings, mallFlat, hall) {
+export function macArthurFootprint(buildings) {
+  const shop = PLACES.find(p => p.apple);
+  return buildings[hostBuilding(buildings, shop.x, shop.z)];
+}
+
+export function dressCbd(group, buildings, mallFlat, hall, groundAt) {
   const flat = streetFlat();
   let signs = 0;
   let verandahs = 0;
@@ -275,35 +288,59 @@ export function dressCbd(group, buildings, mallFlat, hall) {
     const ez = (edge.z1 - edge.z0) / edge.len;
     const along = (place.x - edge.mx) * ex + (place.z - edge.mz) * ez;
     const shift = Math.max(-edge.len * 0.35, Math.min(edge.len * 0.35, along));
+    const building = buildings[host];
+    const floor = (building.g ?? groundAt(edge.mx, edge.mz)) + (building.b || 0);
+    const offset = place.apple ? .30 : .14;
     const mesh = drawSign(place);
+    mesh.userData.abs = true;
     mesh.position.set(
-      edge.mx + ex * shift + face.nx * 0.55,
-      place.y,
-      edge.mz + ez * shift + face.nz * 0.55,
+      edge.mx + ex * shift + face.nx * offset,
+      floor + place.y,
+      edge.mz + ez * shift + face.nz * offset,
     );
     mesh.rotation.y = face.yaw;
     mesh.name = place.name;
     group.add(mesh);
     signs++;
     if (place.apple) {
-      // Shallow heritage detailing follows the actual hosting footprint edge.
-      // It stays against the wall, outside the playable Queen Street corridor.
-      const stone=new THREE.MeshStandardMaterial({color:0xd9cbb4,roughness:.85});
-      const glass=new THREE.MeshStandardMaterial({color:0x65848b,roughness:.22,metalness:.28});
-      const bay=Math.min(3.6,edge.len/5),width=bay*5;
-      const detail=new THREE.Group();
-      detail.position.set(edge.mx+face.nx*.18,0,edge.mz+face.nz*.18);detail.rotation.y=face.yaw;
-      const add=(x,y,w,h,d,m)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,0);o.castShadow=true;detail.add(o);};
-      for(let i=-2;i<=2;i++){
-        add(i*bay,2.65,bay-.5,4.4,.12,glass);
-        add(i*bay-bay/2,3.5,.35,6.5,.32,stone);
-        add(i*bay,7.6,bay-.7,2.5,.14,glass);
+      const stone = new THREE.MeshStandardMaterial({ color: 0xd9cbb4, roughness: .85 });
+      const shadow = new THREE.MeshStandardMaterial({ color: 0x8f826c, roughness: .84 });
+      const glass = new THREE.MeshStandardMaterial({ color: 0x516e79, roughness: .23, metalness: .2 });
+      const frames = new THREE.MeshStandardMaterial({ color: 0x2b3d42, roughness: .55 });
+      const bay = Math.min(3.6, edge.len / 5), width = bay * 5;
+      const detail = new THREE.Group();
+      const add = (x, y, z, w, h, d, m) => {
+        const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+        o.position.set(x, y, z);
+        detail.add(o);
+      };
+      for (let i = -2; i <= 2; i++) {
+        const x = i * bay;
+        add(x, 2.52, .01, bay - .22, 4.9, .18, shadow);
+        add(x, 2.56, .10, bay - .51, 4.58, .045, glass);
+        add(x, 3.43, .13, bay - .51, .075, .045, frames);
+        add(x, 2.48, .13, .065, 4.52, .045, frames);
+        add(x - bay / 2 + .12, 2.67, .14, .26, 5.34, .31, stone);
+        add(x - bay / 2 + .12, 4.94, .17, .39, .26, .34, stone);
+        add(x, 7.53, .04, bay - .55, 2.64, .19, shadow);
+        add(x, 7.53, .15, bay - .78, 2.38, .055, glass);
+        add(x, 7.54, .18, .057, 2.38, .025, frames);
+        add(x, 6.30, .18, bay - .53, .13, .30, stone);
       }
-      add(0,5.2,width,.32,.42,stone);add(0,9.2,width+.3,.4,.48,stone);
+      add(width / 2 - .12, 2.67, .14, .26, 5.34, .31, stone);
+      add(0, 5.20, .12, width, .24, .34, stone);
+      add(0, 5.36, .12, width, .08, .43, stone);
+      add(0, 9.18, .12, width, .34, .38, stone);
+      mergeStatic(detail);
+      detail.name = 'MacArthur Chambers shopfront';
+      detail.position.set(edge.mx + face.nx * .015, floor, edge.mz + face.nz * .015);
+      detail.rotation.y = face.yaw;
+      detail.userData.abs = true;
+      detail.userData.dispose = () => [stone, shadow, glass, frames].forEach(m => m.dispose());
       group.add(detail);
     }
     if (place.heritage && !verandahed.has(host)) {
-      addVerandah(group, edge, face);
+      addVerandah(group, edge, face, floor, groundAt);
       verandahed.add(host);
       verandahs++;
     }
@@ -326,7 +363,9 @@ export function dressCbd(group, buildings, mallFlat, hall) {
       h: 1.7,
       mark: 'council',
     });
-    council.position.set(hall.cx + fx * (front + 1.6), 11.4, hall.cz + fz * (front + 1.6));
+    const datum = groundAt(hall.cx, hall.cz);
+    council.position.set(hall.cx + fx * (front + 1.6), datum + 11.4, hall.cz + fz * (front + 1.6));
+    council.userData.abs = true;
     council.rotation.y = Math.atan2(fx, fz);
     council.name = 'COUNCIL CITY HALL';
     group.add(council);
@@ -338,10 +377,12 @@ export function dressCbd(group, buildings, mallFlat, hall) {
       h: 0.7,
       mark: 'council',
     });
-    museum.position.set(hall.cx + fx * (front + 0.8), 5.4, hall.cz + fz * (front + 0.8));
+    museum.position.set(hall.cx + fx * (front + .62), datum + 5.92, hall.cz + fz * (front + .62));
+    museum.userData.abs = true;
     museum.rotation.y = Math.atan2(fx, fz);
     group.add(museum);
-    const square = drawSign({
+    const square = new THREE.Group();
+    const sign = drawSign({
       name: 'KING GEORGE SQUARE',
       sub: 'BRISBANE CITY COUNCIL',
       bg: COUNCIL_BLUE,
@@ -350,11 +391,22 @@ export function dressCbd(group, buildings, mallFlat, hall) {
       h: 1.35,
       mark: 'council',
     });
-    square.position.set(hall.cx + fx * (front + 22), 2.4, hall.cz + fz * (front + 22));
+    const x = hall.cx + fx * (front + 22), z = hall.cz + fz * (front + 22);
+    square.position.set(x, groundAt(x, z) + .08, z);
+    sign.position.y = 1.56;
+    square.add(sign);
+    const frame = new THREE.MeshStandardMaterial({ color: 0x323e42, roughness: .63, metalness: .3 });
+    for (const side of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(.16, 2.11, .18), frame);
+      post.position.set(side * 2.85, .95, 0);
+      square.add(post);
+    }
+    square.userData.abs = true;
+    square.userData.dispose = () => frame.dispose();
     square.rotation.y = Math.atan2(fx, fz);
     group.add(square);
     signs += 3;
   }
 
-  return { signs, verandahs, extra: 0 };
+  return { signs, verandahs };
 }

@@ -123,6 +123,9 @@ function glassWall(P, pane, spandrel, top) {
   P.rect(0, 0, 1.5, 0.9, spandrel, false);
   P.rect(0, 0, 0.05, 3.7, '#ffffff', true);
   P.rect(1.45, 0, 1.5, 3.7, '#ffffff', true);
+  P.rect(.12, 1.03, 1.37, 1.10, '#66818b', false);
+  P.rect(.16, 3.31, 1.34, 3.37, '#a1b0b2', false);
+  for (let y = 3.10; y < 3.30; y += .052) P.rect(.18, y, .76, y + .013, '#798b90', false);
   P.rect(0, 0.9, 1.5, 0.95, '#ffffff', true);
   P.rect(0, 3.65, 1.5, 3.7, '#ffffff', true);
 }
@@ -156,6 +159,8 @@ const PAINTERS = {
     P.rect(0.66, 0.86, 2.34, 0.95, '#d5d5d5', true);
     P.rect(0.75, 0.95, 2.25, 2.45, '#c9cdd0', false);
     P.grad(0.82, 1.02, 2.18, 2.38, '#2f3e48', '#5b7181');
+    P.rect(.88, 1.08, 2.12, 1.59, '#455762', false);
+    P.rect(.80, 1.57, 2.20, 1.62, '#7e8a8d', false);
     P.rect(1.48, 1.02, 1.52, 2.38, '#c9cdd0', false);
   },
   heritageWin: (P) => {
@@ -215,7 +220,12 @@ const PAINTERS = {
     P.rect(3.9, 0, 4, 3.1, '#2e3134', false);
     P.rect(1.95, 0.35, 2.05, 3.1, '#2e3134', false);
     P.rect(0, 3.0, 4, 3.1, '#2e3134', false);
+    for (const y of [.40, .98, 1.61]) P.rect(.12, y, 3.88, y + .035, '#6c655d', false);
+    P.rect(1.33, 1.32, 1.44, 1.38, '#e9dbc0', false);
+    P.rect(2.56, 1.32, 2.67, 1.38, '#e9dbc0', false);
+    P.rect(.13, 2.71, 3.87, 2.77, '#aab3a8', false);
     P.rect(0, 3.1, 4, 4.2, '#f0f0f0', true);
+    P.rect(0, 3.13, 4, 3.22, '#d9d5cd', true);
   },
   lobby: (P) => {
     P.grad(0, 0, 3, 4.2, '#3c4e59', '#7e98a8');
@@ -241,6 +251,8 @@ const PAINTERS = {
   parking: (P) => {
     P.rect(0, 0, 6, 3, '#efefef', true);
     P.rect(0.4, 1.1, 6, 2.75, '#1c1f21', false);
+    for (const y of [1.16, 1.26, 1.36, 1.46]) P.rect(.43, y, 6, y + .024, '#53575a', false);
+    P.rect(3.1, 1.11, 3.15, 1.50, '#53575a', false);
     P.rect(0.4, 1.1, 6, 1.18, '#2e3236', false);
     P.rect(0, 2.75, 6, 3, '#dedede', true);
   },
@@ -756,6 +768,14 @@ export function buildShells(buildings, opts) {
     }
 
     // ---- everything else: ground floor, upper floors, parapet
+    // The mapped MacArthur Chambers volume was classified as a glass tower.
+    // Its heritage stone cladding is a rendering override on the same shell.
+    if (b === opts.macArthur) {
+      st = ST.heritage;
+      paint = 0xe1cba9;
+      upper = L.heritageWin;
+      groundL = L.heritageGround;
+    }
     const tall = top - ys;
     let groundH = 4.2, parapet = 0.9, floorH = 3.4;
     let up = L.punched, gr = L.punched, front = null;

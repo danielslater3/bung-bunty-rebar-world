@@ -42,10 +42,12 @@ function closestEdge(ring, x, z) {
     const a = pts[i];
     const b = pts[(i + 1) % pts.length];
     const dx = b[0] - a[0], dz = b[1] - a[1];
-    const len2 = dx * dx + dz * dz || 1;
+    const len2 = dx * dx + dz * dz, length = Math.sqrt(len2);
+    if (length < 2.8) continue;
+    const width = Math.min(3.7, length - .28);
+    const margin = (width / 2 + .10) / length;
     let t = ((x - a[0]) * dx + (z - a[1]) * dz) / len2;
-    if (t < 0) t = 0;
-    else if (t > 1) t = 1;
+    t = Math.max(margin, Math.min(1 - margin, t));
     const qx = a[0] + dx * t, qz = a[1] + dz * t;
     const d = (x - qx) ** 2 + (z - qz) ** 2;
     if (d >= bestD) continue;
@@ -54,7 +56,8 @@ function closestEdge(ring, x, z) {
     const nlen = Math.hypot(nx, nz) || 1;
     nx /= nlen; nz /= nlen;
     if ((cx - qx) * nx + (cz - qz) * nz > 0) { nx = -nx; nz = -nz; }
-    best = { x: qx, z: qz, nx, nz, tx: dx / Math.sqrt(len2), tz: dz / Math.sqrt(len2), d: Math.sqrt(d) };
+    best = { x: qx, z: qz, nx, nz, tx: dx / length, tz: dz / length,
+      d: Math.sqrt(d), width, lo: (margin - t) * length, hi: (1 - margin - t) * length };
   }
   return best;
 }
@@ -121,10 +124,10 @@ function paintCell(g, x, y, shop) {
   g.fillText(label, x + CW / 2, y + CH / 2 + 1);
 }
 
-function pushSign(positions, uvs, px, py, pz, nx, nz, u0, v0, u1, v1) {
+function pushSign(positions, uvs, px, py, pz, nx, nz, width, u0, v0, u1, v1) {
   const yaw = Math.atan2(nx, nz);
   const c = Math.cos(yaw), s = Math.sin(yaw);
-  const hw = 1.85, hy = 0.5;
+  const hw = width / 2, hy = .40;
   const p = (x, y, z) => [px + x * c + z * s, py + y, pz - x * s + z * c];
   const v = [p(-hw, -hy, 0.04), p(hw, -hy, 0.04), p(hw, hy, 0.04), p(-hw, hy, 0.04)];
   const uv = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
@@ -138,7 +141,6 @@ function pushSign(positions, uvs, px, py, pz, nx, nz, u0, v0, u1, v1) {
 export function dressShops(group, buildings, anchors) {
   if (!SHOPS.length) return 0;
   const index = indexBuildings(buildings);
-  const taken = new Set();
   const placed = [];
   for (const shop of SHOPS) {
     const x = shop[1], z = shop[2];
@@ -153,15 +155,16 @@ export function dressShops(group, buildings, anchors) {
     if (!host) continue;
     const edge = closestEdge(host.r, x, z);
     if (!edge || edge.d > 24) continue;
-    let sx = edge.x, sz = edge.z;
-    for (let n = 0; n < 4; n++) {
-      const key = `${Math.round(sx / 2)},${Math.round(sz / 2)}`;
-      if (!taken.has(key)) { taken.add(key); break; }
-      sx += edge.tx * 2.4;
-      sz += edge.tz * 2.4;
-    }
-    const y = host.h >= 6 ? Math.min(4.15, host.h - 0.35) : Math.max(1.7, host.h * 0.62);
-    placed.push({ shop, x: sx + edge.nx * 0.42, y, z: sz + edge.nz * 0.42, nx: edge.nx, nz: edge.nz });
+    const offset = [0, 3.9, -3.9, 7.8, -7.8].find(d => {
+      if (d < edge.lo || d > edge.hi) return false;
+      const x = edge.x + edge.tx * d, z = edge.z + edge.tz * d;
+      return !placed.some(p => Math.hypot(p.x - x, p.z - z) < (p.width + edge.width) / 2 + .18);
+    });
+    if (offset == null) continue;
+    const sx = edge.x + edge.tx * offset, sz = edge.z + edge.tz * offset;
+    const height = host.h >= 6 ? Math.min(4.15, host.h - 0.45) : Math.max(1.2, host.h * 0.62);
+    const y = (host.g ?? 0) + (host.b || 0) + height;
+    placed.push({ shop, x: sx + edge.nx * .13, y, z: sz + edge.nz * .13, nx: edge.nx, nz: edge.nz, width: edge.width });
   }
   const per = COLS * ROWS;
   for (let start = 0; start < placed.length; start += per) {
@@ -180,7 +183,7 @@ export function dressShops(group, buildings, anchors) {
       const u1 = ((col + 1) * CW - 2) / canvas.width;
       const v1 = 1 - (row * CH + 2) / canvas.height;
       const v0 = 1 - ((row + 1) * CH - 2) / canvas.height;
-      pushSign(positions, uvs, item.x, item.y, item.z, item.nx, item.nz, u0, v0, u1, v1);
+      pushSign(positions, uvs, item.x, item.y, item.z, item.nx, item.nz, item.width, u0, v0, u1, v1);
     });
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -193,6 +196,8 @@ export function dressShops(group, buildings, anchors) {
       map: tex, roughness: 0.6, metalness: 0, side: THREE.DoubleSide,
       emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18,
     }));
+    mesh.userData.abs = true;
+    mesh.userData.dispose = () => { tex.dispose(); mesh.material.dispose(); };
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);

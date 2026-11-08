@@ -1,3 +1,8 @@
+import * as THREE from "three";
+import { buildBridges, bridgeSection } from "../../src/world/geo/bridges.js";
+import { planStreetDetail } from "../../src/world/geo/streetDetail.js";
+import { positionClear } from "../../src/core/motion.js";
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SurfaceIndex } from '../../src/world/geo/surfaces.js';
@@ -126,4 +131,51 @@ test('deck repairs preserve endpoints and bound intermediate grade', () => {
       assert.ok(Math.abs(b.ys[k] - b.ys[k - 1]) / (length / (b.ys.length - 1)) <= limit + 1e-7);
   }
   console.log(`Repaired ${GEO.repairs.length} noisy deck profiles without moving endpoints`);
+});
+
+test('street detail stays on repaired land with space around mapped roads and mission paths', () => {
+  const feet = indexFootprints(GEO.buildings, 48, terrain.walkAt);
+  const zone = { terrain, colliders: [], footBuckets: feet.buckets, footCell: feet.cell };
+  const { lamps, rests, drains, paint } = planStreetDetail(zone, GEO);
+  assert.ok(lamps.length > 100 && lamps.length <= 300);
+  assert.ok(rests.length >= 12 && rests.length <= 84);
+  assert.ok(drains.length > 25 && paint.length > 900);
+  for (const p of [...lamps, ...rests]) {
+    assert.equal(terrain.isWater(p.x, p.z), false);
+    assert.equal(p.y, terrain.walkAt(p.x, p.z));
+    assert.ok(positionClear(p, .4, zone));
+  }
+  for (let i = 0; i < paint.length; i += 3) {
+    assert.ok(Math.abs(paint[i + 1] - terrain.walkAt(paint[i], paint[i + 2]) - .063) < .02);
+  }
+
+  // Crossing the main road halfway along its OSM way must interrupt the paint.
+  const junction = planStreetDetail({
+    ...zone, footBuckets: null,
+    terrain: { walkAt: () => 4, isWater: () => false },
+  }, { parks: [], roads: [
+    { k: 0, w: 10, p: [-100, 0, 100, 0] },
+    { k: 1, w: 7, p: [0, -100, 0, 100] },
+  ] });
+  assert.ok(junction.paint.length > 0);
+  for (let i = 0; i < junction.paint.length; i += 3) assert.ok(Math.abs(junction.paint[i]) > 3.5);
+});
+
+test('Story Bridge has a steel silhouette with an open traffic envelope', () => {
+  const group = new THREE.Group();
+  const bridges = GEO.bridges.filter(b => b.name === 'Story Bridge');
+  const stats = buildBridges(group, { bridges, roads: [] }, terrain);
+  assert.equal(stats.trussSections, 29);
+  for (const m of group.children) assert.ok(m.geometry.attributes.position.array.every(Number.isFinite));
+  const [b] = bridges, profile = deckProfile(b);
+  const dx = b.bx - b.ax, dz = b.bz - b.az, length = Math.hypot(dx, dz);
+  for (const t of [.34, .5, .66]) {
+    const x = b.ax + t * dx, z = b.az + t * dz;
+    const { left, right } = bridgeSection(b.ring, x, z, dx / length, dz / length);
+    const offset = (left + right) / 2;
+    const px = x - dz / length * offset, pz = z + dx / length * offset;
+    const ray = new THREE.Raycaster(new THREE.Vector3(px, profile(px, pz) + 2.3, pz),
+      new THREE.Vector3(dx / length, 0, dz / length), 0, 11);
+    assert.equal(ray.intersectObjects(group.children).length, 0);
+  }
 });

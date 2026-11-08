@@ -10,17 +10,19 @@ export function riverMaterial() {
     transparent: false,
     depthWrite: true,
     side: THREE.DoubleSide,
-    uniforms: {
+    fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 },
       uDeep: { value: new THREE.Color(0x2f5c58) },
       uGreen: { value: new THREE.Color(0x6c8650) },
       uSilt: { value: new THREE.Color(0x8a6a3e) },
       uSun: { value: new THREE.Vector3(0.45, 0.82, 0.28).normalize() },
-    },
+    }]),
     vertexShader: `
       uniform float uTime;
       varying vec3 vWorld;
       varying float vH;
+      #include <fog_pars_vertex>
       void main() {
         vec4 world = modelMatrix * vec4(position, 1.0);
         float along = world.x * 0.2 + world.z * 0.055;
@@ -29,7 +31,9 @@ export function riverMaterial() {
         world.y += h;
         vH = h;
         vWorld = world.xyz;
-        gl_Position = projectionMatrix * viewMatrix * world;
+        vec4 mvPosition = viewMatrix * world;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
       }
     `,
     fragmentShader: `
@@ -40,12 +44,21 @@ export function riverMaterial() {
       uniform vec3 uSun;
       varying vec3 vWorld;
       varying float vH;
+      #include <fog_pars_fragment>
       void main() {
         float along = vWorld.x * 0.2 + vWorld.z * 0.055;
         float dAx = cos(along - uTime * 1.25) * 0.28 * 0.2;
         dAx += cos(along * 0.48 + 1.4 - uTime * 0.6) * 0.12 * 0.096;
         float dAz = cos(along - uTime * 1.25) * 0.28 * 0.055;
         dAz += cos(along * 0.48 + 1.4 - uTime * 0.6) * 0.12 * 0.026;
+        // Fine wind-driven waves are shading only. The collision surface and
+        // the large wave geometry remain at their existing scale.
+        vec2 p = vWorld.xz;
+        float rippleA = cos(dot(p, vec2(1.28, .46)) - uTime * 2.08);
+        float rippleB = cos(dot(p, vec2(-.49, 1.64)) + uTime * 1.74);
+        float nearRipples = 1.0 - smoothstep(22.0, 190.0, distance(cameraPosition, vWorld));
+        dAx += nearRipples * (rippleA * .058 - rippleB * .018);
+        dAz += nearRipples * (rippleA * .020 + rippleB * .072);
         vec3 normal = normalize(vec3(-dAx, 1.0, -dAz));
         vec3 viewDir = normalize(cameraPosition - vWorld);
         float fres = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 2.4);
@@ -55,9 +68,12 @@ export function riverMaterial() {
         float band = 0.5 + 0.5 * sin(along * 1.7 - uTime * 1.8);
         vec3 col = mix(uDeep, uGreen, crest);
         col = mix(col, uSilt, 0.22 + band * 0.16);
-        col = mix(col, vec3(0.72, 0.84, 0.74), fres * 0.42);
+        col = mix(col, vec3(0.27, 0.40, 0.37), fres * 0.48);
         col += vec3(0.9, 0.96, 0.88) * spec * 0.55;
         gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
       }
     `,
   });
