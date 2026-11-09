@@ -47,6 +47,7 @@ export const DEFAULT_STATE = () => ({
   _multiplayer: false,
   _replay: null, // Isolated replay slot; never replaces the campaign save.
   currentZone: 'mansion',
+  brisbaneWeatherTime: 0,
   unlockedZones: ['mansion', 'brisbane'],
   redMode: false,
   quests: { activeIndex: 0, completed: [], progress: {} },

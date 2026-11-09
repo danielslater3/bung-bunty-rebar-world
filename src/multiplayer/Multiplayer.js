@@ -15,6 +15,7 @@ import { mergeStatic } from '../world/geo/cityModels.js';
 import { positionClear } from '../core/motion.js';
 import { RoomClient } from './RoomClient.js';
 import { MiniGames, el } from './MiniGames.js';
+import { phonePicker } from '../phone/Phone.js';
 import { ROOM_SERVER } from './config.js';
 import { ARENA, ARENA_COVER, ARENA_DOCK, ARENA_STAND, arenaLive, availablePickup, EXCHANGE, EXCHANGE_ITEMS, PICKUPS, RING_GATES, RING_WIDTH, SOCIAL_CLUB } from './cityActivities.js';
 import {
@@ -48,7 +49,7 @@ export class Multiplayer {
     this.lastSent = 0;
     this.lastPing = 0;
     this.handleKeys = (e) => {
-      if (!this.active) return;
+      if (!this.active || this.game.phone?.opened) return;
       const enter =
         e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
       if (e.target.matches('input,textarea')) {
@@ -138,6 +139,7 @@ export class Multiplayer {
     create.type = 'button';
     join.type = 'submit';
     form.append(name, code, create, join);
+    const selectPhone = phonePicker(panel);
     panel.append(form, message);
     const settings = el('details', 'mp-server-setting'),
       summary = el('summary', '', 'Use a community server'),
@@ -170,6 +172,7 @@ export class Multiplayer {
         localStorage.setItem('bung-room-name', name.value.trim() || 'Bung');
         const room = fresh ? await this.client.create() : code.value;
         const appearance = this.picker.value();
+        this.phoneEdition = selectPhone();
         localStorage.setItem(
           'bung-room-appearance',
           JSON.stringify(appearance),
@@ -1088,6 +1091,7 @@ export class Multiplayer {
     if (warp === this.appliedWarp || !this.root) return;
     this.appliedWarp = warp;
     const g = this.game;
+    g.phone.close();
     g.trolley.dismiss();
     const y = g.zone.groundAt(p.pos.x, p.pos.z, p.pos.y) + .1;
     g.player.teleport(new THREE.Vector3(p.pos.x, y, p.pos.z));
@@ -1398,6 +1402,7 @@ export class Multiplayer {
     }
   }
   async leave() {
+    this.game.phone?.close();
     this.client?.close();
     this.active = false;
     document.body.classList.remove('multiplayer-active');

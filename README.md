@@ -1,5 +1,7 @@
 # BUNG BUNTY: REBAR WORLD — WORLD DETAIL + CARTOON VISUAL REVAMP 3.0
 
+Press **1** or click **S24** in the hotbar to open the Rebar S24 during play. Choose from ten handset designs in the multiplayer lobby or the Device app. Bung Weather tracks simulated Brisbane storms with rain and radial wind layers, radar replay, warnings, and a one-minute forecast. In solo Brisbane, use **Start solo storm drill** to watch a rotating storm develop. Reduce lightning flashes under **Device**.
+
 [Chapters 7–8 release](docs/CHAPTERS_7_8_RELEASE.md): three-round rap battle, visible phone destruction, reachable evidence, saved checkpoints and mouse-lock fixes.
 
 
@@ -35,8 +37,8 @@ Save Rebar World from **Gabor Mihala** in **OPERATION REBAR: BLUE TO RED**.
 - **Hong Kong / Shenzhen** density pass: animated LED glyph billboards, hanging
   cables, steam vents, street food stalls, elevated neon walkways, distant
   drone traffic, holographic rebar data, and the colossal **REBAR CORE** tower.
-- Procedural canvas textures (mall paving, terminal floor, skylights, LED
-  glyphs) — still zero asset files.
+- Procedural canvas textures for mall paving, terminal floors, skylights and LED
+  glyphs.
 
 ### What was new in 2.0
 - **RebarChainManager** — one central combo system. Rebars AND portals feed the

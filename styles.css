@@ -459,3 +459,66 @@ body.multiplayer-active:has(#dialogue:not(.hidden)) .mp-notice{visibility:hidden
   .mp-room-tabs { padding-block: 5px; }
   .mp-room-content { padding-block: 12px; }
 }
+
+/* Rebar S24 · separate inventory slot and handset UI */
+.s24-slot,.s24-alert{position:fixed;z-index:18;cursor:pointer;color:#fff1d5;border:1px solid #72818c;background:#142337f2;font:700 13px var(--font-head)}
+.s24-slot{bottom:24px;left:50%;transform:translateX(-50%);border-radius:12px;display:flex;align-items:center;gap:7px;padding:6px 9px;box-shadow:0 3px 0 #0b1526}
+.s24-slot-icon{font-size:22px;color:#ffd16e;line-height:1}
+.s24-slot kbd{font:700 10px var(--font-body);background:#2b4156;border:1px solid #647487;border-radius:4px;padding:2px 5px}
+.s24-alert{right:18px;top:113px;padding:8px 13px;border-radius:9px;border-color:#dd889a;color:#ffe0e7;background:#47263bef}
+.s24-alert::before{content:'BUNG WEATHER · ';color:#ffb7c9}
+.s24-slot[hidden],.s24-alert[hidden],.s24-warning[hidden]{display:none}
+body.multiplayer-active .s24-slot{bottom:69px}
+body.multiplayer-active .s24-alert{top:106px}
+.s24-shell{--s24-case:#262a32;--s24-accent:#e0ba98;inset:0;margin:auto;width:min(430px,calc(100vw - 22px));height:min(750px,calc(100dvh - 22px));padding:7px;border:2px solid color-mix(in srgb,var(--s24-case),#c7d3d7 49%);border-radius:30px;background:var(--s24-case);color:#f3f6fb;font:600 14px var(--font-body);overflow:hidden;box-shadow:0 18px 80px #000a}
+.s24-shell::backdrop{background:#07101b87;backdrop-filter:blur(3px)}
+.s24-screen{height:100%;display:flex;flex-direction:column;background:linear-gradient(150deg,color-mix(in srgb,var(--s24-case),#172533 65%),#101e2d 64%);border-radius:22px;overflow:hidden}
+.s24-status,.s24-dock{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 13px;background:#0e1828;color:#c9d9e8}
+.s24-status b{font:700 12px var(--font-head);letter-spacing:.14em;color:var(--s24-accent)}
+.s24-body{overflow:auto;min-height:0;flex:1;overscroll-behavior:contain;padding:12px 15px 16px;scrollbar-color:#66778a #142231}
+.s24-body h2,.s24-mast h2{font-family:var(--font-head);color:#f3f6fa;line-height:1.1}
+.s24-mast{padding:22px 15px;margin:0 0 16px;border-radius:15px;background:linear-gradient(120deg,var(--s24-case),#182b43);border:1px solid #76899d78}
+.s24-mast h2{font-size:clamp(24px,5.4vw,34px);margin:6px 0 9px}
+.s24-mast small,.s24-kicker{font:800 10px var(--font-body);letter-spacing:.15em;color:var(--s24-accent)}
+.s24-mast p,.s24-caption{font-size:12px;color:#bbcddc;line-height:1.35}
+.s24-app-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px 6px}
+.s24-shell button,.s24-download{cursor:pointer;border:1px solid #6b8096;background:#24364c;color:#f0f4fa;font:700 13px var(--font-body);padding:7px 9px;border-radius:8px;text-decoration:none}
+.s24-shell button:hover,.s24-shell button:focus-visible{border-color:var(--s24-accent)}
+.s24-shell button:disabled{opacity:.52;cursor:default}
+.s24-shell .s24-close{font:700 21px/1 var(--font-head);width:32px;height:30px;padding:0}
+.s24-shell .s24-app{border:0;background:transparent;display:grid;justify-items:center;gap:5px;min-width:0;padding:3px;color:#e9f2f7}
+.s24-app i{display:grid;place-items:center;width:43px;height:43px;font:700 28px/1 var(--font-head);font-style:normal;border-radius:12px;background:var(--s24-app-color);color:#112238;box-shadow:0 3px 0 #0c1827}
+.s24-app span{font-size:11px}
+.s24-app-title{font-size:26px;margin:1px 0 9px}
+.s24-kicker{margin:4px 0 9px}
+.s24-current{color:#e1f7ff;margin:0 0 8px;font-size:13px}
+.s24-warning,.s24-forecast{border:1px solid #496b79;border-radius:7px;background:#183343;color:#d0e7eb;padding:6px 9px;margin:0 0 8px;font-size:12px}
+.s24-warning[data-severity=high]{background:#4d243d;border-color:#d885a0;color:#ffe2ea}
+.s24-warning[data-severity=watch]{background:#443921;border-color:#a58a50;color:#fff0bf}
+.s24-forecast{margin:8px 0 0}
+.s24-radar{width:100%;height:auto;display:block;border:1px solid #65808a;border-radius:10px;background:#101f2b}
+.s24-row{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}
+.s24-device{display:grid;justify-items:center}
+.s24-device-name{color:var(--s24-accent);text-align:center;font-size:14px}
+.s24-device-art{margin:9px auto 0;width:min(66%,230px)}
+.s24-art{position:relative;aspect-ratio:2/3;overflow:hidden;background:#191d25;border-radius:8px}
+.s24-art img{display:block;width:100%;height:100%;object-fit:cover}
+.s24-night-label{position:absolute;left:63%;top:19.15%;width:17%;height:2.05%;display:grid;place-items:center;background:#18122c;color:#edd3ed;font:600 clamp(4px,1.4vw,10px)/1 var(--font-body);letter-spacing:.11em}
+.s24-setting{display:flex;align-items:center;gap:8px;color:#c0d3e1;padding:7px}
+.s24-notes{display:block;resize:vertical;width:100%;min-height:210px;background:#142535;border:1px solid #708594;border-radius:9px;padding:10px;color:#f7f7ec;font:600 15px var(--font-body);user-select:text}
+.s24-wallet{display:grid;gap:8px}
+.s24-wallet p,.s24-game-status{padding:10px;background:#1f3548;border:1px solid #486477;border-radius:9px;margin-bottom:7px}
+.s24-camera-view{margin-bottom:12px}
+.s24-camera-view img{display:block;width:100%;height:auto;margin-bottom:10px;border-radius:8px}
+.s24-calculator-readout{display:block;padding:11px 15px;background:#101c2e;text-align:right;font-size:28px;min-height:60px;margin-bottom:8px}
+.s24-calculator,.s24-arcade-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.s24-arcade-grid:has(button:nth-child(9):last-child){grid-template-columns:repeat(3,minmax(0,1fr))}
+.s24-arcade-grid button{min-height:46px;font-size:22px}
+.s24-picker{margin:10px 0 13px;border:1px solid #66818d;border-radius:12px;padding:10px 13px;background:#132637}
+.s24-picker summary{cursor:pointer;color:var(--s24-accent,#ffd16e);font-weight:700}
+.s24-picker-content{display:grid;grid-template-columns:105px 1fr;gap:13px;margin-top:10px;align-items:center}
+.s24-picker select{display:block;width:100%;margin:4px 0 7px;padding:8px;color:#f4f7fa;background:#1e3449;border:1px solid #698894;border-radius:8px;font:inherit}
+.s24-picker p{font:600 12px var(--font-body);color:#b2c7d7}
+@media(max-width:900px){body.multiplayer-active .s24-slot{bottom:59px}.s24-alert,body.multiplayer-active .s24-alert{top:174px;right:12px}}
+@media(max-width:550px){.s24-slot{bottom:61px}.s24-app-grid{gap:10px 3px}.s24-shell{height:min(750px,calc(100dvh - 12px))}.s24-body{padding-inline:11px}}
+@media(max-width:900px){body.multiplayer-active .s24-slot{bottom:64px;left:auto;right:12px;transform:none}body.multiplayer-active:has(#mp-notice.visible) .s24-alert{display:none}}

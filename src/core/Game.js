@@ -19,6 +19,8 @@ import { Menus } from '../ui/Menus.js';
 import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
+import { WeatherSystem } from '../weather/WeatherSystem.js';
+import { Phone } from '../phone/Phone.js';
 import { Multiplayer } from '../multiplayer/Multiplayer.js';
 import { Saga, createSaga } from '../story/Saga.js';
 
@@ -71,6 +73,8 @@ export class Game {
     this.player = new Player(this);
     this.trolley = new Trolley(this);
     this.player.mesh.visible = false;
+    this.weather = new WeatherSystem(this);
+    this.phone = new Phone(this);
 
     this.mode = 'menu'; // menu | playing | paused
     this.scoreAttack = null;
@@ -233,6 +237,8 @@ export class Game {
     }
     if (seq !== this._zoneSeq) return;
 
+    this.phone.close();
+    this.weather.detach();
     if (this.zone) this.zone.dispose();
     this.allEnemies = [];
     this.scoreAttack = null;
@@ -252,6 +258,7 @@ export class Game {
     }
     if (seq !== this._zoneSeq) return;
     this.scene.add(kit.group);
+    this.weather.attach(kit);
 
     state.currentZone = name;
     this.player.teleport(kit.spawn.clone());
@@ -382,14 +389,27 @@ export class Game {
     this._dt = dt;
     this.elapsed += dt;
 
-    if(this.loading){this.input.endFrame();return;}
-    if(this.multiplayer?.active){this.multiplayer.frame(dt);this.input.endFrame();this.renderer.render(this.scene,this.camera);return;}
-    if (this.mode === 'playing') this.updatePlaying(dt);
+    if(this.loading){this.phone.update(dt);this.input.endFrame();return;}
+    if (this.multiplayer?.active) {
+      this.phone.update(dt);
+      this.multiplayer.frame(dt);
+      this.weather.update(dt);
+      this.input.endFrame();
+      this.renderer.render(this.scene,this.camera);
+      return;
+    }
+    this.phone.update(dt);
+    if (this.mode === 'playing' && !this.phone.opened) this.updatePlaying(dt);
+    else if (this.mode === 'playing') {
+      this.zone?.update(dt, this.elapsed);
+      this.dialogue.update(dt);
+    }
     else if (this.mode === 'cutscene') {
       this.zone?.update(dt, this.elapsed);
       this.dialogue.update(dt);
     }
-    if (this.mode === 'playing' || this.mode === 'cutscene') this.saga?.update(dt);
+    if ((this.mode === 'playing' || this.mode === 'cutscene') && !this.phone.opened) this.saga?.update(dt);
+    this.weather.update(dt);
     if (this.mode === 'playing' || this.mode === 'paused') {
       this._autosave += dt;
       if (this._autosave >= 30) {

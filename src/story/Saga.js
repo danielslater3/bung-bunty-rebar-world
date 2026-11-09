@@ -759,7 +759,7 @@ export class Saga {
 
   performanceLine() {
     if(this.game.mode!=='playing')return null;
-    if(state.saga.chapter===8 && this.mission?.kind==='trial'){const m=this.mission;m.shots||=[];return m.shots[m.q]||(m.shots[m.q]={cinematic:true,speaker:'judge',i:m.q+1});}
+    if(state.saga?.chapter===8 && this.mission?.kind==='trial'){const m=this.mission;m.shots||=[];return m.shots[m.q]||(m.shots[m.q]={cinematic:true,speaker:'judge',i:m.q+1});}
     if(state.saga?.chapter===7&&this.currentStep()?.id==='snap'&&this.mission?.kind==='photo'){
       const m=this.mission;m.photoShot||={cinematic:true,speaker:'gabor',i:1};return m.photoShot;
     }
