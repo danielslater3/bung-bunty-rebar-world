@@ -75,13 +75,20 @@ async function main() {
     const travel = (p, dest) => p.evaluate(async dest => {
       const g = BUNG, target = Array.isArray(dest) ? dest : [dest.x, dest.z];
       const [x, z] = target, start = g.player.pos.clone();
+      const end = { x, y: g.zone.groundAt(x, z) + .08, z };
       const a = g.multiplayer.room.arena;
       const fighter = a.phase === 'playing' && a.players.includes(g.multiplayer.client.id);
-      const n = Math.max(1, Math.ceil(Math.hypot(start.x - x, start.z - z) / (fighter ? 1.7 : 5)));
-      for (let i = 1; i <= n; i++) {
-        const px = start.x + (x - start.x) * i / n, pz = start.z + (z - start.z) * i / n;
-        g.player.teleport(new THREE.Vector3(px, g.zone.groundAt(px, pz) + .08, pz));
-        await new Promise(r => setTimeout(r, 150));
+      const nav = g.multiplayer.navigation;
+      const path = nav.clear(start, end) ? [start, end] : nav.plan(start, end);
+      if (path.length < 2) throw Error('Browser fixture could not route to ' + JSON.stringify(end));
+      for (let step = 1; step < path.length; step++) {
+        const p = g.player.pos.clone(), q = path[step];
+        const n = Math.max(1, Math.ceil(Math.hypot(p.x - q.x, p.z - q.z) / (fighter ? 1.4 : 2.75)));
+        for (let i = 1; i <= n; i++) {
+          const px = p.x + (q.x - p.x) * i / n, pz = p.z + (q.z - p.z) * i / n;
+          g.player.teleport(new THREE.Vector3(px, g.zone.groundAt(px, pz, g.player.pos.y) + .08, pz));
+          await new Promise(r => setTimeout(r, 165));
+        }
       }
     }, dest);
     const act = p => p.evaluate(() => BUNG.multiplayer.worldAction());
@@ -91,9 +98,30 @@ async function main() {
     await wait(a, id => BUNG.multiplayer.room.players[id].ring?.deadline, idA);
     for (let i = 0; i < gates.length; i++) {
       const q = gates[i];
-      await travel(a, [q.x - q.nx * 2.4, q.z - q.nz * 2.4]);
-      await travel(a, [q.x + q.nx * 2.4, q.z + q.nz * 2.4]);
-      await wait(a, ([id, index]) => BUNG.multiplayer.room.players[id].ring.index === index, [idA, i + 1]);
+      const lane = await a.evaluate(q => {
+        const g = BUNG, nav = g.multiplayer.navigation;
+        const point = (forward, side) => {
+          const x = q.x + q.nx * forward + q.nz * side;
+          const z = q.z + q.nz * forward - q.nx * side;
+          return { x, y: g.zone.groundAt(x, z) + .08, z };
+        };
+        for (const offset of [0, .8, -.8, 1.6, -1.6]) {
+          const before = point(-2.4, offset), after = point(2.4, offset);
+          if (nav.clear(before, after)) return { before, after };
+        }
+        throw Error('Gate has no clear lane: ' + JSON.stringify(q));
+      }, q);
+      await travel(a, lane.before);
+      await a.waitForTimeout(300);
+      await travel(a, lane.after);
+      await wait(a, ([id, index]) => BUNG.multiplayer.room.players[id].ring.index === index, [idA, i + 1]).catch(async error => {
+        console.error('GATE', i + 1, await a.evaluate(() => ({
+          ring: BUNG.multiplayer.room.players[BUNG.multiplayer.client.id].ring,
+          pos: BUNG.player.pos, notice: document.querySelector('#mp-notice').textContent,
+          connected: BUNG.multiplayer.client.connected,
+        })));
+        throw error;
+      });
       if (i === 2) {
         await a.evaluate(() => BUNG.multiplayer.client.ws.close(1000, 'Test reconnect'));
         await wait(a, () => !BUNG.multiplayer.client.connected);
