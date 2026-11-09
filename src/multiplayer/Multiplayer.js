@@ -28,6 +28,15 @@ import {
   characterDefinition,
 } from './catalog.js';
 
+const ROOM_TABS = [
+  ['explore', 'Explore'],
+  ['arena', 'Arena'],
+  ['exchange', 'Exchange'],
+  ['quest', 'Expedition'],
+  ['games', 'Minigames'],
+  ['players', 'Players'],
+];
+
 export class Multiplayer {
   constructor(game) {
     this.game = game;
@@ -226,7 +235,7 @@ export class Multiplayer {
       this.horns = new Map();
       this.basketMaterials = new WeakMap();
       this.activityTarget = null;
-      this.exchangeOpen = false;
+      this.roomTab = 'explore';
       this.rushPrev = null;
       this.appliedWarp = this.room.players[this.client.id]?.warp ?? 0;
       this.root = new THREE.Group();
@@ -290,6 +299,9 @@ export class Multiplayer {
       const lastRun = this.room?.players[this.client.id]?.ring;
       this.room = m.room;
       if (this.active) {
+        const target = this.activityTarget;
+        if (target?.kind && !availablePickup(target, this.room.players[this.client.id], this.room, this.client.now()))
+          this.activityTarget = null;
         const run = this.room.players[this.client.id]?.ring;
         if (lastRun?.deadline && run?.expired) this.error('Ring Rush expired · start a new run from the room board.');
         else if (run?.deadline && run.index > (lastRun?.index ?? 0)) {
@@ -479,84 +491,183 @@ export class Multiplayer {
     document.activeElement?.blur();
     this.setFocus(false);
   }
-  openBoard() {
+  openBoard(tab = this.roomTab || 'explore') {
     if (!this.active) {
       this.showLobby();
+      return;
+    }
+    if (this.board) {
+      this.selectRoomTab(tab);
       return;
     }
     this.mini.close();
     document.getElementById('mp-chat')?.classList.remove('expanded');
     this.ui?.classList.remove('chat-open');
     this.setFocus(true);
-    this.board?.remove();
     this.board = el('div', 'mp-overlay');
     this.board.id = 'mp-room-board';
-    document.body.append(this.board);
-    this.drawBoard();
-  }
-  drawBoard() {
-    const card = el('section', 'mp-room-card'),
-      q = this.room.quest;
-    card.append(
-      el(
-        'small',
-        'mp-eyebrow',
-        `ROOM ${this.room.code} · ${Object.values(this.room.players).filter((p) => p.connected).length}/10 BUNGS`,
-      ),
-      el('h2', '', 'THE ENORMOUS SOCIAL CLUB'),
-    );
-    const controls = el('div', 'mp-game-toolbar');
-    for (const [text, fn] of [
-      ['BACK TO CITY', () => this.hidePanels()],
-      ['INVITE MATES', () => this.share()],
-      ['LEAVE ROOM', () => this.leave()],
-    ]) {
-      const b = el('button', 'mp-button', text);
-      b.onclick = fn;
-      controls.append(b);
+
+    const card = el('section', 'mp-room-card');
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-labelledby', 'mp-room-title');
+    card.onkeydown = event => {
+      if (event.key !== 'Tab') return;
+      const stops = [...card.querySelectorAll('button:not(:disabled), summary, [tabindex="0"]')]
+        .filter(item => item.tabIndex >= 0 && item.getClientRects().length);
+      const edge = event.shiftKey ? stops[0] : stops.at(-1);
+      if (document.activeElement !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? stops.at(-1) : stops[0]).focus();
+    };
+    const header = el('header', 'mp-room-header');
+    const identity = el('div', 'mp-room-identity');
+    const meta = el('p', 'mp-eyebrow');
+    meta.id = 'mp-room-meta';
+    const title = el('h2', '', 'Bung Social Club');
+    title.id = 'mp-room-title';
+    identity.append(meta, title);
+    const tools = el('div', 'mp-room-tools');
+    this.roomButton(tools, 'INVITE MATES', () => this.share());
+    this.roomButton(tools, 'LEAVE ROOM', () => this.leave(), 'subtle');
+    this.roomButton(tools, 'BACK TO CITY', () => this.hidePanels(), 'gold');
+    header.append(identity, tools);
+
+    const tabs = el('div', 'mp-room-tabs');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', 'Room sections');
+    for (const [id, label] of ROOM_TABS) {
+      const button = el('button', 'mp-room-tab', label);
+      button.id = 'mp-tab-' + id;
+      button.dataset.roomTab = id;
+      button.setAttribute('role', 'tab');
+      button.setAttribute('aria-controls', 'mp-room-content');
+      button.onclick = () => this.selectRoomTab(id);
+      tabs.append(button);
     }
-    card.append(controls);
-    const layout = el('div', 'mp-room-layout'),
-      main = el('div'),
-      side = el('aside');
-    layout.append(main, side);
-    card.append(layout);
+    tabs.onkeydown = (event) => {
+      const at = ROOM_TABS.findIndex(([id]) => id === event.target.dataset.roomTab);
+      if (at < 0) return;
+      const last = ROOM_TABS.length - 1;
+      const next = {
+        ArrowRight: at === last ? 0 : at + 1,
+        ArrowLeft: at === 0 ? last : at - 1,
+        Home: 0,
+        End: last,
+      }[event.key];
+      if (next == null) return;
+      event.preventDefault();
+      this.selectRoomTab(ROOM_TABS[next][0]);
+    };
+
+    const panel = el('div', 'mp-room-content');
+    panel.id = 'mp-room-content';
+    panel.setAttribute('role', 'tabpanel');
+    panel.tabIndex = 0;
+    card.append(header, tabs, panel);
+    this.board.append(card);
+    document.body.append(this.board);
+    this.selectRoomTab(tab);
+  }
+
+  roomButton(parent, text, action, variant = '') {
+    const button = el('button', variant ? 'mp-button ' + variant : 'mp-button', text);
+    button.onclick = action;
+    parent.append(button);
+    return button;
+  }
+
+  selectRoomTab(tab) {
+    const button = this.board.querySelector('#mp-tab-' + tab);
+    if (!button) return;
+    this.roomTab = tab;
+    for (const item of this.board.querySelectorAll('[role="tab"]')) {
+      const selected = item === button;
+      item.setAttribute('aria-selected', String(selected));
+      item.tabIndex = selected ? 0 : -1;
+    }
+    const panel = this.board.querySelector('#mp-room-content');
+    panel.setAttribute('aria-labelledby', button.id);
+    panel.replaceChildren();
+    panel.scrollTop = 0;
+    this.drawBoard();
+    button.focus();
+  }
+
+  drawBoard() {
+    const panel = this.board.querySelector('#mp-room-content');
     const p = this.room.players[this.client.id];
+    const online = Object.values(this.room.players).filter(player => player.connected).length;
+    this.board.querySelector('#mp-room-meta').textContent =
+      `ROOM ${this.room.code} · ${online}/10 ONLINE · ${p?.score ?? 0} POINTS · ${p?.rebar ?? 0} REBAR`;
+
+    // Room updates can arrive while a keyboard user is choosing an action.
+    const scroll = panel.scrollTop;
+    const active = document.activeElement;
+    const focusables = 'button:not(:disabled), summary';
+    const inside = panel.contains(active) && active.matches(focusables);
+    const focusPlayer = active.closest('[data-player]')?.dataset.player;
+    const openPlayers = new Set(Array.from(panel.querySelectorAll('details[open]'),
+      details => details.closest('[data-player]').dataset.player));
+    panel.replaceChildren();
+    const body = el('div', 'mp-room-page mp-room-page-' + this.roomTab);
+    panel.append(body);
+    switch (this.roomTab) {
+      case 'explore': this.drawExplore(body, p); break;
+      case 'arena': this.drawArena(body, p); break;
+      case 'exchange': this.drawExchange(body, p); break;
+      case 'quest': this.drawExpedition(body, this.room.quest); break;
+      case 'games': this.drawMinigames(body); break;
+      case 'players': this.drawPlayers(body); break;
+    }
+    for (const row of body.querySelectorAll('[data-player]')) {
+      const details = row.querySelector('details');
+      if (details) details.open = openPlayers.has(row.dataset.player);
+    }
+    panel.scrollTop = scroll;
+    if (inside) {
+      const replacement = [...panel.querySelectorAll(focusables)].find(item =>
+        item.textContent === active.textContent && item.closest('[data-player]')?.dataset.player === focusPlayer);
+      (replacement || panel).focus({ preventScroll: true });
+    }
+  }
+
+  drawExplore(panel, p) {
     const ring = el('section', 'mp-quest-card');
     const run = p?.ring;
     ring.append(el('small', 'mp-eyebrow', 'QUEEN STREET · SOLO OR SIDE BY SIDE'),
       el('h3', '', 'RING RUSH'),
       el('p', '', run?.expired ? 'Time ran out. Start a new run.' : run?.time != null
         ? `Finished in ${(run.time / 1000).toFixed(1)}s. Best ${(p.ringBest / 1000).toFixed(1)}s.`
-        : 'Cross eight gates toward Edward Street on foot or by trolley. Finish in 90 seconds for 40 points and 24 rebar.'));
-    const ringButton = el('button', 'mp-button gold', run?.deadline ? 'RESUME RING RUSH' : 'START RING RUSH');
-    ringButton.onclick = () => {
+        : 'Cross eight gates toward Edward Street on foot or by trolley. 90 seconds · 40 points + 24 rebar.'));
+    const actions = el('div', 'mp-room-actions');
+    this.roomButton(actions, run?.deadline ? 'RESUME RING RUSH' : 'START RING RUSH', () => {
       if (!run?.deadline) this.client.command('ringStart');
       this.hidePanels();
-    };
-    ring.append(ringButton);
-    if (run?.deadline) {
-      const cancel = el('button', 'mp-button subtle', 'CANCEL RUN');
-      cancel.onclick = () => this.client.command('ringCancel');
-      ring.append(cancel);
-    }
-    main.append(ring);
+    }, 'gold');
+    if (run?.deadline)
+      this.roomButton(actions, 'CANCEL RUN', () => this.client.command('ringCancel'), 'subtle');
+    ring.append(actions);
+    panel.append(ring);
     const collection = el('section', 'mp-quest-card');
     const stamps = PICKUPS.filter(item => item.kind === 'stamp' && p.claims?.[item.id]).length;
     const burgers = PICKUPS.filter(item => item.kind === 'burger' && p.claims?.[item.id]).length;
     collection.append(el('small', 'mp-eyebrow', 'ROOM-LOCAL PROGRESS'), el('h3', '', 'BRISBANE REBAR HUNT'),
-      el('p', '', `${p.rebar} rebar · ${stamps}/3 landmark stamps · ${burgers}/3 burger tokens. Press F beside a collectible.`));
+      el('p', '', `${p.rebar} rebar · ${stamps}/3 landmark stamps · ${burgers}/3 burger tokens. Walk or drive through a collectible to pick it up.`));
     const hunt = el('div', 'mp-game-toolbar');
     for (const [label, point] of [
       ['CITY HALL', PICKUPS[0]], ['QUEEN STREET', PICKUPS[2]], ['SOUTH BANK', PICKUPS[5]],
-      ['BOTANIC GARDENS', PICKUPS[8]], ['RARE SHIPMENT', PICKUPS[4]], ['FIND EXCHANGE', EXCHANGE],
+      ['BOTANIC GARDENS', PICKUPS[8]], ['RARE SHIPMENT', PICKUPS[4]],
     ]) {
       const button = el('button', 'mp-button', label);
       button.onclick = () => { this.activityTarget = point; this.hidePanels(); };
       hunt.append(button);
     }
     collection.append(hunt);
-    main.append(collection);
+    panel.append(collection);
+  }
+
+  drawArena(panel, p) {
     const arena = this.room.arena;
     if (arena) {
       const heist = el('section', 'mp-quest-card');
@@ -571,13 +682,14 @@ export class Multiplayer {
         for (const id of arena.players)
           heist.append(el('small', 'mp-arena-ready', `${this.name(id)} · ${arena.ready[id] ? 'READY' : 'WAITING'}`));
       }
+      const actions = el('div', 'mp-room-actions');
       const action = (text, cmd, data) => {
         const b = el('button', 'mp-button', text);
         b.onclick = () => {
           this.client.command(cmd, data);
           if (cmd === 'arenaWatch' || cmd === 'arenaUnwatch' || cmd === 'arenaReady') this.hidePanels();
         };
-        heist.append(b);
+        actions.append(b);
       };
       if (!active && (!queued || arena.phase === 'finished')) {
         const sizes = arena.phase === 'waiting' && arena.players.length ? [arena.size] : [2, 4];
@@ -588,29 +700,45 @@ export class Multiplayer {
       if (queued && arena.phase !== 'finished') action('LEAVE ARENA', 'arenaLeave');
       if (!queued || !active)
         action(p.watchReturn ? 'RETURN TO CITY' : 'WATCH FROM THE STANDS', p.watchReturn ? 'arenaUnwatch' : 'arenaWatch');
-      main.append(heist);
+      heist.append(actions);
+      panel.append(heist);
     }
-    if (this.exchangeOpen || this.near(EXCHANGE, 5)) {
-      const shop = el('section', 'mp-quest-card');
-      shop.append(el('h3', '', 'BUNG’S REBAR EXCHANGE'), el('p', '', `${p.rebar} room rebar available`));
-      for (const item of EXCHANGE_ITEMS) {
-        const row = el('div', 'mp-exchange-item');
-        const detail = el('div');
-        detail.append(el('b', '', item.label), el('p', '', item.detail));
-        if (item.swatch) {
-          const color = el('span', 'mp-swatch');
-          color.style.backgroundColor = '#' + item.swatch.toString(16).padStart(6, '0');
-          detail.prepend(color);
-        }
-        const owned = p.inventory?.[item.id];
-        const buy = el('button', 'mp-button', owned ? 'EQUIPPED' : `BUY · ${item.price}`);
-        buy.disabled = !!owned || p.rebar < item.price || !this.near(EXCHANGE, 5);
-        buy.onclick = () => this.client.command('exchangeBuy', { item: item.id });
-        row.append(detail, buy);
-        shop.append(row);
+  }
+
+  drawExchange(panel, p) {
+    const shop = el('section', 'mp-quest-card');
+    const atExchange = this.near(EXCHANGE, 5);
+    shop.append(el('small', 'mp-eyebrow', 'CITY HALL'),
+      el('h3', '', 'BUNG’S REBAR EXCHANGE'));
+    if (!atExchange) {
+      const visit = el('div', 'mp-exchange-visit');
+      visit.append(el('p', '', 'Visit the counter to buy or upgrade your trolley.'));
+      this.roomButton(visit, 'FIND EXCHANGE', () => {
+        this.activityTarget = EXCHANGE;
+        this.hidePanels();
+      });
+      shop.append(visit);
+    }
+    for (const item of EXCHANGE_ITEMS) {
+      const row = el('div', 'mp-exchange-item');
+      const detail = el('div');
+      detail.append(el('b', '', item.label), el('p', '', item.detail));
+      if (item.swatch) {
+        const color = el('span', 'mp-swatch');
+        color.style.backgroundColor = '#' + item.swatch.toString(16).padStart(6, '0');
+        detail.prepend(color);
       }
-      main.append(shop);
+      const owned = p.inventory?.[item.id];
+      const buy = el('button', 'mp-button', owned ? 'EQUIPPED' : `BUY · ${item.price}`);
+      buy.disabled = !!owned || p.rebar < item.price || !atExchange;
+      buy.onclick = () => this.client.command('exchangeBuy', { item: item.id });
+      row.append(detail, buy);
+      shop.append(row);
     }
+    panel.append(shop);
+  }
+
+  drawExpedition(panel, q) {
     const quest = el('section', 'mp-quest-card');
     quest.append(
       el('small', 'mp-eyebrow', 'FOUR-PLAYER CITY EXPEDITION'),
@@ -639,29 +767,19 @@ export class Multiplayer {
           `${q.done[i] ? '✓' : '○'} ${ROLES[i]} · ${id ? this.name(id) : 'OPEN SLOT'}`,
         ),
       );
-    const button = (text, fn, parent = quest) => {
-      const b = el('button', 'mp-button', text);
-      b.onclick = fn;
-      parent.append(b);
-      return b;
-    };
+    const actions = el('div', 'mp-room-actions');
     if (q.status !== 'complete')
-      button(
-        q.roles.includes(this.client.id)
-          ? 'LEAVE QUEST CREW'
-          : 'JOIN THE FOUR-PLAYER CREW',
-        () =>
-          this.client.command(
-            q.roles.includes(this.client.id) ? 'questLeave' : 'questJoin',
-          ),
-      );
-    if (this.room.host === this.client.id) {
-      if (q.status === 'waiting')
-        button('START EXPEDITION', () => this.client.command('questStart'));
-      if (q.status !== 'waiting')
-        button('RESET EXPEDITION', () => this.client.command('questReset'));
-    }
-    main.append(quest);
+      this.roomButton(actions,
+        q.roles.includes(this.client.id) ? 'LEAVE QUEST CREW' : 'JOIN THE FOUR-PLAYER CREW',
+        () => this.client.command(q.roles.includes(this.client.id) ? 'questLeave' : 'questJoin'));
+    if (this.room.host === this.client.id)
+      this.roomButton(actions, q.status === 'waiting' ? 'START EXPEDITION' : 'RESET EXPEDITION',
+        () => this.client.command(q.status === 'waiting' ? 'questStart' : 'questReset'));
+    quest.append(actions);
+    panel.append(quest);
+  }
+
+  drawMinigames(panel) {
     const games = el('div', 'mp-game-grid');
     for (const def of GAMES) {
       const g = this.room.games[def.id],
@@ -685,12 +803,16 @@ export class Multiplayer {
       };
       games.append(b);
     }
-    main.append(el('h3', '', 'TEN TABLES. ZERO SENSIBLE IDEAS.'), games);
-    side.append(el('h3', '', 'ROOM LEADERBOARD'));
+    panel.append(el('h3', 'mp-room-section-title', 'TEN TABLES. ZERO SENSIBLE IDEAS.'), games);
+  }
+
+  drawPlayers(panel) {
+    panel.append(el('h3', 'mp-room-section-title', 'ROOM LEADERBOARD'));
     for (const p of Object.values(this.room.players).sort(
       (a, b) => b.score - a.score,
     )) {
       const row = el('div', 'mp-player-row');
+      row.dataset.player = p.id;
       row.append(
         el(
           'b',
@@ -705,13 +827,18 @@ export class Multiplayer {
       );
       row.style.borderLeftColor = COLORS[p.color % 10];
       if (p.id !== this.client.id) {
+        const actions = el('details', 'mp-player-actions');
+        const summary = el('summary', '', 'Player actions');
+        summary.setAttribute('aria-label', 'Player actions for ' + p.name);
+        actions.append(summary);
+        row.append(actions);
+        const button = (text, fn) => this.roomButton(actions, text, fn);
         button(
           'FIND IN BRISBANE',
           () => {
             this.manualTarget = p.id;
             this.hidePanels();
           },
-          row,
         );
         button(
           this.muted.has(p.id) ? 'UNMUTE LOCALLY' : 'MUTE LOCALLY',
@@ -721,35 +848,29 @@ export class Multiplayer {
               : this.muted.add(p.id);
             this.refreshUI();
           },
-          row,
         );
         if (this.room.host === this.client.id) {
           button(
             'MUTE CHAT · 5 MIN',
             () =>
               this.client.command('moderate', { player: p.id, action: 'mute' }),
-            row,
           );
           button(
             'REMOVE',
             () =>
               this.client.command('moderate', { player: p.id, action: 'kick' }),
-            row,
           );
         }
       }
-      side.append(row);
+      panel.append(row);
     }
-    side.append(
+    panel.append(
       el(
         'p',
         'mp-caption',
         'Campaign saves and currencies stay separate. Room host transfers automatically when the host leaves.',
       ),
     );
-    const scroll = this.board.firstElementChild?.scrollTop || 0;
-    this.board.replaceChildren(card);
-    card.scrollTop = scroll;
   }
   async share() {
     const url = new URL(location.href);
@@ -1001,10 +1122,6 @@ export class Multiplayer {
     return Math.hypot(p.x - target.x, p.z - target.z) <= radius &&
       Math.abs(p.y - (target.y ?? p.y)) < 3;
   }
-  nearbyLoot() {
-    const p = this.room.players[this.client.id], now = this.client.now();
-    return PICKUPS.find(item => this.near(item, 2.55) && availablePickup(item, p, this.room, now));
-  }
   paintTrolley(mesh, enabled) {
     const basket = mesh?.children[0];
     if (!basket || !this.basketMaterials || basket.userData.roomPaint === enabled) return;
@@ -1096,8 +1213,7 @@ export class Multiplayer {
         if (g.trolley.summoned && g.player.pos.distanceTo(g.trolley.pos) < 3) {
           g.trolley.riding ? g.trolley.dismount() : g.trolley.mount();
         } else if (this.near(EXCHANGE, 5)) {
-          this.exchangeOpen = true;
-          this.openBoard();
+          this.openBoard('exchange');
         } else if (g.zone.cityLife?.interactAt(g.player.pos)) {
           // The stop board uses the room notice, keeping chat and HUD clear.
         } else if (this.near(SOCIAL_CLUB, 5))
@@ -1185,7 +1301,6 @@ export class Multiplayer {
       if (group.visible) model.rotation.y += dt * 1.7;
     }
     this.updateArena(dt);
-    const loot = this.nearbyLoot();
     const goal = this.objective(),
       hud = document.getElementById('mp-goal');
     this.guide.visible = false;
@@ -1209,7 +1324,7 @@ export class Multiplayer {
       }
       if (goal.arena) extra = ` · ${Math.max(0, Math.ceil((goal.arena.deadline - this.client.now()) / 1000))}s`;
       const distance = r?.distance ?? Math.hypot(goal.x - g.player.pos.x, goal.z - g.player.pos.z);
-      hud.textContent = goal.label + ' · ' + Math.ceil(distance) + ' m' + extra + (loot ? ' · F COLLECT' : this.near(EXCHANGE, 5) && goal === EXCHANGE ? ' · E OPEN' : '');
+      hud.textContent = goal.label + ' · ' + Math.ceil(distance) + ' m' + extra + (goal === EXCHANGE && this.near(EXCHANGE, 5) ? ' · E OPEN' : '');
       if (r && !r.unavailable && r.distance > 2) {
         const a = this.guide;
         a.visible = true;
@@ -1236,7 +1351,6 @@ export class Multiplayer {
       }
     } else if (hud)
       hud.textContent =
-        (loot ? 'F · COLLECT ' + loot.label.toUpperCase() : null) ||
         (this.near(EXCHANGE, 5) ? 'E · REBAR EXCHANGE' : null) ||
         g.zone.cityLife?.hintAt(g.player.pos) ||
         'B · ROOM  |  ENTER · CHAT  |  T · TROLLEY  |  E · MOUNT / ARRIVALS  |  F · QUEST';
@@ -1281,11 +1395,6 @@ export class Multiplayer {
     if (rally?.status === 'playing' && rally.players.includes(this.client.id)) {
       this.client.command('play', { game: 'rally', action: {} });
       return;
-    }
-    const loot = this.nearbyLoot();
-    if (loot) {
-      if (this.activityTarget?.id === loot.id) this.activityTarget = null;
-      this.client.command('pickup', { item: loot.id });
     }
   }
   async leave() {

@@ -499,3 +499,28 @@ test('Burger Heist resolves ready, pickup, tackle, deliveries, rematch and depar
   cmd(spectator, 'arenaUnwatch');
   assert.equal(spectator.watchReturn, undefined);
 });
+
+test('accepted movement collects on foot and sweeps at trolley speed without a command', () => {
+  const s = setup(), { e, p } = s, [a, b] = p;
+  const [steel, , burger, , rare] = PICKUPS;
+  const touch = (player, item, { riding = false, y = item.y, age = 150, before = -3, after = 3 } = {}) => {
+    const pos = { x: item.x + before, y, z: item.z };
+    player.pos = pos;
+    player.moveAt = s.time - age;
+    assert.ok(e.move(player.id, { seq: player.moveSeq + 1, yaw: 0, riding,
+      pos: { x: item.x + after, y, z: item.z } }));
+    const itemHit = e.pickupOnMove(player.id, { pos, at: s.time - age });
+    if (itemHit) e.collectPickup(player, itemHit);
+    return itemHit?.id;
+  };
+  assert.equal(touch(a, steel, { after: 0 }), steel.id);
+  assert.equal(touch(a, steel, { after: 0 }), undefined);
+  assert.equal(touch(b, steel, { after: 0 }), steel.id);
+  assert.equal(touch(a, burger, { riding: true, y: burger.y + 4 }), undefined);
+  assert.equal(touch(a, burger, { riding: true, age: 1100 }), undefined);
+  assert.equal(touch(a, burger, { riding: true }), burger.id);
+  assert.equal(touch(a, rare, { riding: true }), rare.id);
+  assert.equal(touch(b, rare, { riding: true }), undefined);
+  assert.equal(a.rebar, steel.rebar + burger.rebar + rare.rebar);
+  assert.equal(b.rebar, steel.rebar);
+});

@@ -233,11 +233,17 @@ export class BungRoom extends DurableObject {
         const current = this.engine.s.players[a.id];
         const previous = current && { pos: current.pos, at: current.moveAt || 0 };
         if (this.engine.move(a.id, m)) {
-          if (this.engine.ringCrossed(a.id, previous)) {
+          const gate = this.engine.ringCrossed(a.id, previous);
+          const pickup = this.engine.pickupOnMove(a.id, previous);
+          if (gate || pickup) {
             const next = this.next();
-            next.advanceRing(a.id, previous);
+            if (pickup) {
+              next.collectPickup(next.s.players[a.id], pickup);
+              next.changed();
+            }
+            if (gate) next.advanceRing(a.id, previous);
             this.persist(next);
-            reschedule = true;
+            reschedule = gate;
             this.broadcast();
           }
           const p = this.engine.s.players[a.id];

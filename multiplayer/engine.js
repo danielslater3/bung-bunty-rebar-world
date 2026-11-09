@@ -253,6 +253,34 @@ export class RoomEngine {
     this.changed();
     return true;
   }
+  pickupOnMove(id, previous) {
+    const p = this.s.players[id], now = this.now();
+    const radius = p.riding ? 1.9 : 1.35;
+    const height = 1.55;
+    // A reconnect or server warp starts a fresh sweep at the accepted endpoint.
+    const age = p.moveAt - previous.at;
+    const from = age > 0 && age <= 1000 ? previous.pos : p.pos;
+    const dx = (p.pos.x - from.x) / radius;
+    const dy = (p.pos.y - from.y) / height;
+    const dz = (p.pos.z - from.z) / radius;
+    const lenSq = dx * dx + dy * dy + dz * dz;
+    return PICKUPS.find(item => {
+      if (!availablePickup(item, p, this.s, now)) return false;
+      const x = (item.x - from.x) / radius;
+      const y = (item.y - from.y) / height;
+      const z = (item.z - from.z) / radius;
+      const t = lenSq ? Math.max(0, Math.min(1, (x * dx + y * dy + z * dz) / lenSq)) : 0;
+      const ox = x - dx * t, oy = y - dy * t, oz = z - dz * t;
+      return ox * ox + oy * oy + oz * oz <= 1;
+    });
+  }
+  collectPickup(p, item) {
+    const now = this.now();
+    if (!availablePickup(item, p, this.s, now)) fail('That collectible has already been claimed.');
+    if (item.kind === 'rare') this.s.rareUntil[item.id] = now + 180000;
+    else p.claims[item.id] = now + (item.kind === 'rebar' ? 90000 : 86400000);
+    this.reward(p, item.kind === 'rare' ? 12 : 0, item.rebar, item.label, 'rebar');
+  }
   near(p, target, radius) {
     return p.moveAt != null && this.now() - p.moveAt <= 1400 &&
       gap(p.pos, target) <= radius && Math.abs(p.pos.y - target.y) < 3;
@@ -406,10 +434,7 @@ export class RoomEngine {
       case 'pickup': {
         const item = PICKUPS.find(x => x.id === m.item);
         if (!item || !this.near(p, item, p.riding ? 3 : 2.65)) fail('Stand close to the collectible first.');
-        if (!availablePickup(item, p, this.s, this.now())) fail('That collectible has already been claimed.');
-        if (item.kind === 'rare') this.s.rareUntil[item.id] = this.now() + 180000;
-        else p.claims[item.id] = this.now() + (item.kind === 'rebar' ? 90000 : 86400000);
-        this.reward(p, item.kind === 'rare' ? 12 : 0, item.rebar, item.label, 'rebar');
+        this.collectPickup(p, item);
         break;
       }
       case 'exchangeBuy': {

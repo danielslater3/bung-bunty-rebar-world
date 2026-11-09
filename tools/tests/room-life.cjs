@@ -93,7 +93,16 @@ async function main() {
     }, dest);
     const act = p => p.evaluate(() => BUNG.multiplayer.worldAction());
     const gates = await a.evaluate(() => activities.RING_GATES);
+    const points = await a.evaluate(() => ({ exchange: activities.EXCHANGE, steel: activities.PICKUPS[0],
+      burger: activities.PICKUPS[2], arena: activities.ARENA, docks: activities.ARENA_DOCK }));
+    for (const item of [points.steel, points.burger]) {
+      await travel(a, item);
+      await wait(a, ([id, pickup]) => BUNG.multiplayer.room.players[id].claims[pickup], [idA, item.id]);
+    }
+    console.log('Rebar and burger collected without F');
+    const tab = (page, name) => page.getByRole('tab', { name, exact: true });
     await board(a);
+    await tab(a, 'Explore').click();
     await button(a, 'START RING RUSH');
     await wait(a, id => BUNG.multiplayer.room.players[id].ring?.deadline, idA);
     for (let i = 0; i < gates.length; i++) {
@@ -128,20 +137,20 @@ async function main() {
         await wait(a, () => BUNG.multiplayer.client.connected);
       }
     }
-    await wait(b, id => BUNG.multiplayer.room.players[id].score === 40, idA);
+    await wait(b, id => BUNG.multiplayer.room.players[id].ring.index === 8 &&
+      BUNG.multiplayer.room.players[id].score >= 40, idA);
+    const ringAward = await a.evaluate(id => BUNG.multiplayer.room.players[id].receipt, idA);
+    assert.equal(ringAward.points, 40);
+    assert.equal(ringAward.rebar, 24);
     console.log('Eight gates and reconnect passed');
-    await wait(a, () => document.querySelector('#mp-wallet').textContent.includes('REBAR 24'));
-    const points = await a.evaluate(() => ({ exchange: activities.EXCHANGE, steel: activities.PICKUPS[3],
-      arena: activities.ARENA, docks: activities.ARENA_DOCK }));
-    await travel(a, points.steel);
-    await act(a);
-    await wait(a, id => BUNG.multiplayer.room.players[id].rebar === 30, idA);
     await travel(a, points.exchange);
     await board(a);
+    await tab(a, 'Exchange').click();
+    const beforePurchase = await a.evaluate(id => BUNG.multiplayer.room.players[id].rebar, idA);
     const paint = a.locator('.mp-exchange-item').filter({ hasText: 'River Mint Paint' });
     await paint.getByRole('button', { name: 'BUY · 10' }).click();
     await wait(b, id => BUNG.multiplayer.room.players[id].inventory.paint, idA);
-    await wait(a, () => document.querySelector('#mp-wallet').textContent.includes('REBAR 20'));
+    await wait(a, balance => document.querySelector('#mp-wallet').textContent.includes('REBAR ' + balance), beforePurchase - 10);
     console.log('Personal rebar pickup and purchase passed');
     await a.setViewportSize({ width: 375, height: 667 });
     await button(a, 'BACK TO CITY');
@@ -154,6 +163,7 @@ async function main() {
     await a.setViewportSize({ width: 1280, height: 800 });
     for (const p of [a, b]) {
       await board(p);
+      await tab(p, 'Arena').click();
       await button(p, 'QUEUE · 1V1');
       await button(p, 'READY UP');
     }
@@ -183,6 +193,7 @@ async function main() {
     await wait(a, () => BUNG.multiplayer.room.arena.phase === 'finished');
     assert.equal(await b.evaluate(() => BUNG.multiplayer.room.players[BUNG.multiplayer.client.id].score), 25);
     await board(b);
+    await tab(b, 'Arena').click();
     await button(b, 'WATCH FROM THE STANDS');
     await wait(b, () => Math.abs(BUNG.player.pos.z - 1292) < 2);
     await snap(b, 'arena', [1434, 1292]);
@@ -193,7 +204,7 @@ async function main() {
     await snap(a, 'shops-campaign', [139, 61]);
     assert.deepEqual(errors, []);
     console.log('ROOM LIFE PASSED', { shopChecks, gates: gates.length, ringPoints: 40,
-      walletAfterPurchase: 20, arenaScore: [0, 2], errors });
+      walletAfterPurchase: beforePurchase - 10, arenaScore: [0, 2], errors });
   } finally { await Promise.all(browsers.map(b => b.close())); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
