@@ -454,7 +454,7 @@ export function buildOsmBrisbane(game) {
   const cbd = dressCbd(Z.group, GEO.buildings, GEO.mall, hall, T.walkAt);
   const mallFronts = addMallFronts(Z.group, GEO.buildings, GEO.mall, hall, kit, T.walkAt, macArthur);
   const streetFronts = shells.stats.awnings;
-  const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors());
+  const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors(), T.walkAt);
 
   Z.venues = buildVenueExteriors(Z, GEO);
   const feet = indexFootprints(GEO.buildings,48,(x,z)=>T.walkAt(x,z));

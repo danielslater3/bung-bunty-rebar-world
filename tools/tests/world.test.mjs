@@ -1,3 +1,7 @@
+import { ARENA, ARENA_DOCK, ARENA_STAND, EXCHANGE, PICKUPS, RING_GATES } from "../../src/multiplayer/cityActivities.js";
+import { layoutShopSigns } from "../../src/world/geo/shopSigns.js";
+import { signAnchors } from "../../src/world/geo/cbdFronts.js";
+
 import * as THREE from "three";
 import { buildBridges, bridgeSection } from "../../src/world/geo/bridges.js";
 import { planStreetDetail } from "../../src/world/geo/streetDetail.js";
@@ -177,5 +181,30 @@ test('Story Bridge has a steel silhouette with an open traffic envelope', () => 
     const ray = new THREE.Raycaster(new THREE.Vector3(px, profile(px, pz) + 2.3, pz),
       new THREE.Vector3(dx / length, 0, dz / length), 0, 11);
     assert.equal(ray.intersectObjects(group.children).length, 0);
+  }
+});
+
+test('room activities use dry walkable ground and preserve the Queen Street course', () => {
+  const f = indexFootprints(GEO.buildings, 48, terrain.walkAt);
+  const zone = { footBuckets: f.buckets, footCell: f.cell, colliders: [] };
+  for (const p of [...RING_GATES, ...PICKUPS, EXCHANGE, ARENA, ...ARENA_DOCK, ARENA_STAND]) {
+    assert.ok(!terrain.isWater(p.x, p.z), p.id || p.label);
+    assert.ok(Math.abs(terrain.walkAt(p.x, p.z) - p.y) < .19, p.id || p.label);
+    assert.ok(positionClear(p, .85, zone), p.id || p.label);
+  }
+  for (let dx = -ARENA.halfX; dx <= ARENA.halfX; dx += 2)
+    for (let dz = -ARENA.halfZ; dz <= ARENA.halfZ; dz += 2) {
+      const x = ARENA.x + dx, z = ARENA.z + dz;
+      assert.ok(!terrain.isWater(x,z) && positionClear({ x, y: terrain.walkAt(x,z), z }, .75, zone));
+    }
+});
+
+test('Queen Street wordmarks are above real ground and project beyond the shop glass', () => {
+  const signs = layoutShopSigns(GEO.buildings, signAnchors(), terrain.walkAt);
+  for (const name of ['OSCAR WYLEE', 'DR. MARTENS', 'REBAR JUICE']) {
+    const sign = signs.find(p => p.shop[0] === name);
+    assert.ok(sign, name);
+    assert.ok(sign.y - terrain.walkAt(sign.x, sign.z) > 2.4, name);
+    assert.ok(sign.width >= 2, name);
   }
 });

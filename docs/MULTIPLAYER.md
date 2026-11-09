@@ -106,3 +106,21 @@ The partner and her family use Chung consistently in the entire game. Older char
 ### Chat and trolley feedback fixes
 
 The multiplayer frame loop now advances dialogue timers even with chat or the room board open, so trolley speech bubbles expire normally. Enter explicitly submits the chat form, preserves text-field focus after sending and ignores held-key repeats / IME composition. The same E press is consumed after a room interaction so trolley physics cannot immediately undo a mount. Two-browser regression checks reproduced the trolley line, verified expiry while playing and chatting, checked mounting, sent Enter/numpad messages exactly once and passed the existing minigame/reconnect/save-isolation checks with no browser errors.
+
+## Room activities
+
+- **Queen Street Ring Rush** starts from the room board (B). Cross the eight gates in order toward Edward Street on foot or in the trolley. The first gate starts the 90-second clock. A complete run earns 40 room points and 24 rebar. The gold gate, route hint, chain count, and best time follow the server-confirmed run.
+- **Brisbane Rebar Hunt** uses F beside an offcut, burger token, or landmark stamp. Regular offcuts respawn individually. Burgers and stamps count toward the room collection. The Edward Street shipment has a shared three-minute cooldown. The board offers navigation to the hunt areas.
+- **Bung’s Rebar Exchange** opens with E near the City Hall counter. Buy the steering kit, larger fuel tank, River Mint Paint, Burger Buzzer Horn, or Hot Chips Trail. Press H while riding to use an equipped horn. Purchases equip automatically and are visible to room peers where applicable.
+- **Burger Heist** uses a marked Raymond Park field. Join a 1v1 or 2v2 queue and ready up. F picks up the burger, tackles an opposing carrier within reach, or scores at your coloured dock. First to two deliveries wins. The 90-second time limit and ready countdown use server time. The board has a viewing area, return control, and rematch. An early departure ends the round and returns the players.
+- Room Points remain separate from spendable rebar. Both are visible while exploring. Ring awards, minigame results, and Seb’s expedition use the same room reward ledger. Progress stays with the room and browser session. Up to 32 departed profiles remain recoverable by their original room token during the room’s existing lifetime. There is no account-wide currency.
+
+The authority checks use accepted movement samples, gate geometry, location, and server time. Combat and movement are designed for casual play. The room server does not simulate all city collisions.
+
+To run the new loaded-scene regression against a local room server, start the game at port 8765 and the room server at port 8795, then use:
+
+```sh
+NODE_PATH=/path/to/playwright/node_modules node tools/tests/room-life.cjs
+```
+
+Set `GAME_URL` and `ROOM_SERVER` to test the live pair. The check uses two browser clients and bounded movement samples through the game loop. This complements the native checks for shared claims, purchase retries, reconnect, and 2v2 queue logic.

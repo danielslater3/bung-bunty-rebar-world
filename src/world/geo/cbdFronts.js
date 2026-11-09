@@ -25,7 +25,7 @@ const PLACES = [
   // OSM shop node retained at its mapped location; address confirmed by Apple
   // https://www.apple.com/au/retail/brisbane/ (MacArthur Chambers, 233 Queen St).
   { x:371.82, z:-65.92, name:'APPLE', sub:'MACARTHUR CHAMBERS · 233 QUEEN STREET', bg:'#e8e0d0', fg:'#262523', y:5.6, w:5.4, h:1.0, mark:'word', apple:true },
-  { x: 133.66, z: 69.17, name: 'McREBARS', sub: '130 QUEEN STREET', bg: '#d9232a', fg: '#ffc72c', y: 6.7, w: 5.4, h: 1.35, mark: 'rebar' },
+  { x: 133.66, z: 69.17, name: 'McREBAR', sub: '130 QUEEN STREET', bg: '#d9232a', fg: '#ffc72c', y: 6.7, w: 5.4, h: 1.35, mark: 'rebar' },
   { x: 133.66, z: 69.17, name: 'GIRDER & STONE', sub: 'JEWELLERS', bg: '#161616', fg: '#f4f4f4', y: 3.15, w: 4.6, h: 0.85, mark: 'word' },
   { x: 140.22, z: 64.60, name: 'REBAR FRIED\nCHICKEN', sub: '130A QUEEN STREET', bg: '#c8102e', fg: '#ffffff', y: 4.6, w: 4.2, h: 1.35, mark: 'stripe' },
   { x: 169.72, z: 111.07, name: 'HUNGRY BUNG', sub: '127 QUEEN STREET', bg: '#e87722', fg: '#fff6e8', y: 4.4, w: 5.2, h: 1.2, mark: 'bung' },

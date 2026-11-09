@@ -11,10 +11,12 @@ import {
   turnToward,
 } from '../systems/Navigation.js';
 import { buildGuide, segmentClear } from '../story/guide.js';
+import { mergeStatic } from '../world/geo/cityModels.js';
 import { positionClear } from '../core/motion.js';
 import { RoomClient } from './RoomClient.js';
 import { MiniGames, el } from './MiniGames.js';
 import { ROOM_SERVER } from './config.js';
+import { ARENA, ARENA_COVER, ARENA_DOCK, ARENA_STAND, arenaLive, availablePickup, EXCHANGE, EXCHANGE_ITEMS, PICKUPS, RING_GATES, RING_WIDTH, SOCIAL_CLUB } from './cityActivities.js';
 import {
   GAMES,
   COLORS,
@@ -216,7 +218,17 @@ export class Multiplayer {
       if (!ok) throw Error('Brisbane could not load.');
       g.zone.spawners = [];
       g.allEnemies = [];
+      for (const p of g.zone.portals) p.group.visible = false;
       g.zone.portals = [];
+      for (const p of g.zone.pickups) p.mesh.visible = false;
+      g.zone.pickups = [];
+      this.lastReceipt = this.room.players[this.client.id]?.receipt?.id;
+      this.horns = new Map();
+      this.basketMaterials = new WeakMap();
+      this.activityTarget = null;
+      this.exchangeOpen = false;
+      this.rushPrev = null;
+      this.appliedWarp = this.room.players[this.client.id]?.warp ?? 0;
       this.root = new THREE.Group();
       this.root.name = 'Multiplayer Brisbane';
       g.zone.group.add(this.root);
@@ -251,6 +263,7 @@ export class Multiplayer {
       g.player.mesh.visible = true;
       this.mountUI();
       this.syncPeers();
+      this.applyEquipment();
       this.lastSent = 0;
       this.lastPing = 0;
       this.setFocus(false);
@@ -274,9 +287,28 @@ export class Multiplayer {
   }
   receive(m) {
     if (m.type === 'welcome' || m.type === 'state') {
+      const lastRun = this.room?.players[this.client.id]?.ring;
       this.room = m.room;
       if (this.active) {
+        const run = this.room.players[this.client.id]?.ring;
+        if (lastRun?.deadline && run?.expired) this.error('Ring Rush expired · start a new run from the room board.');
+        else if (run?.deadline && run.index > (lastRun?.index ?? 0)) {
+          this.error(`Gate ${run.index}/${RING_GATES.length} · chain ×${run.index}`);
+          this.game.audio.sfx('portal');
+        }
+        const receipt = this.room.players[this.client.id]?.receipt;
+        if (receipt && receipt.id !== this.lastReceipt) {
+          this.lastReceipt = receipt.id;
+          const reward = [
+            receipt.points && `+${receipt.points} points`,
+            receipt.rebar && `${receipt.rebar > 0 ? '+' : ''}${receipt.rebar} rebar`,
+          ].filter(Boolean).join(' · ');
+          this.error(`${receipt.reason}${reward ? ' · ' + reward : ''}`);
+          this.game.audio.sfx(receipt.sound || 'questDone');
+        }
+        this.applyWarp();
         this.syncPeers();
+        this.applyEquipment();
         this.refreshUI();
         this.mini.render();
       }
@@ -344,7 +376,10 @@ export class Multiplayer {
     top.append(el('b', '', `BUNG BRISBANE · ${this.room.code}`));
     const status = el('span', '', '● LIVE');
     status.id = 'mp-connection';
-    top.append(status);
+    const wallet = el('span', 'mp-wallet');
+    wallet.id = 'mp-wallet';
+    wallet.setAttribute('aria-label', 'Room score and rebar');
+    top.append(status, wallet);
     for (const [text, fn] of [
       ['ROOM · B', () => this.openBoard()],
       ['CHAT · ENTER', () => this.openChat()],
@@ -410,6 +445,8 @@ export class Multiplayer {
   refreshUI() {
     if (!this.ui) return;
     this.connection(this.client.connected);
+    const p = this.room.players[this.client.id];
+    this.ui.querySelector('#mp-wallet').textContent = `POINTS ${p?.score ?? 0}  ·  REBAR ${p?.rebar ?? 0}`;
     const history = document.getElementById('mp-chat-history'),
       nearBottom =
         history.scrollHeight - history.scrollTop - history.clientHeight < 50;
@@ -484,6 +521,96 @@ export class Multiplayer {
       side = el('aside');
     layout.append(main, side);
     card.append(layout);
+    const p = this.room.players[this.client.id];
+    const ring = el('section', 'mp-quest-card');
+    const run = p?.ring;
+    ring.append(el('small', 'mp-eyebrow', 'QUEEN STREET · SOLO OR SIDE BY SIDE'),
+      el('h3', '', 'RING RUSH'),
+      el('p', '', run?.expired ? 'Time ran out. Start a new run.' : run?.time != null
+        ? `Finished in ${(run.time / 1000).toFixed(1)}s. Best ${(p.ringBest / 1000).toFixed(1)}s.`
+        : 'Cross eight gates toward Edward Street on foot or by trolley. Finish in 90 seconds for 40 points and 24 rebar.'));
+    const ringButton = el('button', 'mp-button gold', run?.deadline ? 'RESUME RING RUSH' : 'START RING RUSH');
+    ringButton.onclick = () => {
+      if (!run?.deadline) this.client.command('ringStart');
+      this.hidePanels();
+    };
+    ring.append(ringButton);
+    if (run?.deadline) {
+      const cancel = el('button', 'mp-button subtle', 'CANCEL RUN');
+      cancel.onclick = () => this.client.command('ringCancel');
+      ring.append(cancel);
+    }
+    main.append(ring);
+    const collection = el('section', 'mp-quest-card');
+    const stamps = PICKUPS.filter(item => item.kind === 'stamp' && p.claims?.[item.id]).length;
+    const burgers = PICKUPS.filter(item => item.kind === 'burger' && p.claims?.[item.id]).length;
+    collection.append(el('small', 'mp-eyebrow', 'ROOM-LOCAL PROGRESS'), el('h3', '', 'BRISBANE REBAR HUNT'),
+      el('p', '', `${p.rebar} rebar · ${stamps}/3 landmark stamps · ${burgers}/3 burger tokens. Press F beside a collectible.`));
+    const hunt = el('div', 'mp-game-toolbar');
+    for (const [label, point] of [
+      ['CITY HALL', PICKUPS[0]], ['QUEEN STREET', PICKUPS[2]], ['SOUTH BANK', PICKUPS[5]],
+      ['BOTANIC GARDENS', PICKUPS[8]], ['RARE SHIPMENT', PICKUPS[4]], ['FIND EXCHANGE', EXCHANGE],
+    ]) {
+      const button = el('button', 'mp-button', label);
+      button.onclick = () => { this.activityTarget = point; this.hidePanels(); };
+      hunt.append(button);
+    }
+    collection.append(hunt);
+    main.append(collection);
+    const arena = this.room.arena;
+    if (arena) {
+      const heist = el('section', 'mp-quest-card');
+      const queued = arena.players.includes(this.client.id);
+      const active = arenaLive(arena);
+      heist.append(el('small', 'mp-eyebrow', 'RAYMOND PARK · OPTIONAL PVP'),
+        el('h3', '', 'BURGER HEIST'),
+        el('p', '', arena.result || (active
+          ? `RED ${arena.scores[0]} · BLUE ${arena.scores[1]} · First to two burgers`
+          : `${arena.phase === 'waiting' ? arena.players.length : 0}/${arena.size} in the queue. Grab the burger, tackle the carrier, and score at your team’s dock.`)));
+      if (arena.phase === 'waiting') {
+        for (const id of arena.players)
+          heist.append(el('small', 'mp-arena-ready', `${this.name(id)} · ${arena.ready[id] ? 'READY' : 'WAITING'}`));
+      }
+      const action = (text, cmd, data) => {
+        const b = el('button', 'mp-button', text);
+        b.onclick = () => {
+          this.client.command(cmd, data);
+          if (cmd === 'arenaWatch' || cmd === 'arenaUnwatch' || cmd === 'arenaReady') this.hidePanels();
+        };
+        heist.append(b);
+      };
+      if (!active && (!queued || arena.phase === 'finished')) {
+        const sizes = arena.phase === 'waiting' && arena.players.length ? [arena.size] : [2, 4];
+        for (const size of sizes)
+          action(`${arena.phase === 'finished' ? 'REMATCH' : 'QUEUE'} · ${size / 2}V${size / 2}`, 'arenaJoin', { size });
+      }
+      if (queued && arena.phase === 'waiting') action(arena.ready[this.client.id] ? 'UNREADY' : 'READY UP', 'arenaReady');
+      if (queued && arena.phase !== 'finished') action('LEAVE ARENA', 'arenaLeave');
+      if (!queued || !active)
+        action(p.watchReturn ? 'RETURN TO CITY' : 'WATCH FROM THE STANDS', p.watchReturn ? 'arenaUnwatch' : 'arenaWatch');
+      main.append(heist);
+    }
+    if (this.exchangeOpen || this.near(EXCHANGE, 5)) {
+      const shop = el('section', 'mp-quest-card');
+      shop.append(el('h3', '', 'BUNG’S REBAR EXCHANGE'), el('p', '', `${p.rebar} room rebar available`));
+      for (const item of EXCHANGE_ITEMS) {
+        const row = el('div', 'mp-exchange-item');
+        const detail = el('div');
+        detail.append(el('b', '', item.label), el('p', '', item.detail));
+        if (item.swatch) {
+          const color = el('span', 'mp-swatch');
+          color.style.backgroundColor = '#' + item.swatch.toString(16).padStart(6, '0');
+          detail.prepend(color);
+        }
+        const owned = p.inventory?.[item.id];
+        const buy = el('button', 'mp-button', owned ? 'EQUIPPED' : `BUY · ${item.price}`);
+        buy.disabled = !!owned || p.rebar < item.price || !this.near(EXCHANGE, 5);
+        buy.onclick = () => this.client.command('exchangeBuy', { item: item.id });
+        row.append(detail, buy);
+        shop.append(row);
+      }
+      main.append(shop);
+    }
     const quest = el('section', 'mp-quest-card');
     quest.append(
       el('small', 'mp-eyebrow', 'FOUR-PLAYER CITY EXPEDITION'),
@@ -620,7 +747,9 @@ export class Multiplayer {
         'Campaign saves and currencies stay separate. Room host transfers automatically when the host leaves.',
       ),
     );
+    const scroll = this.board.firstElementChild?.scrollTop || 0;
     this.board.replaceChildren(card);
+    card.scrollTop = scroll;
   }
   async share() {
     const url = new URL(location.href);
@@ -635,6 +764,14 @@ export class Multiplayer {
   }
   prepareWorld() {
     const z = this.game.zone;
+    this.rushGate = new THREE.Group();
+    this.rushGate.visible = false;
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(RING_WIDTH, .15, 10, 44),
+      new THREE.MeshStandardMaterial({ color: 0xffc33a, emissive: 0xbd6306, emissiveIntensity: .85, metalness: .55 }));
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(RING_WIDTH - .18, .035, 6, 44),
+      new THREE.MeshBasicMaterial({ color: 0xffedaf }));
+    this.rushGate.add(frame, rim);
+    this.root.add(this.rushGate);
     this.questMarkers = [];
     const ringGeo = new THREE.TorusGeometry(0.8, 0.08, 8, 24);
     this.ringGeometry = ringGeo;
@@ -650,13 +787,38 @@ export class Multiplayer {
       this.root.add(m);
       this.questMarkers.push(m);
     }
+    this.loot = PICKUPS.map(item => {
+      const model = item.kind === 'burger' ? buildBurger() : item.kind === 'stamp'
+        ? new THREE.Mesh(new THREE.CylinderGeometry(.44, .44, .13, 10),
+          new THREE.MeshStandardMaterial({ color: 0x63cfbf, metalness: .45, emissive: 0x2c7971, emissiveIntensity: .35 }))
+        : buildRebar();
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(.54, .63, .12, 12),
+        new THREE.MeshStandardMaterial({ color: item.kind === 'rare' ? 0xffba30 : 0x32465a, roughness: .7 }));
+      const group = new THREE.Group();
+      group.position.set(item.x, z.groundAt(item.x, item.z) + .06, item.z);
+      if (item.kind === 'stamp') model.rotation.x = Math.PI / 2;
+      if (item.kind === 'rare') model.scale.setScalar(1.6);
+      model.position.y = .68;
+      group.add(base, model);
+      this.root.add(group);
+      return { item, group, model };
+    });
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.15, .72),
+      new THREE.MeshStandardMaterial({ color: 0x24465a, roughness: .66, metalness: .22 }));
+    const floor = z.groundAt(EXCHANGE.x, EXCHANGE.z);
+    stand.position.set(EXCHANGE.x, floor + .5, EXCHANGE.z);
+    this.root.add(stand);
+    const exchangeSign = z.textSign(EXCHANGE.x, floor + 1.48, EXCHANGE.z, 0, 'BUNG’S REBAR EXCHANGE',
+      { w: 2.6, h: .52, bg: '#1c4653', fg: '#ffdb70' });
+    this.root.attach(exchangeSign);
+    this.mint = new THREE.MeshStandardMaterial({ color: 0x46dfbe, metalness: .56, roughness: .32 });
     const table = new THREE.Group();
-    table.position.set(18, z.groundAt(18, 80), 80);
+    table.position.set(SOCIAL_CLUB.x, z.groundAt(SOCIAL_CLUB.x, SOCIAL_CLUB.z), SOCIAL_CLUB.z);
     this.root.add(table);
     const sign = z.textSign(
-      18,
+      SOCIAL_CLUB.x,
       table.position.y + 3,
-      80,
+      SOCIAL_CLUB.z,
       0,
       'BUNG SOCIAL CLUB\nB · TEN MINIGAMES',
       { w: 4, h: 1, bg: '#172638', fg: '#ffce36' },
@@ -668,6 +830,7 @@ export class Multiplayer {
     burger.position.set(0.8, 1, 0);
     table.add(bar, burger);
     this.kiosk = table;
+    this.prepareArena();
   }
   syncPeers() {
     if (!this.root) return;
@@ -725,6 +888,7 @@ export class Multiplayer {
           yaw: p.yaw,
         };
         mesh.position.copy(a.target);
+        mesh.userData.roomPlayer = p.id;
         this.peers.set(p.id, a);
       }
       a.target.set(p.pos.x, p.pos.y, p.pos.z);
@@ -732,9 +896,154 @@ export class Multiplayer {
       a.riding = p.riding;
     }
   }
+  prepareArena() {
+    const z = this.game.zone;
+    const root = new THREE.Group();
+    this.root.add(root);
+    const red = new THREE.MeshStandardMaterial({ color: 0xd64953, roughness: .75 });
+    const blue = new THREE.MeshStandardMaterial({ color: 0x3686dd, roughness: .75 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x354f5b, roughness: .62 });
+    const timber = new THREE.MeshStandardMaterial({ color: 0xb88654, roughness: .83 });
+    const bands = new THREE.MeshStandardMaterial({ color: 0xc7a371, roughness: .65, metalness: .12 });
+    const paint = new THREE.MeshStandardMaterial({ color: 0xffd268, roughness: .86 });
+    const box = (x, zPos, w, d, h, material, lift = 0) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+      m.position.set(x, z.groundAt(x, zPos) + h / 2 + lift, zPos);
+      root.add(m);
+      return m;
+    };
+    for (const c of ARENA_COVER) {
+      const x = ARENA.x + c.dx, at = ARENA.z + c.dz;
+      const m = box(x, at, c.w, c.d, 1.65, timber, -.13);
+      const teamColor = c.dx < 0 ? red : blue;
+      box(x, at, c.w + .08, c.d + .08, .13, teamColor, 1.51);
+      box(x, at, c.w + .08, c.d + .08, .16, metal, -.06);
+      for (const dx of [-1, 1]) for (const dz of [-1, 1]) {
+        box(x + dx * (c.w / 2 - .15), at + dz * (c.d / 2 - .06), .19, .16, 1.55, bands);
+      }
+      for (const dz of [-1, 1]) {
+        box(x, at + dz * c.d / 2, c.w - .12, .044, .085, metal, .47);
+        box(x, at + dz * c.d / 2, c.w - .12, .044, .085, metal, 1.03);
+        box(x, at + dz * (c.d / 2 + .027), .67, .04, .30, teamColor, .69);
+      }
+      m.updateMatrixWorld();
+      z.colliders.push(new THREE.Box3().setFromObject(m));
+    }
+    for (let side of [-1, 1]) {
+      const col = side < 0 ? red : blue, dock = ARENA_DOCK[side < 0 ? 0 : 1];
+      box(dock.x, dock.z, 3.2, 5.1, .028, col, .09);
+      const flag = dock.x + side * 2.8;
+      for (const zPos of [dock.z - 3.5, dock.z + 3.5]) {
+        box(flag, zPos, .11, .11, 2.9, metal, -.09);
+        box(flag, zPos, .12, .76, .56, col, 2.19);
+      }
+      for (let k = -16; k <= 16; k += 2)
+        box(ARENA.x + k, ARENA.z + side * ARENA.halfZ, 1.4, .14, .015, paint, .08);
+      for (let k = -8; k <= 8; k += 2)
+        box(ARENA.x + side * ARENA.halfX, ARENA.z + k, .14, 1.4, .015, paint, .08);
+    }
+    box(ARENA_STAND.x, ARENA_STAND.z - 1.4, 7.2, .6, .64, metal);
+    box(ARENA_STAND.x, ARENA_STAND.z - 1.4, 7.3, .7, .09, paint, .63);
+    const sign = z.textSign(ARENA_STAND.x, z.groundAt(ARENA_STAND.x, ARENA_STAND.z) + 1.7,
+      ARENA_STAND.z - 1.35, 0, 'BURGER HEIST · RAYMOND PARK', { w: 5.2, h: .62, bg: '#233e4d', fg: '#ffd268' });
+    root.attach(sign);
+    box(ARENA.x, ARENA.z, 1.95, 1.95, .026, paint, .07);
+    mergeStatic(root);
+    const burger = buildBurger();
+    burger.scale.setScalar(1.55);
+    root.add(burger);
+    const pads = [];
+    const geo = new THREE.RingGeometry(.55, .73, 28);
+    for (let i = 0; i < 4; i++) {
+      const pad = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: i % 2 ? 0x57b7ff : 0xff6668, side: THREE.DoubleSide }));
+      pad.rotation.x = -Math.PI / 2;
+      root.add(pad);
+      pads.push(pad);
+    }
+    this.arenaWorld = { root, burger, pads };
+  }
+  applyWarp() {
+    const p = this.room.players[this.client.id], warp = p?.warp ?? 0;
+    if (warp === this.appliedWarp || !this.root) return;
+    this.appliedWarp = warp;
+    const g = this.game;
+    g.trolley.dismiss();
+    const y = g.zone.groundAt(p.pos.x, p.pos.z, p.pos.y) + .1;
+    g.player.teleport(new THREE.Vector3(p.pos.x, y, p.pos.z));
+    g.saga.snapCamera();
+    if (p.watchReturn && !arenaLive(this.room.arena)) {
+      g.camYaw = Math.PI;
+      g.camPitch = .12;
+      g.updateCamera(.2);
+    }
+    this.hidePanels();
+  }
+  updateArena(dt) {
+    const a = this.room.arena, v = this.arenaWorld, g = this.game;
+    v.root.visible = Math.hypot(g.player.pos.x - ARENA.x, g.player.pos.z - ARENA.z) < 170;
+    const live = arenaLive(a);
+    const carrier = this.room.players[a?.carrier];
+    v.burger.visible = !!(live && (a.burger || carrier));
+    if (v.burger.visible) {
+      const pos = a.carrier === this.client.id ? g.player.pos : this.peers.get(a.carrier)?.mesh.position || a.burger;
+      v.burger.position.set(pos.x, pos.y + (carrier ? 2.45 : .85), pos.z);
+      v.burger.rotation.y += dt * 1.4;
+    }
+    for (const [i, pad] of v.pads.entries()) {
+      const id = a?.players[i];
+      const p = id === this.client.id ? g.player.pos : this.peers.get(id)?.mesh.position;
+      pad.visible = !!(live && p);
+      if (pad.visible) pad.position.set(p.x, g.zone.groundAt(p.x, p.z) + .06, p.z);
+    }
+  }
+  near(target, radius) {
+    const p = this.game.player.pos;
+    return Math.hypot(p.x - target.x, p.z - target.z) <= radius &&
+      Math.abs(p.y - (target.y ?? p.y)) < 3;
+  }
+  nearbyLoot() {
+    const p = this.room.players[this.client.id], now = this.client.now();
+    return PICKUPS.find(item => this.near(item, 2.55) && availablePickup(item, p, this.room, now));
+  }
+  paintTrolley(mesh, enabled) {
+    const basket = mesh?.children[0];
+    if (!basket || !this.basketMaterials || basket.userData.roomPaint === enabled) return;
+    basket.userData.roomPaint = enabled;
+    basket.traverse(part => {
+      if (!part.isMesh || part.userData.isOutline) return;
+      if (!this.basketMaterials.has(part)) this.basketMaterials.set(part, part.material);
+      part.material = enabled ? this.mint : this.basketMaterials.get(part);
+    });
+  }
+  applyEquipment() {
+    if (!this.root || !this.mint) return;
+    const p = this.room.players[this.client.id], inventory = p.inventory || {};
+    state.upgrades.handling = Number(!!inventory.handling);
+    state.upgrades.tank = Number(!!inventory.tank);
+    state.maxFuel = this.game.trolley.fuelMax;
+    state.fuel = Math.min(state.maxFuel, state.fuel);
+    this.paintTrolley(this.game.trolley.mesh, !!inventory.paint);
+    this.game.trolley.trail.material.color.setHex(inventory.trail ? 0xff6fa9 : this.game.trolley.spec.trail);
+    for (const player of Object.values(this.room.players)) {
+      this.paintTrolley(this.peers.get(player.id)?.trolley, !!player.inventory?.paint);
+      if (player.hornAt && this.horns.get(player.id) !== player.hornAt) {
+        this.horns.set(player.id, player.hornAt);
+        if (this.client.now() - player.hornAt < 1600 && this.near(player.pos, 45))
+          this.game.audio.sfx('roomHorn');
+      }
+    }
+  }
   objective() {
     const id = this.client.id,
       q = this.room?.quest;
+    const a = this.room.arena;
+    if (arenaLive(a) && a.players.includes(id)) {
+      const team = a.teams[id], enemy = a.carrier && this.room.players[a.carrier];
+      const target = a.carrier === id ? ARENA_DOCK[team] : enemy?.pos || a.burger || ARENA;
+      const action = a.phase === 'countdown' ? 'GET READY' : a.carrier === id ? 'F · DELIVER AT YOUR DOCK'
+        : enemy ? (a.teams[enemy.id] === team ? 'COVER YOUR TEAMMATE' : 'F · TACKLE THE CARRIER') : 'F · GRAB THE BURGER';
+      return { ...target, label: `${team ? 'BLUE' : 'RED'} · ${a.scores[0]}–${a.scores[1]} · ${action}`, arena: a };
+    }
     if (q?.status === 'playing' && q.roles.includes(id)) {
       const role = q.roles.indexOf(id),
         p = QUEST_STAGES[q.stage].points[role];
@@ -757,39 +1066,59 @@ export class Multiplayer {
             label: `RALLY ${1 + (g.checkpoints[id] || 0)}/4 · ${p.label} · F AT MARKER`,
           };
       }
+    const run = this.room.players[id]?.ring;
+    if (run?.deadline && RING_GATES[run.index]) {
+      return { ...RING_GATES[run.index], label: `RING RUSH ${run.index + 1}/${RING_GATES.length}`, rush: run };
+    }
     if (this.manualTarget && this.room.players[this.manualTarget]?.connected) {
       const p = this.room.players[this.manualTarget];
       return { ...p.pos, label: 'FIND ' + p.name.toUpperCase() };
     }
-    return null;
+    return this.activityTarget;
   }
   frame(dt) {
     const g = this.game,
       now = performance.now();
     if (!this.root) return;
     if (!this.focus && g.input.pressed.Escape) this.openBoard();
+    const a = this.room.arena, id = this.client.id;
+    const fighter = arenaLive(a) && a.players.includes(id);
+    const held = fighter && (a.phase === 'countdown' || this.room.players[id].stunnedUntil > this.client.now());
     if (!this.focus) {
       const m = g.input.consumeMouse();
       g.camYaw -= m.dx * 0.0024 * state.settings.sensitivity;
       g.camPitch = Math.max(-0.4, Math.min(1.1, g.camPitch + m.dy * 0.0024));
-      if (g.input.pressed.KeyT) {
+      if (!fighter && g.input.pressed.KeyT) {
         g.trolley.summoned ? g.trolley.dismiss() : g.trolley.summon();
       }
-      if (g.input.pressed.KeyE) {
+      if (g.input.pressed.KeyH && g.trolley.riding) this.client.command('horn');
+      if (!fighter && g.input.pressed.KeyE) {
         if (g.trolley.summoned && g.player.pos.distanceTo(g.trolley.pos) < 3) {
           g.trolley.riding ? g.trolley.dismount() : g.trolley.mount();
+        } else if (this.near(EXCHANGE, 5)) {
+          this.exchangeOpen = true;
+          this.openBoard();
         } else if (g.zone.cityLife?.interactAt(g.player.pos)) {
           // The stop board uses the room notice, keeping chat and HUD clear.
-        } else if (Math.hypot(g.player.pos.x - 18, g.player.pos.z - 80) < 6)
+        } else if (this.near(SOCIAL_CLUB, 5))
           this.openBoard();
         // The room owns E interactions. Trolley.update must not read the same
         // press again and immediately undo a mount with a dismount.
         delete g.input.pressed.KeyE;
       }
+      if (fighter) {
+        delete g.input.pressed.KeyG;
+        delete g.input.pressed.KeyQ;
+      }
       const use = g.input.pressed.KeyF;
       delete g.input.pressed.KeyF;
-      g.player.update(dt);
-      g.trolley.update(dt);
+      if (!held) g.player.update(dt);
+      if (!fighter) g.trolley.update(dt);
+      else {
+        const p = g.player.pos;
+        p.x = THREE.MathUtils.clamp(p.x, ARENA.x - ARENA.halfX + .4, ARENA.x + ARENA.halfX - .4);
+        p.z = THREE.MathUtils.clamp(p.z, ARENA.z - ARENA.halfZ + .4, ARENA.z + ARENA.halfZ - .4);
+      }
       if (use) this.worldAction();
     }
     if (g.zone) g.zone.update(dt, g.elapsed);
@@ -797,7 +1126,7 @@ export class Multiplayer {
     // including while a room/chat panel has the player's input focus.
     g.dialogue.update(dt);
     state.stability = 100;
-    state.fuel = 100;
+    if (!g.trolley.boosting) state.fuel = Math.min(g.trolley.fuelMax, state.fuel + dt * 1.15);
     g.fx.update(dt);
     g.updateCamera(dt);
     this.mini.update();
@@ -809,6 +1138,7 @@ export class Multiplayer {
         pos: { ...g.player.pos },
         yaw: g.trolley.riding ? g.trolley.heading : g.player.facing,
         riding: g.trolley.riding,
+        warp: this.appliedWarp,
       });
     }
     if (now - this.lastPing >= 15000) {
@@ -842,8 +1172,20 @@ export class Multiplayer {
       if (a.riding) {
         a.trolley.position.copy(a.mesh.position);
         a.trolley.rotation.y = a.yaw;
+        const owner = this.room.players[a.mesh.userData.roomPlayer];
+        if (owner?.inventory?.trail && speed > 2 && now > (a.trailAt || 0)) {
+          a.trailAt = now + 150;
+          g.fx.spark(a.trolley.position, 0xff6fa9);
+        }
       }
     }
+    const p = this.room.players[this.client.id];
+    for (const { item, group, model } of this.loot) {
+      group.visible = Math.hypot(g.player.pos.x - item.x, g.player.pos.z - item.z) < 180 && availablePickup(item, p, this.room, this.client.now());
+      if (group.visible) model.rotation.y += dt * 1.7;
+    }
+    this.updateArena(dt);
+    const loot = this.nearbyLoot();
     const goal = this.objective(),
       hud = document.getElementById('mp-goal');
     this.guide.visible = false;
@@ -860,7 +1202,14 @@ export class Multiplayer {
         target,
         dt,
       });
-      hud.textContent = goal.label + ' · ' + Math.ceil(r?.distance || 0) + ' m';
+      let extra = '';
+      if (goal.rush) {
+        const run = goal.rush, seconds = Math.max(0, Math.ceil((run.deadline - this.client.now()) / 1000));
+        extra = run.start ? ` · CHAIN ×${run.index} · ${90 - Math.min(90, seconds)}s ELAPSED · ${seconds}s LEFT` : ' · CROSS TOWARD EDWARD STREET';
+      }
+      if (goal.arena) extra = ` · ${Math.max(0, Math.ceil((goal.arena.deadline - this.client.now()) / 1000))}s`;
+      const distance = r?.distance ?? Math.hypot(goal.x - g.player.pos.x, goal.z - g.player.pos.z);
+      hud.textContent = goal.label + ' · ' + Math.ceil(distance) + ' m' + extra + (loot ? ' · F COLLECT' : this.near(EXCHANGE, 5) && goal === EXCHANGE ? ' · E OPEN' : '');
       if (r && !r.unavailable && r.distance > 2) {
         const a = this.guide;
         a.visible = true;
@@ -887,8 +1236,24 @@ export class Multiplayer {
       }
     } else if (hud)
       hud.textContent =
+        (loot ? 'F · COLLECT ' + loot.label.toUpperCase() : null) ||
+        (this.near(EXCHANGE, 5) ? 'E · REBAR EXCHANGE' : null) ||
         g.zone.cityLife?.hintAt(g.player.pos) ||
         'B · ROOM  |  ENTER · CHAT  |  T · TROLLEY  |  E · MOUNT / ARRIVALS  |  F · QUEST';
+    const run = this.room.players[this.client.id]?.ring;
+    const gate = run?.deadline && RING_GATES[run.index];
+    this.rushGate.visible = !!gate;
+    if (gate) {
+      this.rushGate.position.set(gate.x, g.zone.groundAt(gate.x, gate.z) + 1.75, gate.z);
+      this.rushGate.rotation.y = gate.yaw;
+      const pos = g.player.pos;
+      const plane = (pos.x - gate.x) * gate.nx + (pos.z - gate.z) * gate.nz;
+      const side = (pos.x - gate.x) * gate.nz - (pos.z - gate.z) * gate.nx;
+      if (this.rushPrev?.gate === gate && this.rushPrev.plane < 0 && plane >= 0 &&
+          Math.abs(side) > RING_WIDTH + .55 && Math.abs(side) < 7)
+        this.error('Ring missed · turn around and pass through its gold opening.');
+      this.rushPrev = { gate, plane };
+    }
     const q = this.room.quest;
     this.questMarkers.forEach((m, i) => {
       m.visible = q.status === 'playing';
@@ -902,14 +1267,26 @@ export class Multiplayer {
       document.getElementById('mp-notice')?.classList.remove('visible');
   }
   worldAction() {
+    const a = this.room.arena;
+    if (arenaLive(a) && a.players.includes(this.client.id)) {
+      if (a.phase === 'playing') this.client.command('arenaAct');
+      return;
+    }
     const q = this.room.quest;
     if (q.status === 'playing' && q.roles.includes(this.client.id)) {
       this.client.command('questAct');
       return;
     }
     const rally = this.room.games.rally;
-    if (rally?.status === 'playing' && rally.players.includes(this.client.id))
+    if (rally?.status === 'playing' && rally.players.includes(this.client.id)) {
       this.client.command('play', { game: 'rally', action: {} });
+      return;
+    }
+    const loot = this.nearbyLoot();
+    if (loot) {
+      if (this.activityTarget?.id === loot.id) this.activityTarget = null;
+      this.client.command('pickup', { item: loot.id });
+    }
   }
   async leave() {
     this.client?.close();
@@ -942,6 +1319,10 @@ export class Multiplayer {
     this.guide?.userData.dispose?.();
     this.root?.removeFromParent();
     this.root = null;
+    this.paintTrolley(this.game.trolley.mesh, false);
+    this.game.trolley.trail.material.color.setHex(this.game.trolley.spec.trail);
+    this.mint?.dispose();
+    this.mint = null;
     this.game.trolley.dismiss();
     if (this.previous) Object.assign(state, DEFAULT_STATE(), this.previous);
     this.previous = null;

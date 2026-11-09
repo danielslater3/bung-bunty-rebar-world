@@ -216,6 +216,7 @@ export class AudioManager {
       case 'grappleHit':  this._note(G, 1200, t, 0.08, 'square', 0.1); this._noise(G, t, 0.05, 3000, 0.08); break;
       case 'bonk':        this._note(G, 240, t, 0.16, 'square', 0.13, -120); break;
       case 'hurt':        this._kick(G, t, 0.25); this._note(G, 200, t, 0.3, 'sawtooth', 0.11, -130); break;
+      case 'roomHorn':    this._note(G, 330, t, 0.17, 'triangle', 0.13, 280); this._note(G, 440, t + .13, .24, 'triangle', .12, 360); break;
       case 'trolleyStart':this._note(G, 80, t, 0.5, 'sawtooth', 0.13, 160); this._note(G, 120, t + 0.3, 0.4, 'square', 0.1, 100); break;
       case 'boost':       this._note(G, 150, t, 0.7, 'sawtooth', 0.13, 600); this._noise(G, t, 0.5, 1000, 0.09); break;
       case 'drift':       this._noise(G, t, 0.25, 2800, 0.08); break;

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomEngine, freshRoom } from '../engine.js';
+import { RING_GATES, PICKUPS, EXCHANGE, ARENA, ARENA_DOCK, ARENA_STAND } from "../../src/multiplayer/cityActivities.js";
+
 import { GAMES, QUEST_STAGES } from '../../src/multiplayer/catalog.js';
 function setup(n = 2) {
   let time = 1000000,
@@ -384,4 +386,116 @@ test('stored room appearances migrate to the canonical partner name without losi
   assert.equal(restored.s.players[p[0].id].appearance.character,'chung');
   assert.equal(restored.s.players[p[0].id].score,42);
   assert.equal(restored.s.players[p[0].id].token,p[0].token);
+});
+
+test('Ring Rush validates a recent, ordered sweep and retains the reward after reconnect', () => {
+  const s = setup(), { e, p, cmd } = s, [a, b] = p;
+  cmd(a, 'ringStart');
+  const crossing = (gate, offset = 0) => {
+    const before = { x: gate.x - gate.nx * 3 + gate.nz * offset,
+      y: gate.y, z: gate.z - gate.nz * 3 - gate.nx * offset };
+    a.pos = before;
+    a.moveAt = s.time;
+    s.time += 200;
+    assert.ok(e.move(a.id, { seq: a.moveSeq + 1, yaw: gate.yaw, riding: true,
+      pos: { x: before.x + gate.nx * 6, y: before.y, z: before.z + gate.nz * 6 } }));
+    const previous = { pos: before, at: s.time - 200 };
+    const advanced = e.advanceRing(a.id, previous);
+    assert.equal(e.advanceRing(a.id, previous), false);
+    s.time += 3000;
+    return advanced;
+  };
+  assert.equal(crossing(RING_GATES[1]), false);
+  assert.equal(crossing(RING_GATES[0], 4), false);
+  for (const gate of RING_GATES) assert.equal(crossing(gate), true);
+  assert.equal(e.view(b.id).players[a.id].score, 40);
+  assert.equal(e.view(b.id).players[a.id].receipt, undefined);
+  assert.equal(a.rebar, 24);
+  e.disconnect(a.id);
+  const restored = new RoomEngine(structuredClone(e.s), () => s.time);
+  assert.equal(restored.join(a.name, a.token).ring.index, 8);
+  assert.equal(restored.s.players[a.id].rebar, 24);
+  cmd(b, 'ringStart');
+  s.time += 241000;
+  assert.ok(e.tick());
+  assert.equal(b.ring.expired, true);
+});
+
+test('personal and shared loot, atomic purchases and room-local profile recovery', () => {
+  const s = setup(), { e, p, cmd } = s, [a, b] = p;
+  const near = (who, item) => { who.pos = { x: item.x, y: item.y, z: item.z }; who.moveAt = s.time; };
+  const [steel, , , , rare] = PICKUPS;
+  assert.throws(() => cmd(a, 'pickup', { item: steel.id }), /Stand close/);
+  for (const who of p) {
+    near(who, steel);
+    cmd(who, 'pickup', { item: steel.id });
+    assert.equal(who.rebar, 6);
+    assert.throws(() => cmd(who, 'pickup', { item: steel.id }), /already/);
+    near(who, rare);
+  }
+  cmd(a, 'pickup', { item: rare.id });
+  assert.throws(() => cmd(b, 'pickup', { item: rare.id }), /already/);
+  assert.throws(() => cmd(a, 'exchangeBuy', { item: 'paint' }), /Visit/);
+  near(a, EXCHANGE);
+  cmd(a, 'exchangeBuy', { item: 'paint' });
+  cmd(a, 'exchangeBuy', { item: 'paint' });
+  assert.equal(a.rebar, 18);
+  assert.equal(a.inventory.paint, true);
+  s.time += 181000;
+  near(b, rare);
+  cmd(b, 'pickup', { item: rare.id });
+  assert.equal(b.rebar, 28);
+  e.disconnect(a.id);
+  s.time += 46000;
+  e.tick();
+  assert.equal(e.s.players[a.id], undefined);
+  assert.equal(e.view(b.id).savedPlayers, undefined);
+  const recovered = e.join(a.name, a.token);
+  assert.equal(recovered.id, a.id);
+  assert.equal(recovered.inventory.paint, true);
+  assert.equal(recovered.rebar, 18);
+});
+
+test('Burger Heist resolves ready, pickup, tackle, deliveries, rematch and departure', () => {
+  const s = setup(5), { e, p, cmd } = s, [a, b, c, d, spectator] = p;
+  const initial = { ...a.pos };
+  const near = (who, item) => { who.pos = { x: item.x, y: item.y, z: item.z }; who.moveAt = s.time; };
+  for (const who of [a,b]) {
+    cmd(who, 'arenaJoin', { size: 2 });
+    cmd(who, 'arenaReady');
+  }
+  const arena = e.s.arena;
+  assert.equal(arena.phase, 'countdown');
+  assert.equal(e.move(a.id, { seq: 100, pos: initial, yaw: 0 }), false, 'stale packets after warp');
+  cmd(spectator, 'arenaWatch');
+  assert.equal(spectator.pos.z, ARENA_STAND.z);
+  s.time += 4000;
+  e.tick();
+  assert.equal(arena.phase, 'playing');
+  assert.throws(() => cmd(spectator, 'arenaAct'), /queue first/);
+  near(a, ARENA);
+  cmd(a, 'arenaAct');
+  near(b, ARENA);
+  cmd(b, 'arenaAct');
+  assert.equal(arena.carrier, b.id);
+  assert.ok(a.stunnedUntil > s.time);
+  for (let i = 0; i < 2; i++) {
+    if (i) { s.time += 500; near(b, ARENA); cmd(b, 'arenaAct'); }
+    s.time += 500; near(b, ARENA_DOCK[1]); cmd(b, 'arenaAct');
+  }
+  assert.equal(arena.phase, 'finished');
+  assert.deepEqual(arena.scores, [0, 2]);
+  assert.equal(b.score, 25);
+  assert.deepEqual(a.pos, initial);
+  for (const who of [a,b,c,d]) {
+    cmd(who, 'arenaJoin', { size: 4 });
+    cmd(who, 'arenaReady');
+  }
+  assert.equal(e.s.arena.phase, 'countdown');
+  assert.deepEqual(Object.values(e.s.arena.teams), [0, 1, 0, 1]);
+  e.disconnect(c.id);
+  assert.equal(e.s.arena.phase, 'finished');
+  assert.equal(b.score, 25);
+  cmd(spectator, 'arenaUnwatch');
+  assert.equal(spectator.watchReturn, undefined);
 });

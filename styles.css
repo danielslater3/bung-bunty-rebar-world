@@ -322,3 +322,10 @@ body.multiplayer-active #dialogue{left:auto;right:18px;bottom:84px;transform:non
 body.multiplayer-active:has(.mp-ui.chat-open) #dialogue{visibility:hidden}
 body.multiplayer-active:has(#dialogue:not(.hidden)) .mp-notice{visibility:hidden}
 @media(max-width:900px){body.multiplayer-active #dialogue{top:180px;bottom:auto;left:12px;right:12px;width:calc(100vw - 24px);max-height:26dvh}body.multiplayer-active:has(#dialogue:not(.hidden)) .mp-chat:not(.expanded){display:none}}
+
+.mp-topbar .mp-wallet{color:#ffdc86;background:#0b192c;border:1px solid #6e624c;border-radius:8px;padding:6px 8px;font-weight:800;white-space:pre}
+@media(max-width:400px){.mp-topbar .mp-wallet{padding:4px 5px;font-size:9px}}
+
+.mp-exchange-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #58747b}
+.mp-exchange-item p{margin:4px 0}.mp-swatch{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:7px;border:1px solid #fff8}
+.mp-arena-ready{display:block;color:#9bdfae;padding:3px 0}

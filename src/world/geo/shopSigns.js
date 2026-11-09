@@ -5,8 +5,8 @@ import { SHOPS } from './brisbane.shops.js';
 
 const COLS = 10;
 const ROWS = 16;
-const CW = 192;
-const CH = 56;
+const CW = 256;
+const CH = 72;
 
 function ringContains(ring, x, z) {
   let inside = false;
@@ -71,7 +71,7 @@ function indexBuildings(buildings) {
     let x = 0, z = 0, n = 0;
     for (let k = 0; k < b.r.length; k += 2) { x += b.r[k]; z += b.r[k + 1]; n++; }
     x /= n; z /= n;
-    const rec = { r: b.r, h: b.h, x, z, area: ringArea(b.r) };
+    const rec = { r: b.r, h: b.h, g: b.g, b: b.b, x, z, area: ringArea(b.r) };
     const key = `${Math.floor(x / cell)},${Math.floor(z / cell)}`;
     let arr = buckets.get(key);
     if (!arr) buckets.set(key, arr = []);
@@ -111,11 +111,16 @@ function hostFor(index, x, z) {
 function paintCell(g, x, y, shop) {
   g.fillStyle = shop[3];
   g.fillRect(x, y, CW, CH);
+  g.strokeStyle = shop[4];
+  g.globalAlpha = .35;
+  g.lineWidth = 2;
+  g.strokeRect(x + 5, y + 5, CW - 10, CH - 10);
+  g.globalAlpha = 1;
   g.fillStyle = shop[4];
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  const label = shop[0];
-  let size = 28;
+  const label = shop[0] === 'McREBARS' ? 'McREBAR' : shop[0];
+  let size = 37;
   g.font = `800 ${size}px Arial, sans-serif`;
   while (size > 11 && g.measureText(label).width > CW - 16) {
     size -= 2;
@@ -138,34 +143,43 @@ function pushSign(positions, uvs, px, py, pz, nx, nz, width, u0, v0, u1, v1) {
   }
 }
 
-export function dressShops(group, buildings, anchors) {
-  if (!SHOPS.length) return 0;
+export function layoutShopSigns(buildings, anchors, groundAt) {
   const index = indexBuildings(buildings);
   const placed = [];
   for (const shop of SHOPS) {
-    const x = shop[1], z = shop[2];
-    const name = shop[0];
-    let reserved = false;
-    for (const a of anchors) {
-      const d2 = (a.x - x) ** 2 + (a.z - z) ** 2;
-      if (d2 < 8 * 8 || (a.name === name && d2 < 28 * 28)) { reserved = true; break; }
-    }
-    if (reserved) continue;
+    const [name, x, z] = shop;
+    if (anchors.some(a => {
+      const d = Math.hypot(a.x - x, a.z - z);
+      return d < 2 || (a.name.toLowerCase() === (name === 'McREBARS' ? 'mcrebar' : name.toLowerCase()) && d < 28);
+    })) continue;
     const host = hostFor(index, x, z);
     if (!host) continue;
     const edge = closestEdge(host.r, x, z);
     if (!edge || edge.d > 24) continue;
-    const offset = [0, 3.9, -3.9, 7.8, -7.8].find(d => {
-      if (d < edge.lo || d > edge.hi) return false;
-      const x = edge.x + edge.tx * d, z = edge.z + edge.tz * d;
-      return !placed.some(p => Math.hypot(p.x - x, p.z - z) < (p.width + edge.width) / 2 + .18);
-    });
-    if (offset == null) continue;
-    const sx = edge.x + edge.tx * offset, sz = edge.z + edge.tz * offset;
-    const height = host.h >= 6 ? Math.min(4.15, host.h - 0.45) : Math.max(1.2, host.h * 0.62);
-    const y = (host.g ?? 0) + (host.b || 0) + height;
-    placed.push({ shop, x: sx + edge.nx * .13, y, z: sz + edge.nz * .13, nx: edge.nx, nz: edge.nz, width: edge.width });
+    for (const width of [edge.width, edge.width * .8, edge.width * .65]) {
+      const margin = (edge.width - width) / 2;
+      const step = width + .14;
+      const offset = [0, -step, step, -2 * step, 2 * step].find(d => {
+        if (d < edge.lo - margin || d > edge.hi + margin) return false;
+        const sx = edge.x + edge.tx * d, sz = edge.z + edge.tz * d;
+        return !placed.some(p =>
+          p.nx * edge.nx + p.nz * edge.nz > .85 &&
+          Math.abs((p.x - sx) * edge.nx + (p.z - sz) * edge.nz - .40) < .45 &&
+          Math.abs((p.x - sx) * edge.tx + (p.z - sz) * edge.tz) < (p.width + width) / 2 + .14);
+      });
+      if (offset == null) continue;
+      const sx = edge.x + edge.tx * offset, sz = edge.z + edge.tz * offset;
+      const height = host.h >= 6 ? 4.43 : Math.max(1.2, host.h * .62);
+      const y = (host.g ?? groundAt(sx, sz)) + (host.b || 0) + height;
+      placed.push({ shop, x: sx + edge.nx * .40, y, z: sz + edge.nz * .40, nx: edge.nx, nz: edge.nz, width });
+      break;
+    }
   }
+  return placed;
+}
+
+export function dressShops(group, buildings, anchors, groundAt) {
+  const placed = layoutShopSigns(buildings, anchors, groundAt);
   const per = COLS * ROWS;
   for (let start = 0; start < placed.length; start += per) {
     const slice = placed.slice(start, start + per);
@@ -196,6 +210,8 @@ export function dressShops(group, buildings, anchors) {
       map: tex, roughness: 0.6, metalness: 0, side: THREE.DoubleSide,
       emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18,
     }));
+    mesh.name = 'Mapped shop signs';
+    mesh.userData.signs = slice;
     mesh.userData.abs = true;
     mesh.userData.dispose = () => { tex.dispose(); mesh.material.dispose(); };
     mesh.castShadow = true;

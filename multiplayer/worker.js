@@ -7,6 +7,7 @@ const attachmentPlayer = (p) => ({
   riding: p.riding,
   moveSeq: p.moveSeq,
   moveAt: p.moveAt,
+  warp: p.warp,
 });
 const json = (data, status = 200, headers = {}) =>
   Response.json(data, { status, headers });
@@ -93,7 +94,7 @@ export class BungRoom extends DurableObject {
           if (a?.id && this.engine.s.players[a.id])
             Object.assign(
               this.engine.s.players[a.id],
-              a.player
+              a.player && (a.player.warp ?? 0) === (this.engine.s.players[a.id].warp ?? 0)
                 ? {
                     pos: a.player.pos,
                     yaw: a.player.yaw,
@@ -194,6 +195,7 @@ export class BungRoom extends DurableObject {
       if (!m || typeof m !== 'object' || Array.isArray(m))
         throw Error('Invalid message.');
       const now = Date.now();
+      let reschedule = m.type !== 'move';
       if (now - a.rateAt > 1000) {
         a.rateAt = now;
         a.rate = 0;
@@ -228,7 +230,16 @@ export class BungRoom extends DurableObject {
         });
         this.broadcast();
       } else if (m.type === 'move') {
+        const current = this.engine.s.players[a.id];
+        const previous = current && { pos: current.pos, at: current.moveAt || 0 };
         if (this.engine.move(a.id, m)) {
+          if (this.engine.ringCrossed(a.id, previous)) {
+            const next = this.next();
+            next.advanceRing(a.id, previous);
+            this.persist(next);
+            reschedule = true;
+            this.broadcast();
+          }
           const p = this.engine.s.players[a.id];
           a.player = attachmentPlayer(p);
           ws.serializeAttachment(a);
@@ -262,7 +273,7 @@ export class BungRoom extends DurableObject {
         });
       } else throw Error('Unknown message.');
       ws.serializeAttachment(a);
-      await this.schedule();
+      if (reschedule) await this.schedule();
     } catch (error) {
       if (a && !a.pending && this.engine.s.players[a.id])
         a.player = attachmentPlayer(this.engine.s.players[a.id]);
@@ -308,6 +319,7 @@ export class BungRoom extends DurableObject {
   async schedule() {
     if (!this.engine) return;
     let next = Date.now() + 3600000;
+    if (this.engine.s.arena?.deadline) next = Math.min(next, this.engine.s.arena.deadline);
     for (const g of Object.values(this.engine.s.games))
       if (g.status === 'playing') {
         next = Math.min(
@@ -319,13 +331,17 @@ export class BungRoom extends DurableObject {
             : next,
         );
       }
-    for (const p of Object.values(this.engine.s.players))
+    for (const p of Object.values(this.engine.s.players)) {
       if (!p.connected) next = Math.min(next, p.lastSeen + 45001);
+      if (p.ring?.deadline) next = Math.min(next, p.ring.deadline);
+    }
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment();
       if (a?.pending) next = Math.min(next, a.at + 10000);
     }
-    await this.ctx.storage.setAlarm(Math.max(Date.now() + 100, next));
+    const scheduled = await this.ctx.storage.getAlarm();
+    const at = Math.max(Date.now() + 100, next);
+    if (scheduled == null || at < scheduled) await this.ctx.storage.setAlarm(at);
   }
   async alarm() {
     if (!this.engine) return;

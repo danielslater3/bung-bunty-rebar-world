@@ -10,6 +10,8 @@ import {
   ROLES,
   normalizeAppearance,
 } from '../src/multiplayer/catalog.js';
+import { arenaContains, arenaLive, availablePickup, crossesGate, EXCHANGE, EXCHANGE_ITEMS, PICKUPS, RING_GATES } from '../src/multiplayer/cityActivities.js';
+import { arenaCommand, arenaTick, emptyArena, removeArenaPlayer } from './burgerHeist.js';
 export const freshRoom = (code, now) => ({
   code,
   version: PROTOCOL,
@@ -28,6 +30,9 @@ export const freshRoom = (code, now) => ({
     awarded: false,
   },
   banned: [],
+  savedPlayers: [],
+  rareUntil: {},
+  arena: emptyArena(),
 });
 const fail = (message) => {
   throw new Error(message);
@@ -65,7 +70,15 @@ export class RoomEngine {
     id = () => crypto.randomUUID(),
   ) {
     this.s = data;
-    for (const p of Object.values(this.s.players)) p.appearance = normalizeAppearance(p.appearance);
+    this.s.savedPlayers ??= [];
+    this.s.rareUntil ??= {};
+    this.s.arena ??= emptyArena();
+    for (const p of Object.values(this.s.players)) {
+      p.appearance = normalizeAppearance(p.appearance);
+      p.rebar ??= 0;
+      p.claims ??= {};
+      p.inventory ??= {};
+    }
     this.now = now;
     this.random = random;
     this.id = id;
@@ -78,10 +91,12 @@ export class RoomEngine {
     if (!p) {
       if (Object.keys(this.s.players).length >= MAX_PLAYERS)
         fail('Room full — maximum 10 players.');
-      const id = this.id();
+      const saved = this.s.savedPlayers.findIndex(p => same(p.token, token));
+      const profile = saved >= 0 ? this.s.savedPlayers.splice(saved, 1)[0] : null;
+      const id = profile?.id || this.id();
       p = {
         id,
-        token: this.id(),
+        token: profile?.token || this.id(),
         name: clean(name, 20) || 'Bung',
         appearance: normalizeAppearance(appearance),
         color: Array.from({ length: 10 }, (_, i) => i).find(
@@ -93,7 +108,12 @@ export class RoomEngine {
         lastSeen: this.now(),
         pos: { ...SPAWN },
         yaw: 0,
-        score: 0,
+        score: profile?.score ?? 0,
+        rebar: profile?.rebar ?? 0,
+        claims: profile?.claims || {},
+        inventory: profile?.inventory || {},
+        ringBest: profile?.ringBest,
+        ring: profile?.ring?.deadline > this.now() ? profile.ring : null,
         moveSeq: -1,
         actionIds: [],
         chatAt: [],
@@ -104,6 +124,7 @@ export class RoomEngine {
         x: SPAWN.x + ((p.color % 5) - 2) * 2.5,
         z: SPAWN.z + (p.color < 5 ? -3 : 3),
       };
+      if (p.ring) p.pos = profile.pos;
       this.s.players[id] = p;
     }
     // A reconnect preserves the stored outfit unless the join screen explicitly
@@ -140,6 +161,7 @@ export class RoomEngine {
     const p = this.s.players[id];
     if (p) {
       p.connected = false;
+      removeArenaPlayer(this, id);
       p.lastSeen = this.now();
       this.elect();
       this.changed();
@@ -149,7 +171,14 @@ export class RoomEngine {
     for (const p of Object.values(this.s.players))
       if (!p.connected && this.now() - p.lastSeen > 45000) this.remove(p.id);
   }
-  remove(id) {
+  remove(id, kicked = false) {
+    removeArenaPlayer(this, id);
+    const p = this.s.players[id];
+    if (p && !kicked) {
+      const { token, score, rebar, inventory, claims, ringBest, ring, pos } = p;
+      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos });
+      this.s.savedPlayers = this.s.savedPlayers.slice(-32);
+    }
     delete this.s.players[id];
     const q = this.s.quest;
     const i = q.roles.indexOf(id);
@@ -171,6 +200,7 @@ export class RoomEngine {
     const p = this.s.players[id],
       n = this.now();
     if (!p) fail('Join first.');
+    if ((msg.warp ?? 0) !== (p.warp ?? 0)) return false;
     if (!Number.isSafeInteger(msg.seq) || msg.seq <= p.moveSeq) return false;
     const v = msg.pos;
     if (
@@ -181,9 +211,15 @@ export class RoomEngine {
       !finite(msg.yaw, -10000, 10000)
     )
       fail('Invalid position.');
+    const arena = this.s.arena;
+    const fighter = arenaLive(arena) && arena.players.includes(id);
+    if (fighter) {
+      if (msg.riding || !arenaContains(v)) fail('Position corrected: stay on foot inside the arena.');
+      if ((arena.phase === 'countdown' || p.stunnedUntil > n) && gap(p.pos, v) > .65) return false;
+    }
     if (n - (p.moveAt || 0) < 80) return false;
     const allowed =
-      58 * Math.min(2, Math.max(0.08, (n - (p.moveAt || n - 125)) / 1000)) + 2;
+      (fighter ? 13 : 58) * Math.min(2, Math.max(0.08, (n - (p.moveAt || n - 125)) / 1000)) + 2;
     if (gap(p.pos, v) > allowed)
       fail('Position corrected: travel through the city normally.');
     p.pos = { x: v.x, y: v.y, z: v.z };
@@ -193,6 +229,38 @@ export class RoomEngine {
     p.moveAt = n;
     p.lastSeen = n;
     return true;
+  }
+  ringCrossed(id, previous) {
+    const p = this.s.players[id], run = p?.ring;
+    return run?.deadline > this.now() &&
+      p.moveAt - previous.at <= 1000 && p.moveAt > previous.at &&
+      crossesGate(previous.pos, p.pos, RING_GATES[run.index]);
+  }
+  advanceRing(id, previous) {
+    if (!this.ringCrossed(id, previous)) return false;
+    const p = this.s.players[id], run = p.ring, now = this.now();
+    if (run.index === 0) {
+      run.start = now;
+      run.deadline = now + 90000;
+    }
+    run.index++;
+    if (run.index === RING_GATES.length) {
+      const time = now - run.start;
+      p.ringBest = Math.min(p.ringBest ?? time, time);
+      p.ring = { ...run, deadline: 0, time };
+      this.reward(p, 40, 24, 'Ring Rush complete');
+    }
+    this.changed();
+    return true;
+  }
+  near(p, target, radius) {
+    return p.moveAt != null && this.now() - p.moveAt <= 1400 &&
+      gap(p.pos, target) <= radius && Math.abs(p.pos.y - target.y) < 3;
+  }
+  reward(p, points, rebar, reason, sound = 'questDone') {
+    p.score += points;
+    p.rebar += rebar;
+    p.receipt = { id: this.id(), points, rebar, reason, sound };
   }
   command(id, m) {
     this.tick();
@@ -204,6 +272,10 @@ export class RoomEngine {
     p.actionIds.push(m.requestId);
     if (p.actionIds.length > 32) p.actionIds.shift();
     p.lastSeen = this.now();
+    const a = this.s.arena;
+    if ((arenaLive(a) || a.phase === 'waiting') && a.players.includes(id) &&
+        ['joinGame', 'startGame', 'questJoin', 'ringStart'].includes(m.cmd))
+      fail('Leave Burger Heist before starting another activity.');
     switch (m.cmd) {
       case 'chat': {
         const text = clean(m.text, 180);
@@ -229,7 +301,7 @@ export class RoomEngine {
         if (m.action === 'kick') {
           this.s.banned.push(target.token);
           this.s.banned = this.s.banned.slice(-32);
-          this.remove(target.id);
+          this.remove(target.id, true);
         } else if (m.action === 'mute') target.mutedUntil = this.now() + 300000;
         else fail('Unknown moderation action.');
         break;
@@ -302,6 +374,8 @@ export class RoomEngine {
           fail(
             'All four quest players must finish or leave their minigames first.',
           );
+        if ((arenaLive(this.s.arena) || this.s.arena.phase === 'waiting') &&
+            q.roles.some(id => this.s.arena.players.includes(id))) fail('All four quest players must leave the arena queue.');
         q.status = 'playing';
         q.stage = 0;
         q.done = [false, false, false, false];
@@ -321,6 +395,50 @@ export class RoomEngine {
         };
         break;
       }
+      case 'arenaJoin':
+      case 'arenaReady':
+      case 'arenaLeave':
+      case 'arenaAct':
+      case 'arenaWatch':
+      case 'arenaUnwatch':
+        arenaCommand(this, p, m);
+        break;
+      case 'pickup': {
+        const item = PICKUPS.find(x => x.id === m.item);
+        if (!item || !this.near(p, item, p.riding ? 3 : 2.65)) fail('Stand close to the collectible first.');
+        if (!availablePickup(item, p, this.s, this.now())) fail('That collectible has already been claimed.');
+        if (item.kind === 'rare') this.s.rareUntil[item.id] = this.now() + 180000;
+        else p.claims[item.id] = this.now() + (item.kind === 'rebar' ? 90000 : 86400000);
+        this.reward(p, item.kind === 'rare' ? 12 : 0, item.rebar, item.label, 'rebar');
+        break;
+      }
+      case 'exchangeBuy': {
+        const item = EXCHANGE_ITEMS.find(x => x.id === m.item);
+        if (!item) fail('Unknown Exchange item.');
+        if (p.inventory[item.id]) break;
+        if (!this.near(p, EXCHANGE, 5)) fail('Visit the City Hall Rebar Exchange to buy upgrades.');
+        if (p.rebar < item.price) fail(`You need ${item.price} rebar for ${item.label}.`);
+        p.inventory[item.id] = true;
+        this.reward(p, 0, -item.price, item.label + ' equipped', 'buy');
+        break;
+      }
+      case 'horn':
+        if (!p.inventory.horn || !p.riding || this.now() - (p.hornAt || 0) < 1800)
+          fail('Equip the horn and drive your trolley before honking.');
+        p.hornAt = this.now();
+        break;
+      case 'ringStart': {
+        if (p.ring?.deadline > this.now()) fail('Ring Rush is already active.');
+        if (this.s.quest.status === 'playing' && this.s.quest.roles.includes(id))
+          fail('Finish the expedition before starting Ring Rush.');
+        if (Object.values(this.s.games).some(g => g.status === 'playing' && g.players.includes(id)))
+          fail('Finish your minigame before starting Ring Rush.');
+        p.ring = { index: 0, start: 0, deadline: this.now() + 240000 };
+        break;
+      }
+      case 'ringCancel':
+        p.ring = null;
+        break;
       case 'questAct':
         this.questAct(p);
         break;
@@ -480,8 +598,10 @@ export class RoomEngine {
     if (!g.awarded) {
       for (const id of g.players) {
         const p = this.s.players[id];
-        if (p)
-          p.score += g.winners.length ? (g.winners.includes(id) ? 10 : 2) : 3;
+        if (p) {
+          const points = g.winners.length ? (g.winners.includes(id) ? 10 : 2) : 3;
+          this.reward(p, points, points, 'Minigame complete');
+        }
       }
       g.awarded = true;
     }
@@ -700,7 +820,7 @@ export class RoomEngine {
       if (q.stage === 3) {
         q.status = 'complete';
         if (!q.awarded) {
-          for (const id of q.roles) this.s.players[id].score += 100;
+          for (const id of q.roles) this.reward(this.s.players[id], 100, 50, 'Seb’s expedition complete');
           q.awarded = true;
         }
       } else {
@@ -712,7 +832,13 @@ export class RoomEngine {
   }
   tick() {
     this.expire();
-    let changed = false;
+    let changed = arenaTick(this);
+    for (const p of Object.values(this.s.players)) {
+      if (p.ring?.deadline && this.now() >= p.ring.deadline) {
+        p.ring = { ...p.ring, deadline: 0, expired: true };
+        changed = true;
+      }
+    }
     for (const g of Object.values(this.s.games)) {
       if (g.status !== 'playing') continue;
       if (g.id === 'memory' && g.revealUntil && this.now() >= g.revealUntil) {
@@ -744,11 +870,19 @@ export class RoomEngine {
   view(viewer) {
     const s = structuredClone(this.s);
     delete s.banned;
+    delete s.savedPlayers;
     for (const p of Object.values(s.players)) {
       delete p.token;
       delete p.actionIds;
       delete p.chatAt;
       delete p.moveAt;
+      delete p.arenaReturn;
+      if (p.id !== viewer) delete p.watchReturn;
+      delete p.arenaActAt;
+      if (p.id !== viewer) {
+        delete p.receipt;
+        delete p.claims;
+      }
     }
     for (const g of Object.values(s.games)) {
       if (g.id === 'memory') {
