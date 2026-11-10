@@ -177,6 +177,7 @@ const { chromium } = require('playwright');
       g.camera.position.set(t2.x + 190, floor + 46, t2.z + 164);
       g.camera.lookAt(t2.x, floor + 95, t2.z);
       w.drawAtmosphere(w.frame, w.conditions, g.player.pos);
+      g.renderer.render = drawWeather;
       g.renderer.setAnimationLoop(() => drawWeather(g.scene, g.camera));
       return { lifted, thrown, radius, funnel: w.funnel.visible, debris: w.fragments.count, spot, exposed: w.exposed };
     });
@@ -245,7 +246,40 @@ const { chromium } = require('playwright');
     assert.match(extreme.alert, /EF5 tornado on ground.*Very large hail/);
     assert.ok(extreme.alertVisible && extreme.sky && extreme.darkened && extreme.maxHeight > 25 && extreme.maxRange > 140, JSON.stringify(extreme));
     assert.ok(extreme.flying > 0 && extreme.carHeight > 10 && extreme.damage > 5 && extreme.wallMoved, JSON.stringify(extreme));
+    const coverage = await page.evaluate(() => {
+      const g = BUNG, w = g.weather, f = w.frame;
+      g.renderer.setAnimationLoop(null);
+      const width = 432, height = 256;
+      const target = new THREE.WebGLRenderTarget(width, height);
+      const storm = new Uint8Array(width * height * 4), clear = new Uint8Array(storm.length);
+      const camera = g.camera.clone();
+      const speed = Math.hypot(f.vx, f.vz);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      camera.position.set(f.x + f.vx / speed * 4400, 100, f.z + f.vz / speed * 4400);
+      camera.lookAt(f.x, 980, f.z);
+      try {
+        g.renderer.setRenderTarget(target);
+        drawWeather(g.scene, camera);
+        g.renderer.readRenderTargetPixels(target, 0, 0, width, height, storm);
+        w.sky.visible = false;
+        drawWeather(g.scene, camera);
+        g.renderer.readRenderTargetPixels(target, 0, 0, width, height, clear);
+      } finally {
+        w.sky.visible = true;
+        g.renderer.setRenderTarget(null);
+        target.dispose();
+      }
+      let distinct = 0;
+      const tones = new Set();
+      for (let i = storm.length / 2; i < storm.length; i += 4) {
+        if (Math.abs(storm[i + 1] - clear[i + 1]) > 28) distinct++;
+        tones.add(storm[i + 1]);
+      }
+      return { visibleSkyChange: distinct / (width * height / 2), tones: tones.size };
+    });
+    assert.ok(coverage.visibleSkyChange > .25 && coverage.tones > 35, JSON.stringify(coverage));
     assert.deepEqual(errors, []);
-    console.log('S24 / WEATHER PASSED', { cloud, storm, extreme });
+    console.log('S24 / WEATHER PASSED', { cloud, storm, extreme, coverage });
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -74,6 +74,7 @@ export class Game {
     this.trolley = new Trolley(this);
     this.player.mesh.visible = false;
     this.weather = new WeatherSystem(this);
+    this.scene.onBeforeRender = (renderer, _scene, camera) => this.weather.renderSky(renderer, camera);
     this.phone = new Phone(this);
 
     this.mode = 'menu'; // menu | playing | paused

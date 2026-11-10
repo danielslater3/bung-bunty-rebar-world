@@ -3,7 +3,7 @@ import { moveHorizontal, positionClear } from '../core/motion.js';
 import { rng } from '../core/utils.js';
 import { state } from '../core/state.js';
 import { conditionsAt, hashWeather, vortexAt, weatherAt } from './model.js';
-import { createFunnel, createStormSky, stormNoise } from './stormSky.js';
+import { createFunnel, createStormSky } from './stormSky.js';
 import { StormDamage } from './stormDamage.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -76,8 +76,7 @@ export class WeatherSystem {
     const scene = this.game.scene;
     this.hemi = zone.group.children.find(child => child.isHemisphereLight);
     this.base = { sky: scene.background.clone(), fog: scene.fog.clone(), sun: zone.sun.intensity, hemi: this.hemi?.intensity };
-    this.noise = stormNoise();
-    this.sky = createStormSky(this.noise);
+    this.sky = createStormSky();
     this.root.add(this.sky);
     this.stormDamage = new StormDamage(zone);
     this.cloudOpacity = cloudOpacityTexture();
@@ -187,7 +186,6 @@ export class WeatherSystem {
         if (object.isInstancedMesh) object.dispose();
       });
       this.cloudOpacity.dispose();
-      this.noise.dispose();
       this.damageAssets.forEach(asset => asset.dispose());
       this.game.scene.background.copy(this.base.sky);
       const fog = this.game.scene.fog;
@@ -271,6 +269,10 @@ export class WeatherSystem {
     else this.caughtSince = null;
   }
 
+  renderSky(renderer, camera) {
+    if (this.zone && this.sky.visible) this.sky.userData.renderVolume(renderer, camera);
+  }
+
   drawAtmosphere(f, c, p) {
     const scene = this.game.scene;
     const storm = f.mode === 'storm' || f.mode === 'supercell';
@@ -285,22 +287,29 @@ export class WeatherSystem {
       this.zone.sun.intensity = this.base.sun * (1 - overcast * .69) + this.flash * (this.reduceFlash ? .04 : .3);
       if (this.hemi) this.hemi.intensity = this.base.hemi * (1 - overcast * .46);
     }
-    this.sky.visible = !night && storm && f.core > .10;
+    this.sky.visible = !night && storm && f.core > .025;
     if (this.sky.visible) {
-      const u = this.sky.material.uniforms;
+      const u = this.sky.userData.storm;
       u.centre.value.set(f.x, f.z);
       u.heading.value.set(f.vx, f.vz).normalize();
-      u.skyColor.value.copy(scene.background);
+      u.skyColor.value.copy(this.base.sky).lerp(scene.background, .38);
+      u.supercell.value = f.mode === 'supercell' ? 1 : 0;
       u.shape.value = f.shape;
-      u.coverage.value = f.core * (f.mode === 'supercell' ? 1.47 : 1.18);
+      u.coverage.value = Math.min(1, f.core * (u.supercell.value ? 1.34 : 1.17));
       u.clock.value = f.time % 3600;
       u.flash.value = this.reduceFlash ? 0 : this.flash * .40;
+      u.strike.value.copy(this.light.position);
+      u.strike.value.y += 270;
+      const t = f.tornado;
+      u.wall.value.set(t?.x ?? f.x - f.vx * 11, t ? Math.max(ceiling, t.height) + 126 : 420,
+        t?.z ?? f.z - f.vz * 11);
     }
     for (const [i, cloud] of this.clouds.entries()) {
       cloud.position.set(p.x + Math.sin(i * 1.26 + f.time * .006) * 1250, 510 + 45 * i, p.z + Math.cos(i * 1.26 + f.time * .006) * 1250);
       cloud.scale.set(540 + i * 74, 205 + 11 * i, 1);
-      cloud.material.opacity = .55 - overcast * .36;
-      cloud.visible = !night && !this.sky.visible;
+      const fade = this.sky.visible ? Math.max(0, 1 - f.core / .24) : 1;
+      cloud.material.opacity = (.55 - overcast * .36) * fade;
+      cloud.visible = !night && fade > 0;
     }
     const visible = this.exposed && c.rain > .055;
     const hail = visible && f.hail > 0 && c.rain > .42;

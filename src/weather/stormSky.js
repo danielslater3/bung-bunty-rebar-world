@@ -1,141 +1,244 @@
 import * as THREE from 'three';
 import { rng } from '../core/utils.js';
 
-// The sky and funnel share a filtered, seamless density field. No screen-space
-// speckles or precision-sensitive sine hashes in either shader.
-export function stormNoise() {
-  const size = 128, data = new Uint8Array(size * size), rand = rng(51319);
-  for (let y = 0; y < size; y += 8) for (let x = 0; x < size; x += 8)
-    data[y * size + x] = 255 * rand();
-  const smooth = t => t * t * (3 - 2 * t);
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    if (x % 8 === 0 && y % 8 === 0) continue;
-    const x0 = x - x % 8, y0 = y - y % 8, x1 = (x0 + 8) % size, y1 = (y0 + 8) % size;
-    const a = smooth((x - x0) / 8), b = smooth((y - y0) / 8);
-    const top = THREE.MathUtils.lerp(data[y0 * size + x0], data[y0 * size + x1], a);
-    const bottom = THREE.MathUtils.lerp(data[y1 * size + x0], data[y1 * size + x1], a);
-    data[y * size + x] = THREE.MathUtils.lerp(top, bottom, b);
-  }
-  const texture = new THREE.DataTexture(data, size, size, THREE.RedFormat);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.magFilter = THREE.LinearFilter;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.generateMipmaps = true;
-  texture.needsUpdate = true;
-  return texture;
-}
-
-export function createStormSky(noise) {
+// Render the moving cell into a bounded-resolution buffer and composite it
+// behind opaque city geometry. Camera motion changes the rays through the
+// world-space volume, including when the camera is directly under the cell.
+export function createStormSky() {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute([-1,-1,0, 3,-1,0, -1,3,0], 3));
-  const material = new THREE.ShaderMaterial({
-    depthWrite: false,
-    extensions: { shaderTextureLOD: true },
-    uniforms: {
-      noiseMap: { value: noise },
-      inverseProjection: { value: new THREE.Matrix4() },
-      cameraWorld: { value: new THREE.Matrix4() },
-      centre: { value: new THREE.Vector2() },
-      heading: { value: new THREE.Vector2(1, 0) },
-      skyColor: { value: new THREE.Color() },
-      coverage: { value: 0 },
-      shape: { value: 0 },
-      clock: { value: 0 },
-      flash: { value: 0 },
-    },
+  const target = new THREE.WebGLRenderTarget(1, 1, {
+    depthBuffer: false, stencilBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+  });
+  const noise = volumeNoise(64, 51319);
+  const uniforms = {
+    noiseMap: { value: noise },
+    inverseProjection: { value: new THREE.Matrix4() },
+    cameraWorld: { value: new THREE.Matrix4() },
+    eye: { value: new THREE.Vector3() },
+    centre: { value: new THREE.Vector2() },
+    heading: { value: new THREE.Vector2(1, 0) },
+    wall: { value: new THREE.Vector3() },
+    skyColor: { value: new THREE.Color() },
+    strike: { value: new THREE.Vector3() },
+    coverage: { value: 0 },
+    supercell: { value: 0 },
+    shape: { value: 0 },
+    clock: { value: 0 },
+    flash: { value: 0 },
+  };
+  const volume = new THREE.ShaderMaterial({
+    uniforms, depthWrite: false, depthTest: false, toneMapped: false,
     vertexShader: `
       uniform mat4 inverseProjection, cameraWorld;
       varying vec3 worldRay;
       void main() {
         vec4 view = inverseProjection * vec4(position.xy, 1., 1.);
         worldRay = mat3(cameraWorld) * view.xyz;
+        gl_Position = vec4(position.xy, 0., 1.);
+      }
+    `,
+    fragmentShader: `
+      uniform highp sampler3D noiseMap;
+      uniform vec3 eye, skyColor, wall, strike;
+      uniform vec2 centre, heading;
+      uniform float coverage, supercell, shape, clock, flash;
+      varying vec3 worldRay;
+
+      vec3 stormSpace(vec3 world) {
+        vec2 p = world.xz - centre;
+        return vec3(dot(p, heading), world.y, dot(p, vec2(-heading.y, heading.x)));
+      }
+
+      float lobe(vec3 p, vec3 center, vec3 radii) {
+        return 1. - length((p - center) / radii);
+      }
+
+      float join(float a, float b) {
+        return max(a, b) + .09 * pow(max(0., 1. - abs(a - b) / .36), 2.);
+      }
+
+      float envelope(vec3 p, vec3 wallCentre) {
+        float breadth = mix(.88, 1.2, shape);
+        float height = mix(.72, 1. + shape * .25, supercell);
+        vec3 tower = vec3(p.x - max(0., p.y - 420.) * .24, p.y, p.z);
+        float body = lobe(tower, vec3(-280., 1350. * height, 0.), vec3(1800., 1140. * height, 1540. * breadth));
+        float crown = lobe(tower, vec3(-550., 2250. * height, -180.), vec3(1020., 730. * height, 1000. * breadth));
+        float anvil = lobe(p, vec3(1120., 2480. * height, -120.), vec3(4650., 420. * height, 2110. * breadth));
+        float flank = lobe(p, vec3(-1690., 760., -310.), vec3(1780., 590., 850. * breadth));
+        float apron = lobe(p, vec3(560., 570., 20.), vec3(2190., 400., 1370. * breadth));
+
+        // Bowed leading shelf, with its ends swept back and distinct rolls.
+        float across = p.z / (2020. * breadth);
+        float front = 1720. - 1170. * across * across;
+        float shelf = lobe(vec3(p.x - front, p.y, p.z),
+          vec3(0., 398. + across * across * 90., 0.), vec3(870., 335., 2210. * breadth));
+        float roll = lobe(vec3(p.x - front, p.y, p.z),
+          vec3(260., 620., 0.), vec3(640., 263., 1960. * breadth));
+        float lip = lobe(vec3(p.x - front, p.y, p.z),
+          vec3(345., 790., 0.), vec3(460., 200., 1810. * breadth));
+
+        float wallCloud = lobe(p, wallCentre, vec3(630., 245., 560.));
+        float collar = lobe(p, wallCentre + vec3(-190., 190., 80.), vec3(930., 335., 770.));
+        float base = join(join(join(shelf, roll), lip), join(apron, flank));
+        return join(join(join(body, crown), anvil), join(base, join(wallCloud, collar) - (1. - supercell) * .68));
+      }
+
+      vec2 volumeDensity(vec3 p, vec3 wallCentre) {
+        float form = envelope(p, wallCentre);
+        float cloud = 0.;
+        if (form > -.31) {
+          // Advect noise in all three axes. Lower condensation rotates
+          // around the wall cloud while the anvil streams downwind.
+          vec3 q = p;
+          vec2 rel = p.xz - wallCentre.xz;
+          float spin = clock * .023 * (1. - smoothstep(250., 1500., length(rel)))
+                       * (1. - smoothstep(340., 950., p.y)) * supercell;
+          q.xz = wallCentre.xz + mat2(cos(spin), -sin(spin), sin(spin), cos(spin)) * rel;
+          vec3 uv = q / vec3(2900., 2150., 2710.) + vec3(shape * 2.9 - clock * .0033, -clock * .0014, shape * 4.2);
+          float broad = textureLod(noiseMap, uv, 0.).r;
+          float billows = textureLod(noiseMap, uv * 2.17 + .27, 0.).r;
+          float detail = textureLod(noiseMap, uv * 4.11 - .31, 0.).r;
+          float boundary = form + (broad - .48) * .58 + (billows - .48) * .25 + (detail - .5) * .09;
+          cloud = smoothstep(-.09, .54, boundary - (1. - coverage) * .56)
+                * coverage * smoothstep(76., 140., p.y);
+        }
+
+        // Precipitation hangs below the forward flank and leaves a gap
+        // under the rotating base. Vertical stretch gives a rain curtain.
+        vec3 rain = (p - vec3(720. + p.y * .22, 250., -560.)) / vec3(1170., 460., 1010.);
+        float shaft = max(0., 1. - length(rain));
+        float rainVeil = 0.;
+        if (shaft > 0.) {
+          float streaks = textureLod(noiseMap, vec3(p.x * .0011 - clock * .011, p.y * .00007, p.z * .0016 + shape), 0.).r;
+          rainVeil = shaft * shaft * (.32 + streaks * .73) * coverage;
+        }
+        return vec2(cloud, rainVeil);
+      }
+
+      void main() {
+        vec3 view = normalize(worldRay);
+        vec3 origin = stormSpace(eye);
+        vec3 ray = stormSpace(eye + view) - origin;
+        vec3 wallCentre = stormSpace(wall);
+        vec3 light = normalize(vec3(.73, .49, -.46));
+        vec3 inv = 1. / (ray + vec3(.000001));
+        vec3 a = (vec3(-4750., -85., -3450.) - origin) * inv;
+        vec3 b = (vec3( 6600., 4000., 3450.) - origin) * inv;
+        vec3 enter = min(a, b), leave = max(a, b);
+        float start = max(0., max(enter.x, max(enter.y, enter.z)));
+        float end = min(15000., min(leave.x, min(leave.y, leave.z)));
+
+        float elevation = max(view.y, 0.);
+        vec3 horizon = mix(skyColor, vec3(.54,.63,.68), smoothstep(.03, .40, coverage));
+        vec3 sky = mix(horizon, skyColor, smoothstep(-.10, .78, elevation));
+        vec3 integrated = vec3(0.);
+        float transmittance = 1.;
+        if (end > start) {
+          float distance = start;
+          // Steps are short around the low shelf and lengthen on far rays.
+          for (int i = 0; i < 48; i++) {
+            float stepSize = min(end - distance, 53. + (distance - start) * .073);
+            if (stepSize <= 0. || transmittance < .014) break;
+            vec3 p = origin + ray * (distance + stepSize * .5);
+            vec2 d = volumeDensity(p, wallCentre);
+            if (d.x + d.y > .001) {
+              float extinction = d.x * .0079 + d.y * .0018;
+              float alpha = 1. - exp(-extinction * stepSize);
+              float lit = 0., bounce = 0.;
+              if (d.x > .025) {
+                float shade = volumeDensity(p + light * 230., wallCentre).x;
+                lit = exp(-(d.x * .61 + shade) * 4.1);
+                // Diffuse light entering from the bright side of the shelf
+                // keeps the rotating underside legible even in deep shade.
+                float pattern = textureLod(noiseMap, p / vec3(2150., 1230., 1880.) +
+                  vec3(-clock * .0041, clock * .0009, shape * 3.), 0.).r;
+                bounce = smoothstep(.23, .81, pattern) * (.17 + .13 * (1. - shade));
+              }
+              float high = smoothstep(230., 2950., p.y);
+              float edge = clamp(lit * (1. - .34 * d.x) + high * .20 + bounce, 0., 1.);
+              vec3 cloudLight = mix(vec3(.045,.054,.071), vec3(.68,.69,.70), edge);
+              cloudLight *= mix(.57, 1.06, high);
+              vec3 rainLight = vec3(.24,.285,.33) * (1. - .30 * coverage);
+              vec3 lightAt = mix(rainLight, cloudLight, d.x / max(.001, d.x + d.y * .36));
+              if (flash > .001) {
+                float range = length(p - strike);
+                lightAt += vec3(.34,.42,.66) * flash * exp(-range / 660.);
+              }
+              float aerial = 1. - exp(-max(0., distance - 450.) / 13000.);
+              lightAt = mix(lightAt, sky, aerial * .55);
+              integrated += lightAt * (alpha * transmittance);
+              transmittance *= 1. - alpha;
+            }
+            distance += stepSize;
+          }
+        }
+        // Use more of the 8-bit buffer's precision in the storm's shadows.
+        gl_FragColor = vec4(sqrt(max(vec3(0.), integrated + sky * transmittance)), 1.);
+      }
+    `,
+  });
+  const pass = new THREE.Mesh(geometry, volume);
+  pass.frustumCulled = false;
+  const volumeScene = new THREE.Scene();
+  volumeScene.add(pass);
+  const passCamera = new THREE.Camera();
+  const material = new THREE.ShaderMaterial({
+    depthWrite: false, toneMapped: false,
+    uniforms: { cloudFrame: { value: target.texture } },
+    vertexShader: `
+      varying vec2 screenUv;
+      void main() {
+        screenUv = position.xy * .5 + .5;
         gl_Position = vec4(position.xy, 1., 1.);
       }
     `,
     fragmentShader: `
-      uniform sampler2D noiseMap;
-      uniform vec2 centre, heading;
-      uniform vec3 skyColor;
-      uniform float coverage, shape, clock, flash;
-      varying vec3 worldRay;
-      float field(vec2 uv) {
-        return .57 * texture2DLodEXT(noiseMap, uv, 0.).r
-             + .29 * texture2DLodEXT(noiseMap, uv * 2.11 + .31, 0.).r
-             + .14 * texture2DLodEXT(noiseMap, uv * 4.31 - .14, 1.).r;
-      }
-      vec4 cloud(vec3 p, float region) {
-        vec2 rel = p.xz - centre;
-        vec2 local = vec2(dot(rel, heading), dot(rel, vec2(-heading.y, heading.x)));
-        float h = p.y;
-        float wide = mix(790., 1310., shape);
-        float cross = local.y / wide;
-        // The leading edge bows outward and lifts into a broad anvil.
-        float edge = local.x - (850. - cross * cross * 640.);
-        float shelf = exp(-abs(edge + (h - 235.) * 1.2) / 295. - abs(cross) * 1.23);
-        float turret = exp(-length(vec2((local.x + 125.) / 1260., cross)) * 1.29);
-        float anvil = exp(-length(vec2((local.x - 400.) / 2150., local.y / 1500.)) * 1.39);
-        vec2 drift = vec2(clock * .00021 + shape * 3.17, -clock * .00014);
-        float n = field(local / 1740. + vec2(h * .00139, h * -.0008) + drift);
-        float curls = field(vec2(edge * .00084 + h * .0021, cross * .48 + h * .0011) + drift);
-        float lower = shelf * smoothstep(105., 225., h + (curls - .48) * 165.) * (1. - smoothstep(350., 580., h));
-        float upper = anvil * smoothstep(450., 820., h) * (1. - smoothstep(1120., 1460., h + (n - .5) * 450.));
-        float tower = turret * smoothstep(160., 340., h) * (1. - smoothstep(820., 1360., h + (n - .55) * 610.));
-        float form = (lower * 1.19 + upper * .96 + tower * 1.25) * coverage;
-        float density = smoothstep(.09, .54, form * (.48 + .91 * n + .42 * curls)) * region;
-        float bright = clamp((h - 185.) / 1030. * .68 + (n - .39) * .65 + (curls - .40) * .43, 0., 1.);
-        vec3 colour = mix(vec3(.018,.025,.035), vec3(.34,.40,.47), bright);
-        return vec4(colour + vec3(.32,.36,.49) * flash, density);
-      }
+      uniform sampler2D cloudFrame;
+      varying vec2 screenUv;
       void main() {
-        vec3 ray = normalize(worldRay);
-        float elevation = max(ray.y, 0.);
-        vec3 base = mix(skyColor * .73 + vec3(.16,.17,.16), skyColor * .72, pow(elevation, .5));
-        vec4 integrated = vec4(0.);
-        if (ray.y > .008) {
-          // The lowest layer forms the visible rolling shelf. Sample more
-          // densely at its base and cap the ray before the distant city horizon.
-          float start = max(0., (115. - cameraPosition.y) / ray.y);
-          float end = min(4300., (1470. - cameraPosition.y) / ray.y);
-          if (end > start) {
-            for (int i = 0; i < 9; i++) {
-              float t = (float(i) + .5) / 9.;
-              float d = mix(start, end, t * t);
-              vec3 p = cameraPosition + ray * d;
-              float distanceFade = 1. - smoothstep(2550., 4300., d);
-              vec4 layer = cloud(p, distanceFade);
-              float a = layer.a * .76;
-              integrated.rgb += layer.rgb * a * (1. - integrated.a);
-              integrated.a += a * (1. - integrated.a);
-              if (integrated.a > .985) break;
-            }
-          }
-        }
-        gl_FragColor = vec4(integrated.rgb + base * (1. - integrated.a), 1.);
+        vec3 cloud = texture2D(cloudFrame, screenUv).rgb;
+        gl_FragColor = vec4(cloud * cloud, 1.);
         #include <colorspace_fragment>
       }
     `,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  // Fill the uncovered background after opaque city geometry has written depth.
   mesh.renderOrder = 1000;
   mesh.frustumCulled = false;
-  mesh.onBeforeRender = (_renderer, _scene, camera) => {
-    material.uniforms.inverseProjection.value.copy(camera.projectionMatrixInverse);
-    material.uniforms.cameraWorld.value.copy(camera.matrixWorld);
+  const size = new THREE.Vector2();
+  mesh.userData.storm = uniforms;
+  mesh.userData.renderVolume = (renderer, camera) => {
+    const previous = renderer.getRenderTarget();
+    const cubeFace = renderer.getActiveCubeFace(), mip = renderer.getActiveMipmapLevel();
+    if (previous) size.set(previous.width, previous.height);
+    else renderer.getDrawingBufferSize(size);
+    const scale = Math.min(.53, 690 / size.x, 410 / size.y);
+    target.setSize(Math.max(1, Math.round(size.x * scale)), Math.max(1, Math.round(size.y * scale)));
+    uniforms.inverseProjection.value.copy(camera.projectionMatrixInverse);
+    uniforms.cameraWorld.value.copy(camera.matrixWorld);
+    uniforms.eye.value.setFromMatrixPosition(camera.matrixWorld);
+    try {
+      renderer.setRenderTarget(target);
+      renderer.render(volumeScene, passCamera);
+    } finally {
+      renderer.setRenderTarget(previous, cubeFace, mip);
+    }
   };
+  mesh.userData.dispose = () => { target.dispose(); noise.dispose(); volume.dispose(); };
   return mesh;
 }
 
-function funnelNoise() {
-  const size = 32, cells = 8, rand = rng(927134);
+function volumeNoise(size, seed) {
+  const cellSize = 4, cells = size / cellSize, rand = rng(seed);
   const lattice = Float32Array.from({ length: cells ** 3 }, () => rand());
   const data = new Uint8Array(size ** 3);
   const sample = (x, y, z) => lattice[((z % cells) * cells + y % cells) * cells + x % cells];
   const mix = THREE.MathUtils.lerp;
   const ease = t => t * t * (3 - 2 * t);
   for (let z = 0; z < size; z++) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const ix = x >> 2, iy = y >> 2, iz = z >> 2;
-    const u = ease(x % 4 / 4), v = ease(y % 4 / 4), w = ease(z % 4 / 4);
+    const ix = Math.floor(x / cellSize), iy = Math.floor(y / cellSize), iz = Math.floor(z / cellSize);
+    const u = ease(x % cellSize / cellSize), v = ease(y % cellSize / cellSize), w = ease(z % cellSize / cellSize);
     const slice = zz => mix(mix(sample(ix, iy, zz), sample(ix + 1, iy, zz), u),
       mix(sample(ix, iy + 1, zz), sample(ix + 1, iy + 1, zz), u), v);
     data[(z * size + y) * size + x] = Math.round(255 * mix(slice(iz), slice(iz + 1), w));
@@ -151,7 +254,7 @@ function funnelNoise() {
 // Ray-integrated condensation inside a proxy box. The visible surface is the
 // density field, so the funnel can be a rope or a wedge without mesh rings.
 export function createFunnel() {
-  const noise = funnelNoise();
+  const noise = volumeNoise(32, 927134);
   const material = new THREE.ShaderMaterial({
     transparent: true,
     side: THREE.BackSide,
