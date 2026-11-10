@@ -1,6 +1,6 @@
 # BUNG BUNTY: REBAR WORLD — WORLD DETAIL + CARTOON VISUAL REVAMP 3.0
 
-Press **1** or click **S24** in the hotbar to open the Rebar S24 during play. Choose from ten handset designs in the multiplayer lobby or the Device app. Bung Weather tracks simulated Brisbane storms with rain and radial wind layers, radar replay, warnings, and a one-minute forecast. In solo Brisbane, use **Start solo storm drill** to watch a rotating storm develop. Reduce lightning flashes under **Device**.
+Press **1** or click **S24** in the hotbar to open the Rebar S24 during play. Choose from ten handset designs in the multiplayer lobby or the Device app. Bung Weather tracks simulated Brisbane storms with rain and radial wind layers, radar replay, warnings, and a one-minute forecast. The top weather banner shows hail size and the simulated tornado rating. In solo Brisbane, pick **EF0–EF5** and use **Start solo storm drill** to watch a storm develop. Traffic and damaged buildings recover after the storm. Reduce lightning flashes under **Device**.
 
 [Chapters 7–8 release](docs/CHAPTERS_7_8_RELEASE.md): three-round rap battle, visible phone destruction, reachable evidence, saved checkpoints and mouse-lock fixes.
 

@@ -478,6 +478,7 @@ class WallBuf {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.abs = true;
+    this.position = geo.attributes.position;
     return mesh;
   }
 }
@@ -526,6 +527,7 @@ class TrimBuf {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.abs = true;
+    this.position = geo.attributes.position;
     return mesh;
   }
 }
@@ -617,6 +619,7 @@ export function buildShells(buildings, opts) {
   const trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05 });
   const walls = new Map();
   const trims = new Map();
+  const damage = [];
   const stats = { buildings: 0, pitched: 0, verandahs: 0, awnings: 0, canopies: 0, stumps: 0 };
   const bufFor = (map, Cls, cx, cz) => {
     const key = `${Math.floor(cx / chunk)},${Math.floor(cz / chunk)}`;
@@ -655,6 +658,13 @@ export function buildShells(buildings, opts) {
     const ys = g + base;
     const W = bufFor(walls, WallBuf, cx, cz);
     const T = bufFor(trims, TrimBuf, cx, cz);
+    const wallStart = W.p.length, trimStart = T.p.length, roofStart = roofOut.photo.length;
+    const recordDamage = () => {
+      if (!opts.damage || elevated || b.h > 46 || area < 18 || area > 3400 || !opts.damage(b, cx, cz)) return;
+      damage.push({ x: cx, z: cz, ground: g, top, ring: b.r, wall: W, trim: T,
+        wallStart, wallEnd: W.p.length, trimStart, trimEnd: T.p.length,
+        roofStart, roofEnd: roofOut.photo.length });
+    };
     stats.buildings++;
 
     // ---- paint and layers
@@ -764,6 +774,7 @@ export function buildShells(buildings, opts) {
       }
       roofOut.house(pts, top, b.rf ?? 2, ccw, st === ST.queenslander ? 0.5 : 0.4, HOUSE_PITCH, W, paint);
       stats.pitched++;
+      recordDamage();
       continue;
     }
 
@@ -894,6 +905,7 @@ export function buildShells(buildings, opts) {
     } else {
       roofOut.flat(b.r, top + 0.01);
     }
+    recordDamage();
   }
 
   const group = new THREE.Group();
@@ -906,7 +918,9 @@ export function buildShells(buildings, opts) {
     const m = buf.mesh(trimMat);
     if (m) group.add(m);
   }
-  return { group, stats, wallMat };
+  return { group, stats, wallMat, damage: damage.map(({ wall, trim, ...entry }) => ({
+    ...entry, wall: wall.position, trim: trim.position,
+  })) };
 }
 
 // Roof surfaces in world coordinates; the caller drapes the orthophoto over them.

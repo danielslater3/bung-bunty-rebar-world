@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { conditionsAt, hashWeather, rainAt, TIERS, tornadoTier, vortexAt, weatherAt } from '../../src/weather/model.js';
+import { conditionsAt, hashWeather, rainAt, TIERS, tornadoTier, vortexAt, weatherAt, weatherWarning } from '../../src/weather/model.js';
+import { buildingDamage, StormDamage } from '../../src/weather/stormDamage.js';
+import { BufferAttribute } from 'three';
 import { EDITIONS, editionFor, editionImage } from '../../src/phone/editions.js';
 import { statSync } from 'node:fs';
 
@@ -48,4 +50,38 @@ test('the vortex combines tangential flow, inward pull and lift only on touchdow
   assert.equal(vortexAt(t, 250, 0, 0), null);
   assert.equal(vortexAt({ ...t, ground: false }, 30, 0, 0), null);
   assert.equal(vortexAt(t, 30, 0, 100), null);
+});
+
+test('warnings report large hail and the actual tornado tier, with a local range limit', () => {
+  const seed = hashWeather('warning'), drill = { track: 0, tier: 5 };
+  const frames = Array.from({ length: 220 }, (_, time) => weatherAt(seed, time, drill));
+  const frame = frames.find(f => f.tornado?.ground);
+  const t = frame.tornado;
+  const warning = weatherWarning(frame, t.x, t.z, true);
+  assert.equal(warning.severity, 'extreme');
+  assert.match(warning.title, /EF5 tornado on ground/);
+  assert.match(warning.detail, /Very large hail \(85 mm\)/);
+  assert.equal(weatherWarning(frame, t.x + 3000, t.z, true), null);
+  const watch = frames.find(f => f.warned && !f.tornado);
+  assert.equal(weatherWarning(watch, watch.x, watch.z).title, 'Tornado watch');
+});
+
+test('EF5 has a wider capture zone and temporary building collapse restores mesh and collision', () => {
+  const seed = hashWeather('damage'), drill = { track: 0, tier: 5 };
+  const frame = weatherAt(seed, 157, drill), t = frame.tornado;
+  assert.ok(t?.ground);
+  assert.ok(vortexAt(t, t.x + 240, t.z, 0).caught);
+  assert.equal(vortexAt({ ...t, ...TIERS[0], tier: 0 }, t.x + 240, t.z, 0), null);
+  const coords = [t.x, 12, t.z, t.x + 6, 8, t.z + 4, t.x, 0, t.z + 4];
+  const attr = new BufferAttribute(new Float32Array(coords), 3);
+  const building = { x: t.x, z: t.z, ground: 0, footprint: { h: 12 }, ranges: [[attr, 0, 9]] };
+  assert.equal(buildingDamage({ ...t, ...TIERS[0], tier: 0 }, building), 0);
+  assert.ok(buildingDamage(t, building) > .8);
+  const damage = new StormDamage({ stormBuildings: [building] });
+  damage.update(frame, seed, drill);
+  assert.ok(attr.array[1] < 6 && building.footprint.h < 6);
+  damage.update(weatherAt(seed, 345, drill), seed, drill);
+  assert.equal(attr.array[1], 12);
+  assert.equal(building.footprint.h, 12);
+  assert.equal(damage.active.size, 0);
 });

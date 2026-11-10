@@ -477,6 +477,7 @@ export function installCityLife(zone, geo) {
         (lock.owner.distance - lock.along + lock.owner.route.length) %
         lock.owner.route.length;
       if (
+        lock.owner.stormFlight ||
         (passed < lock.owner.route.length / 2 &&
           passed > lock.owner.model.userData.length / 2 + 2) ||
         Math.hypot(lock.owner.pose.x - lock.x, lock.owner.pose.z - lock.z) > 25
@@ -484,12 +485,14 @@ export function installCityLife(zone, geo) {
         junctions.delete(key);
     }
     for (const s of services) {
+      if (s.stormFlight) continue;
       const next = circuitPoint(s.route, s.distance + 10, s.ahead),
         here = circuitPoint(s.route, s.distance, s.here),
         bend = Math.abs(angleDelta(here.yaw, next.yaw));
       let speed = (s.bus ? 8 : 7.5) / (1 + bend * 3);
       s.blockedReason = null;
       for (const other of services) {
+        if (other.stormFlight) continue;
         if (other === s || other.route !== s.route) continue;
         const gap =
           (other.distance - s.distance + s.route.length) % s.route.length;
@@ -539,6 +542,7 @@ export function installCityLife(zone, geo) {
           });
       }
       for (const other of services) {
+        if (other.stormFlight) continue;
         if (
           other === s ||
           Math.abs(other.model.position.y - s.model.position.y) > 3

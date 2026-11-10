@@ -1,5 +1,5 @@
 import { state } from '../core/state.js';
-import { conditionsAt, weatherAt } from '../weather/model.js';
+import { conditionsAt, TIERS, weatherAt, weatherWarning } from '../weather/model.js';
 import { EDITIONS, editionFor, editionImage } from './editions.js';
 import { PhoneRadar } from './radar.js';
 
@@ -86,6 +86,9 @@ export class Phone {
     this.alert.hidden = true;
     this.alert.onclick = () => this.open('weather');
     this.alert.setAttribute('aria-live', 'polite');
+    this.alertTitle = el('strong');
+    this.alertDetail = el('small');
+    this.alert.append(el('span', 'BUNG WEATHER · BRISBANE', 's24-alert-label'), this.alertTitle, this.alertDetail);
     this.dialog = el('dialog', '', 's24-shell');
     this.dialog.setAttribute('aria-label', 'Rebar S24');
     this.dialog.addEventListener('cancel', e => { e.preventDefault(); this.close(); });
@@ -170,12 +173,14 @@ export class Phone {
     if (this.tick > 0) return;
     this.tick = .20;
     const weather = this.game.weather;
-    const f = weather.frame, t = f.tornado, p = this.game.player.pos;
-    const danger = weather.zone && f.warned && Math.hypot(p.x - (t?.x ?? f.x), p.z - (t?.z ?? f.z)) < 1300;
-    const nearStorm = weather.zone && f.mode !== 'showers' && weather.conditions.rain > .51;
-    this.alert.hidden = !this.available() || this.opened || (!danger && !nearStorm);
-    const warning = danger ? (t?.ground ? 'Tornado warning' : 'Rotation detected') : 'Thunderstorm nearby';
-    if (this.alert.textContent !== warning) this.alert.textContent = warning;
+    const p = this.game.player.pos;
+    const warning = weather.zone && weatherWarning(weather.frame, p.x, p.z, true);
+    this.alert.hidden = !this.available() || this.opened || !warning;
+    if (!this.alert.hidden) {
+      this.alert.dataset.severity = warning.severity;
+      if (this.alertTitle.textContent !== warning.title) this.alertTitle.textContent = warning.title;
+      if (this.alertDetail.textContent !== warning.detail) this.alertDetail.textContent = warning.detail;
+    }
     if (!this.opened) return;
     this.clock.textContent = fmtTime.format(new Date());
     this.drawRadar?.();
@@ -258,13 +263,23 @@ export class Phone {
       tools.append(layer, loop);
       this.body.append(legend, replay, forecast);
       if (!g.multiplayer.active && w.zone) {
+        const rating = el('select', '', 's24-drill-tier');
+        rating.setAttribute('aria-label', 'Drill tornado rating');
+        TIERS.forEach(({ rating: title }, tier) => {
+          const option = el('option', title + ' drill');
+          option.value = tier;
+          rating.append(option);
+        });
+        rating.value = w.exercise?.tier ?? 2;
+        rating.disabled = !!w.exercise;
         const drill = button(w.exercise ? 'End storm drill' : 'Start solo storm drill', () => {
-          w.drill(!w.exercise);
+          w.drill(!w.exercise, Number(rating.value));
           drill.textContent = w.exercise ? 'End storm drill' : 'Start solo storm drill';
+          rating.disabled = !!w.exercise;
           this.drawRadar();
         });
         const training = el('div', '', 's24-row');
-        training.append(drill);
+        training.append(rating, drill);
         this.body.append(training);
       }
       this.drawRadar = () => {
@@ -277,14 +292,12 @@ export class Phone {
           forecast.textContent = 'Travel to Brisbane for local radar and alerts.';
           return;
         }
-        const p = g.player.pos, f = w.frame, c = w.conditions, t = f.tornado;
+        const p = g.player.pos, f = w.frame, c = w.conditions;
         current.textContent = c.temp + '°C · ' + c.label + ' · gusts ' + Math.round(c.gust) + ' km/h';
         warning.hidden = false;
-        const distance = Math.round(Math.hypot(p.x - (t?.x ?? f.x), p.z - (t?.z ?? f.z)));
-        warning.dataset.severity = f.warned ? 'high' : f.core > .47 ? 'watch' : 'clear';
-        warning.textContent = f.warned ? (t?.ground ? 'TORNADO ON GROUND · SIM ' + t.rating : 'TORNADO WATCH · ROTATION') +
-          ' · ' + distance + ' m from you' + (t?.ground ? ' · seek shelter in-game' : '') :
-          f.core > .47 ? 'STORM CELL · ' + distance + ' m from you' : 'No active warnings';
+        const alert = weatherWarning(f, p.x, p.z);
+        warning.dataset.severity = alert?.severity || 'clear';
+        warning.textContent = alert ? alert.title + ' · ' + alert.distance + ' m away · ' + alert.detail : 'No active warnings';
         const next = conditionsAt(weatherAt(w.seed, w.time + 60, w.exercise), p.x, p.z);
         forecast.textContent = (w.exercise ? 'DRILL · ' : '') + 'IN 60 GAME SECONDS · ' + next.label + ' · gusts ' + Math.round(next.gust) + ' km/h';
       };

@@ -67,6 +67,7 @@ export function pushFootprints(pos, radius, feetY, zone) {
 
 export function indexFootprints(buildings, cell = 48, groundAt = null) {
   const buckets = new Map();
+  const byRing = new Map();
   let kept = 0;
   for (const b of buildings) {
     const r = b.r;
@@ -87,6 +88,7 @@ export function indexFootprints(buildings, cell = 48, groundAt = null) {
     const poly = b.g == null
       ? { r, h: base + b.h, y0: base }
       : { r, h: b.g + base + b.h, y0: base > 0.05 ? b.g + base : footing - 0.3 };
+    byRing.set(r, poly);
     const i0 = Math.floor(minX / cell), i1 = Math.floor(maxX / cell);
     const j0 = Math.floor(minZ / cell), j1 = Math.floor(maxZ / cell);
     for (let j = j0; j <= j1; j++) {
@@ -99,7 +101,7 @@ export function indexFootprints(buildings, cell = 48, groundAt = null) {
     }
     kept++;
   }
-  return { buckets, cell, kept };
+  return { buckets, cell, kept, byRing };
 }
 
 // Analytic camera ray against nearby extruded footprint edges. This deliberately

@@ -371,6 +371,8 @@ export function buildOsmBrisbane(game) {
     macArthur,
     groundAt: (x, z) => T.propAt(x, z),
     nearMall: (x, z) => closestMall(GEO.mall, x, z).d,
+    damage: (b, x, z) => b !== macArthur && closestMall(GEO.mall, x, z).d > 55 &&
+      Math.hypot(x - hallL.cx, z - hallL.cz) > 80 && Math.hypot(x + 830, z - 900) > 95,
     skip: (b, cx, cz) => {
       if (venueBuilding(b)) return true;
       if (Math.hypot(cx - hallL.cx, cz - hallL.cz) < 15 && b.r.length > 40) {
@@ -395,8 +397,10 @@ export function buildOsmBrisbane(game) {
   });
   Z.blockers = [shells.group];
   const hips = shells.stats.pitched;
+  let roofPosition;
   if (roofs.photo.length) {
     const roof = worldUvMesh(roofs.photo, roofMat, photoBounds);
+    roofPosition = roof.geometry.attributes.position;
     roof.receiveShadow = true;
     roof.userData.abs = true;
     Z.group.add(roof);
@@ -460,6 +464,11 @@ export function buildOsmBrisbane(game) {
   const feet = indexFootprints(GEO.buildings,48,(x,z)=>T.walkAt(x,z));
   Z.footBuckets = feet.buckets;
   Z.footCell = feet.cell;
+  Z.stormBuildings = shells.damage.map(({ ring, wall, trim, wallStart, wallEnd, trimStart, trimEnd, roofStart, roofEnd, ...b }) => ({
+    ...b, footprint: feet.byRing.get(ring),
+    ranges: [[wall, wallStart, wallEnd], [trim, trimStart, trimEnd], [roofPosition, roofStart, roofEnd]]
+      .filter(([attr, start, end]) => attr && end > start),
+  }));
 
   const walkMeshes = [];
   for (const [key, buffers] of walkPos) {

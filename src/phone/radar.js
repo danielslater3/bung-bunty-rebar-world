@@ -99,7 +99,7 @@ export class PhoneRadar {
         ctx.fillStyle = f.warned ? '#e97b991d' : '#f9ce5f13';
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
-        ctx.ellipse(sx(f.x), sy(f.z), 890 * m, 610 * m, v, 0, Math.PI * 2);
+        ctx.ellipse(sx(f.x), sy(f.z), 890 * f.scale * m, 610 * f.scale * m, v, 0, Math.PI * 2);
         ctx.fill(); ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(sx(f.x), sy(f.z));

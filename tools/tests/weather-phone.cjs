@@ -154,7 +154,67 @@ const { chromium } = require('playwright');
     assert.equal(storm.lifted, true, JSON.stringify(storm));
     assert.equal(storm.thrown, true, JSON.stringify(storm));
     assert.ok(storm.radius > 3 && storm.debris > 35, JSON.stringify(storm));
+    const extreme = await page.evaluate(() => {
+      const g = BUNG, w = g.weather, z = g.zone;
+      g.renderer.setAnimationLoop(null);
+      w.drill(true, 5);
+      w.exercise.time = 151;
+      const f = weatherModel.weatherAt(w.seed, w.exercise.time, w.exercise), t = f.tornado;
+      let spot, startDistance;
+      for (const distance of [165, 185, 210, 230]) {
+        for (let i = 0; i < 32; i++) {
+          const a = i * Math.PI / 16, x = t.x + Math.cos(a) * distance, zz = t.z + Math.sin(a) * distance;
+          const y = z.groundAt(x, zz), pos = new THREE.Vector3(x, y, zz);
+          if (z.terrain.isWater(x, zz) || !motion.positionClear(pos, .7, z) || g.indoorCeiling(x, y + 1, zz)) continue;
+          if (g.cameraClearance(new THREE.Vector3(x, y + 1.55, zz), new THREE.Vector3(0, 1, 0), 8) < 7.95) continue;
+          const away = new THREE.Vector3(Math.cos(a - .82), .35, Math.sin(a - .82)).normalize();
+          if (g.cameraClearance(new THREE.Vector3(x, y + 5, zz), away, 70) < 67) continue;
+          spot = pos;
+          startDistance = distance;
+          break;
+        }
+        if (spot) break;
+      }
+      if (!spot) throw Error('Could not find an exposed EF5 launch position');
+      g.player.teleport(spot);
+      w.sampleIn = 0;
+      w.update(0);
+      g.phone.update(1);
+      const alert = g.phone.alert.textContent;
+      const alertVisible = !g.phone.alert.hidden;
+      const start = g.player.pos.clone();
+      let maxHeight = 0, carHeight = 0, maxRange = 0;
+      const flying = new Set();
+      for (let i = 0; i < 252; i++) {
+        g.player.update(1/30);
+        w.update(1/30);
+        maxRange = Math.max(maxRange, Math.hypot(g.player.pos.x - start.x, g.player.pos.z - start.z));
+        maxHeight = Math.max(maxHeight, g.player.pos.y - start.y);
+        for (const s of z.cityLife.services) if (s.stormFlight) {
+          flying.add(s.id);
+          carHeight = Math.max(carHeight, s.model.position.y - z.groundAt(s.model.position.x, s.model.position.z));
+        }
+      }
+      const damaged = [...w.stormDamage.active.values()].filter(r => r.amount > .35);
+      const record = damaged[0];
+      const [position, offset] = record?.building.ranges[0] || [];
+      const wallMoved = position && record.original[0].some((value, i) => value !== position.array[i + offset]);
+      const tv = w.frame.tornado, floor = z.groundAt(tv.x, tv.z);
+      g.camera.position.set(tv.x + 460, floor + 76, tv.z + 390);
+      g.camera.lookAt(tv.x, floor + 124, tv.z);
+      w.drawAtmosphere(w.frame, w.conditions, g.player.pos);
+      g.renderer.setAnimationLoop(() => drawWeather(g.scene, g.camera));
+      return {
+        alert, alertVisible, startDistance, maxHeight, maxRange, flying: flying.size, carHeight,
+        damage: damaged.length, wallMoved, sky: w.sky.visible,
+        darkened: z.sun.intensity < w.base.sun * .60 && w.hemi.intensity < w.base.hemi * .75,
+      };
+    });
+    await page.screenshot({ path: '../browser-tests/s24-ef5.png' });
+    assert.match(extreme.alert, /EF5 tornado on ground.*Very large hail/);
+    assert.ok(extreme.alertVisible && extreme.sky && extreme.darkened && extreme.maxHeight > 25 && extreme.maxRange > 140, JSON.stringify(extreme));
+    assert.ok(extreme.flying > 0 && extreme.carHeight > 10 && extreme.damage > 5 && extreme.wallMoved, JSON.stringify(extreme));
     assert.deepEqual(errors, []);
-    console.log('S24 / WEATHER PASSED', storm);
+    console.log('S24 / WEATHER PASSED', { storm, extreme });
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

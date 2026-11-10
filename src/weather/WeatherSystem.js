@@ -3,6 +3,8 @@ import { moveHorizontal, positionClear } from '../core/motion.js';
 import { rng } from '../core/utils.js';
 import { state } from '../core/state.js';
 import { conditionsAt, hashWeather, vortexAt, weatherAt } from './model.js';
+import { createFunnel, createStormSky, stormNoise } from './stormSky.js';
+import { StormDamage } from './stormDamage.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const ceiling = 156;
@@ -10,12 +12,6 @@ const SOLO_SEED = hashWeather('brisbane-rebar-campaign-v1');
 const damageSites = [
   [-1914, 1040], [-195, 790], [-239, 385], [50, 95], [173, 81.5],
   [458, 121], [614, 886], [937, 277], [1434, 1306],
-];
-const CLOUDS = [
-  [-500, -180, 197, 675], [-260, -340, 202, 760], [-70, 30, 188, 810],
-  [180, -190, 224, 950], [460, 135, 238, 1000], [22, 335, 192, 710],
-  [-460, 275, 166, 790], [-125, -25, 320, 930], [195, 65, 375, 1030],
-  [368, -65, 443, 1250], [700, -270, 480, 1200], [1020, 60, 486, 1390],
 ];
 const mix = THREE.MathUtils.lerp;
 
@@ -37,57 +33,6 @@ function cloudTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 
-function funnelMaterial() {
-  return new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false,
-    uniforms: {
-      time: { value: 0 }, reach: { value: 0 }, density: { value: 0 }, flash: { value: 0 },
-    },
-    vertexShader: `
-      uniform float time, reach;
-      varying vec2 vUv;
-      varying vec3 vNorm, vView;
-      void main() {
-        vUv=uv;
-        vec3 p=position;
-        float h=uv.y;
-        float swirl=sin(uv.x*37.699+time*2.0-h*15.);
-        float width=(.28+pow(h,.82)*1.5)*(.96+.07*swirl+.07*sin(time*.83+h*20.));
-        p.xz*=width;
-        p.x+=sin(h*6.4+time*.45)*h*.52;
-        p.z+=cos(h*5.2+time*.37)*h*.37;
-        p.y=mix(1.-reach,1.,h);
-        vec4 view=modelViewMatrix*vec4(p,1.);
-        vNorm=normalize(normalMatrix*normal);
-        vView=normalize(-view.xyz);
-        gl_Position=projectionMatrix*view;
-      }
-    `,
-    fragmentShader: `
-      uniform float time,density,flash;
-      varying vec2 vUv;
-      varying vec3 vNorm,vView;
-      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float noise(vec2 p){
-        vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f);
-        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+1.),f.x),f.y);
-      }
-      void main(){
-        float a=vUv.x*6.28318-time*(1.42+.8*(1.-vUv.y));
-        vec2 p=vec2(cos(a),sin(a))*3.9+vec2(vUv.y*4.4,-vUv.y*11.);
-        float n=.65*noise(p)+.25*noise(p*2.1+time*.35)+.10*noise(p*4.2);
-        float ribbon=.5+.5*sin(a*3.+vUv.y*23.+n*4.);
-        float edge=pow(abs(dot(normalize(vNorm),normalize(vView))),.54);
-        float ends=smoothstep(.0,.06,vUv.y)*(1.-smoothstep(.86,1.,vUv.y));
-        vec3 col=mix(vec3(.09,.10,.12),vec3(.29,.34,.38),smoothstep(.19,.8,n)*.86+ribbon*.11);
-        col=mix(col,vec3(.52,.44,.33),.44*(1.-smoothstep(.02,.32,vUv.y)));
-        gl_FragColor=vec4(col+flash*.23,edge*ends*density*(.65+.34*n));
-        #include <colorspace_fragment>
-      }
-    `,
-  });
-}
-
 export class WeatherSystem {
   constructor(game) {
     this.game = game;
@@ -101,6 +46,8 @@ export class WeatherSystem {
       if (saved != null) this.reduceFlash = saved === 'true';
     } catch {}
     this.up = new THREE.Vector3();
+    this.launchOrigin = new THREE.Vector3();
+    this.launchDirection = new THREE.Vector3();
     this.sampleIn = 0;
   }
 
@@ -113,16 +60,21 @@ export class WeatherSystem {
     this.root.name = 'Brisbane weather';
     zone.group.add(this.root);
     const scene = this.game.scene;
-    this.base = { sky: scene.background.clone(), fog: scene.fog.clone(), sun: zone.sun.intensity };
+    this.hemi = zone.group.children.find(child => child.isHemisphereLight);
+    this.base = { sky: scene.background.clone(), fog: scene.fog.clone(), sun: zone.sun.intensity, hemi: this.hemi?.intensity };
+    this.noise = stormNoise();
+    this.sky = createStormSky(this.noise);
+    this.root.add(this.sky);
+    this.stormDamage = new StormDamage(zone);
     this.cloudMap = cloudTexture();
-    this.clouds = Array.from({ length: CLOUDS.length + 5 }, (_, i) => {
+    this.clouds = Array.from({ length: 5 }, (_, i) => {
       const m = new THREE.SpriteMaterial({ map: this.cloudMap, depthWrite: false, transparent: true, fog: false });
       const cloud = new THREE.Sprite(m);
       cloud.renderOrder = -2 - i * .001;
       this.root.add(cloud);
       return cloud;
     });
-    this.funnel = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 52, 28, true).translate(0, .5, 0), funnelMaterial());
+    this.funnel = createFunnel();
     this.funnel.frustumCulled = false;
     this.funnel.renderOrder = 3;
     this.root.add(this.funnel);
@@ -156,6 +108,10 @@ export class WeatherSystem {
     }), this.splashSeeds.length);
     this.splashes.frustumCulled = false;
     this.root.add(this.splashes);
+    this.hailstones = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0),
+      new THREE.MeshBasicMaterial({ color: 0xdce9ef }), this.splashSeeds.length);
+    this.hailstones.frustumCulled = false;
+    this.root.add(this.hailstones);
 
     const bolt = new THREE.BufferGeometry();
     bolt.setAttribute('position', new THREE.BufferAttribute(new Float32Array(32 * 6), 3));
@@ -165,7 +121,7 @@ export class WeatherSystem {
     this.light = new THREE.PointLight(0xbad9ff, 0, 470, 1.5);
     this.root.add(this.light);
     this.fragments = new THREE.InstancedMesh(new THREE.BoxGeometry(.78, .06, .38),
-      new THREE.MeshStandardMaterial({ color: 0xc1c5c7, roughness: .92 }), 180);
+      new THREE.MeshStandardMaterial({ color: 0xc1c5c7, roughness: .92 }), 320);
     this.fragments.frustumCulled = false;
     this.root.add(this.fragments);
     this.dummy = new THREE.Object3D();
@@ -197,6 +153,7 @@ export class WeatherSystem {
     this.damageTime = -Infinity;
     this.caughtSince = null;
     this.throwUntil = -Infinity;
+    this.throwDuration = 1;
     this.throwX = 0;
     this.throwZ = 0;
     this.flash = 0;
@@ -207,13 +164,16 @@ export class WeatherSystem {
 
   detach() {
     if (this.root) {
+      this.stormDamage.clear();
       this.root.removeFromParent();
       this.root.traverse(object => {
+        object.userData.dispose?.();
         object.geometry?.dispose();
         object.material?.dispose();
         if (object.isInstancedMesh) object.dispose();
       });
       this.cloudMap.dispose();
+      this.noise.dispose();
       this.damageAssets.forEach(asset => asset.dispose());
       this.game.scene.background.copy(this.base.sky);
       const fog = this.game.scene.fog;
@@ -221,6 +181,7 @@ export class WeatherSystem {
       fog.near = this.base.fog.near;
       fog.far = this.base.fog.far;
       this.zone.sun.intensity = this.base.sun;
+      if (this.hemi) this.hemi.intensity = this.base.hemi;
     }
     this.root = null;
     this.zone = null;
@@ -279,17 +240,27 @@ export class WeatherSystem {
     }
     this.drawAtmosphere(f, c, p);
     if (running) this.drawLightning(dt, f, p);
+    this.stormDamage.update(f, this.seed, this.exercise);
+    if (running) this.stormDamage.vehicles(dt, f, p);
     this.drawVortex(f, c, p);
     this.audio(dt, running ? (c.rain * .55 + (f.tornado?.ground && Math.hypot(f.tornado.x - p.x, f.tornado.z - p.z) < 250 ? .4 : 0)) * (this.exposed ? 1 : .20) : 0);
     const arena = room?.arena, fighting = arena?.players.includes(g.multiplayer.client.id) &&
       ['playing', 'countdown'].includes(arena.phase);
+    const barkKey = this.seed + '/' + f.cycle + '/' + !!this.exercise;
+    if (g.mode === 'playing' && !g.phone.opened && !g.dialogue.current && !fighting && this.exposed &&
+      c.rain > .5 && (f.mode === 'supercell' || f.mode === 'storm') && this.singletBark !== barkKey) {
+      this.singletBark = barkKey;
+      g.say('bung', 'OIII! The singlet is not weatherproof!');
+    }
     if (running && !fighting && !g.saga.freeze && !g.saga.scenePlaying && !g.dialogue.cinematic && this.exposed)
       this.applyWind(dt, f, c, p);
+    else this.caughtSince = null;
   }
 
   drawAtmosphere(f, c, p) {
     const scene = this.game.scene;
-    const overcast = THREE.MathUtils.clamp(f.core * .52 + c.rain * .44, 0, .96);
+    const storm = f.mode === 'storm' || f.mode === 'supercell';
+    const overcast = THREE.MathUtils.clamp(f.core * (storm ? .7 : .52) + c.rain * .39, 0, .96);
     const night = !!this.game.saga.venues?.nightBackup;
     if (!night) {
       const sky = this.stormSky ||= new THREE.Color(0x374352);
@@ -298,46 +269,50 @@ export class WeatherSystem {
       scene.fog.near = mix(this.base.fog.near, 45, c.rain);
       scene.fog.far = mix(this.base.fog.far, 530, Math.min(.95, c.rain));
       this.zone.sun.intensity = this.base.sun * (1 - overcast * .69) + this.flash * (this.reduceFlash ? .04 : .3);
+      if (this.hemi) this.hemi.intensity = this.base.hemi * (1 - overcast * .46);
+    }
+    this.sky.visible = !night && storm && f.core > .10;
+    if (this.sky.visible) {
+      const u = this.sky.material.uniforms;
+      u.centre.value.set(f.x, f.z);
+      u.heading.value.set(f.vx, f.vz).normalize();
+      u.skyColor.value.copy(scene.background);
+      u.shape.value = f.shape;
+      u.coverage.value = f.core * (f.mode === 'supercell' ? 1.47 : 1.18);
+      u.clock.value = f.time % 3600;
+      u.flash.value = this.reduceFlash ? 0 : this.flash * .40;
     }
     for (const [i, cloud] of this.clouds.entries()) {
-      const storm = i < CLOUDS.length;
-      if (storm) {
-        const [x, z, y, w] = CLOUDS[i];
-        cloud.position.set(f.x + x, y - f.core * 28, f.z + z);
-        cloud.scale.set(w, w * (i < 7 ? .30 : .49), 1);
-        cloud.material.color.setHex(i < 7 ? 0x475360 : 0x96a3ad);
-        cloud.material.opacity = f.core * (i < 7 ? .87 : .73);
-      } else {
-        const j = i - CLOUDS.length;
-        cloud.position.set(p.x + Math.sin(j * 1.26 + f.time * .006) * 1250, 510 + 45 * j, p.z + Math.cos(j * 1.26 + f.time * .006) * 1250);
-        cloud.scale.set(540 + j * 74, 205 + 11 * j, 1);
-        cloud.material.color.setHex(0xffffff);
-        cloud.material.opacity = .72 - overcast * .61;
-      }
-      cloud.visible = !night && cloud.material.opacity > .015;
+      cloud.position.set(p.x + Math.sin(i * 1.26 + f.time * .006) * 1250, 510 + 45 * i, p.z + Math.cos(i * 1.26 + f.time * .006) * 1250);
+      cloud.scale.set(540 + i * 74, 205 + 11 * i, 1);
+      cloud.material.opacity = .55 - overcast * .36;
+      cloud.visible = !night && !this.sky.visible;
     }
     const visible = this.exposed && c.rain > .055;
+    const hail = visible && f.hail > 0 && c.rain > .42;
     this.rain.visible = visible;
     this.splashes.visible = visible;
+    this.hailstones.visible = hail;
     if (!visible) return;
     const count = Math.floor(130 + c.rain * 1220);
     const ox = this.game.camera.position.x, oz = this.game.camera.position.z;
     const oy = this.game.camera.position.y;
     for (let i = 0; i < count; i++) {
       const d = this.drops[i], k = i * 6;
-      const fall = (d[1] + f.time * .59) % 1, y = oy + 22 - fall * 38;
+      const ice = hail && i % 4 === 0;
+      const fall = (d[1] + f.time * (ice ? .97 : .59)) % 1, y = oy + 22 - fall * 38;
       const x = ox + d[0] * 26 + c.windX * fall * .4, z = oz + d[2] * 26 + c.windZ * fall * .4;
       this.streaks[k] = x;
       this.streaks[k+1] = y;
       this.streaks[k+2] = z;
-      this.streaks[k+3] = x - c.windX * .038;
-      this.streaks[k+4] = y + .58 + d[1] * .55;
-      this.streaks[k+5] = z - c.windZ * .038;
+      this.streaks[k+3] = x - c.windX * (ice ? .013 : .038);
+      this.streaks[k+4] = y + (ice ? .12 + f.hail * .0025 : .58 + d[1] * .55);
+      this.streaks[k+5] = z - c.windZ * (ice ? .013 : .038);
     }
     this.rain.geometry.setDrawRange(0, count * 2);
     this.rain.geometry.attributes.position.needsUpdate = true;
     this.rain.material.opacity = Math.min(.54, c.rain * .8);
-    let splashes = 0;
+    let splashes = 0, hailstones = 0;
     const area = Math.floor(8 + c.rain * 40);
     for (let i = 0; i < area; i++) {
       const [sx, sz, seed] = this.splashSeeds[i];
@@ -351,10 +326,21 @@ export class WeatherSystem {
       this.dummy.scale.setScalar(.035 + phase * .27);
       this.dummy.updateMatrix();
       this.splashes.setMatrixAt(splashes++, this.dummy.matrix);
+      if (hail && phase < .39) {
+        const bounce = Math.sin(phase / .39 * Math.PI) * (.15 + f.hail * .004);
+        this.dummy.position.set(x + phase * .9, y + .04 + bounce, z);
+        this.dummy.scale.setScalar(.023 + f.hail * .00073);
+        this.dummy.updateMatrix();
+        this.hailstones.setMatrixAt(hailstones++, this.dummy.matrix);
+      }
     }
     this.splashes.count = splashes;
     this.splashes.material.opacity = .27 + c.rain * .27;
     this.splashes.instanceMatrix.needsUpdate = true;
+    if (hail) {
+      this.hailstones.count = hailstones;
+      this.hailstones.instanceMatrix.needsUpdate = true;
+    }
   }
 
   drawLightning(dt, f, p) {
@@ -406,14 +392,16 @@ export class WeatherSystem {
       const ground = this.zone.terrain.walkAt(t.x, t.z);
       const h = Math.max(ceiling, t.height);
       this.funnel.position.set(t.x, ground + 1, t.z);
-      this.funnel.scale.set(t.core * .64, h, t.core * .64);
+      const width = t.core * (t.tier === 5 ? 1.08 : .72);
+      this.funnel.scale.set(width, h, width);
       const u = this.funnel.material.uniforms;
-      u.time.value = f.time;
-      u.reach.value = .10 + .9 * t.touchdown;
-      u.density.value = Math.min(.94, .30 + t.strength * .62);
+      u.time.value = f.time % 3600;
+      u.reach.value = Math.min(1, .10 + 1.08 * t.touchdown);
+      u.density.value = Math.min(1, .20 + t.strength * (.66 + t.tier * .04));
+      u.wedge.value = Math.max(0, (t.tier - 1) / 4);
       u.flash.value = this.reduceFlash ? 0 : this.flash;
-      this.dust.position.set(t.x, ground + 11, t.z);
-      this.dust.scale.set(t.core * 3.7, t.core * 1.18, 1);
+      this.dust.position.set(t.x, ground + 7 + t.tier * 3, t.z);
+      this.dust.scale.set(t.core * (2.9 + t.tier * .28), t.core * (1 + t.tier * .13), 1);
       this.dust.material.color.setHex(this.zone.terrain.isWater(t.x, t.z) ? 0xa5b7bf : 0x938373);
       this.dust.material.opacity = t.strength * .88;
       for (const [i, mist] of this.vortexMist.entries()) {
@@ -426,13 +414,13 @@ export class WeatherSystem {
         mist.material.opacity = f.strength * Math.sin(fraction * Math.PI) * .28;
       }
       if (t.ground && Math.hypot(t.x - p.x, t.z - p.z) < 650) {
-        const total = 42 + t.tier * 11;
+        const total = 21 + t.tier * 22;
         for (let i = 0; i < total; i++) {
           const life = (f.time * (.25 + i % 4 * .025) + i * .398) % 1;
           const a = i * 2.39996 + f.time * (2.1 + 2.7 * (1 - life));
           const r = t.core * (.37 + life * 1.5 + (i % 7) * .045);
           this.addFragment(count++, t.x + Math.cos(a) * r, ground + 1 + life ** 1.32 * h * .76,
-            t.z + Math.sin(a) * r, a, .65 + (i % 4) * .47);
+            t.z + Math.sin(a) * r, a, .42 + (i % 4) * (.29 + t.tier * .13));
         }
       }
     }
@@ -462,6 +450,18 @@ export class WeatherSystem {
         this.addFragment(count++, x, this.zone.groundAt(x, z) + .15, z, angle, 1.7, true);
       }
     }
+    for (const { building, amount, hit } of this.stormDamage.active.values()) {
+      if (count >= this.fragments.instanceMatrix.count - 5) break;
+      if (amount < .15 || Math.hypot(p.x - building.x, p.z - building.z) > 400) continue;
+      const fall = Math.max(0, 1 - (f.time - hit) / 3.4);
+      for (let i = 0; i < 5; i++) {
+        const a = i * 2.39996 + building.x * .018;
+        const r = 2 + (i % 3) * 2.2;
+        const x = building.x + Math.cos(a) * r, z = building.z + Math.sin(a) * r;
+        const y = building.ground + .5 + fall * fall * (building.top - building.ground) * (.18 + i * .13);
+        this.addFragment(count++, x, y, z, a + fall * 9, 1 + i * amount * 2, !fall);
+      }
+    }
     this.fragments.count = count;
     this.fragments.visible = count > 0;
     this.fragments.instanceMatrix.needsUpdate = true;
@@ -486,12 +486,16 @@ export class WeatherSystem {
     }
   }
 
-  drill(enabled) {
+  drill(enabled, tier = 2) {
     if (this.game.multiplayer.active || !this.zone) return;
-    this.exercise = enabled ? { tier: 2, track: 0, time: 96 } : null;
+    this.exercise = enabled ? { tier, track: 0, time: 96 } : null;
     this.thunder.length = 0;
     this.strikeId = null;
     this.flash = 0;
+    this.throwUntil = -Infinity;
+    this.caughtSince = null;
+    this.singletBark = null;
+    this.update(0);
   }
 
   addFragment(i, x, y, z, angle, scale, down = false) {
@@ -501,6 +505,24 @@ export class WeatherSystem {
     this.dummy.scale.setScalar(scale);
     this.dummy.updateMatrix();
     this.fragments.setMatrixAt(i, this.dummy.matrix);
+  }
+
+  launchAngle(p, t) {
+    const tangent = Math.atan2(p.z - t.z, p.x - t.x) - .82;
+    if (t.tier < 4) return tangent;
+    this.launchOrigin.copy(p);
+    this.launchOrigin.y += 1.4;
+    let best = 0, heading = tangent;
+    const range = t.tier === 5 ? 230 : 110;
+    for (const offset of [0, .35, -.35, .73, -.73, 1.12, -1.12]) {
+      const angle = tangent + offset;
+      this.launchDirection.set(Math.cos(angle), .14, Math.sin(angle)).normalize();
+      const clear = this.game.cameraClearance(this.launchOrigin, this.launchDirection, range);
+      const score = clear - Math.abs(offset) * 13;
+      if (score > best) { best = score; heading = angle; }
+      if (clear === range) break;
+    }
+    return heading;
   }
 
   applyWind(dt, f, c, p) {
@@ -523,29 +545,39 @@ export class WeatherSystem {
     if (caught && !trolley.riding) {
       actor.grappling = false;
       actor.grappleLine.visible = false;
-      if (p.y - ground < 45) actor.vel.y = Math.min(23, Math.max(-2, actor.vel.y) + (23 + v.lift) * dt);
+      if (p.y - ground < 24 + 11 * t.tier)
+        actor.vel.y = Math.min(10 + 5 * t.tier, Math.max(-2, actor.vel.y) + (25 + v.lift) * dt);
       actor.grounded = false;
-      state.stability = Math.max(18, state.stability - dt * (2 + t.tier));
-      if (f.time - this.caughtSince > 2.1 + t.tier * .11) {
-        const a = Math.atan2(p.z - t.z, p.x - t.x) - .8;
-        const speed = 18 + t.tier * 2.1;
+      if (state.stability > 18) state.stability = Math.max(18, state.stability - dt * (2 + t.tier));
+      if (f.time - this.caughtSince > 1.45 + t.tier * .22) {
+        const a = this.launchAngle(p, t);
+        const speed = g.multiplayer.active ? Math.min(34, t.toss) : t.toss;
+        this.throwDuration = t.duration;
         this.throwX = Math.cos(a) * speed;
         this.throwZ = Math.sin(a) * speed;
-        this.throwUntil = f.time + 3.6;
-        actor.vel.y = Math.max(actor.vel.y, 8 + t.tier);
+        this.throwUntil = f.time + this.throwDuration;
+        actor.vel.y = Math.max(actor.vel.y, 6 + t.tier * 5);
         if (!this.reduceFlash) g.shake(.18, .32);
       }
     }
 
-    const throwing = Math.max(0, (this.throwUntil - f.time) / 3.6);
+    const throwing = Math.max(0, (this.throwUntil - f.time) / this.throwDuration);
     if (!v && !push && !throwing) return;
     const target = trolley.riding ? trolley.pos : p;
     const vortexWeight = throwing ? .20 : 1;
     // Airborne players orbit the moving column as well as its local centre.
     const carry = caught && !trolley.riding && p.y > ground + .8 ? 1 : 0;
-    moveHorizontal(target, ((v?.x || 0) * vortexWeight + f.vx * carry + c.windX * push * .13 + this.throwX * throwing) * dt,
-      ((v?.z || 0) * vortexWeight + f.vz * carry + c.windZ * push * .13 + this.throwZ * throwing) * dt,
-      trolley.riding ? .8 : actor.radius, this.zone);
+    let vx = (v?.x || 0) * vortexWeight + f.vx * carry + c.windX * push * .13 + this.throwX * throwing;
+    let vz = (v?.z || 0) * vortexWeight + f.vz * carry + c.windZ * push * .13 + this.throwZ * throwing;
+    if (g.multiplayer.active) {
+      const cap = Math.min(1, 36 / Math.max(1, Math.hypot(vx, vz)));
+      vx *= cap;
+      vz *= cap;
+    }
+    const grid = g.geoBrisbane.grid;
+    const dx = THREE.MathUtils.clamp(target.x + vx * dt, grid.minX + 3, grid.minX + grid.w * grid.cell - 3) - target.x;
+    const dz = THREE.MathUtils.clamp(target.z + vz * dt, grid.minZ + 3, grid.minZ + grid.h * grid.cell - 3) - target.z;
+    if (dx || dz) moveHorizontal(target, dx, dz, trolley.riding ? .8 : actor.radius, this.zone);
     if (trolley.riding) { trolley.mesh.position.copy(target); actor.pos.copy(target); }
     actor.mesh.position.copy(actor.pos);
   }
