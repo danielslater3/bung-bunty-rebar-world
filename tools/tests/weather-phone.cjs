@@ -96,6 +96,37 @@ const { chromium } = require('playwright');
       await g.loadZone('brisbane', true);
       g.input.enabled = true;
     });
+    const cloud = await page.evaluate(() => {
+      const g = BUNG, source = g.weather.clouds[0].material;
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x202020);
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+      camera.position.z = 3;
+      const sprite = new THREE.Sprite(source);
+      sprite.scale.set(2, 2, 1);
+      scene.add(sprite);
+      const size = 192, target = new THREE.WebGLRenderTarget(size, size);
+      const pixels = new Uint8Array(size * size * 4);
+      try {
+        g.renderer.setRenderTarget(target);
+        drawWeather(scene, camera);
+        g.renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
+      } finally {
+        g.renderer.setRenderTarget(null);
+        target.dispose();
+      }
+      let min = 255, max = 0, chroma = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const low = Math.min(pixels[i], pixels[i + 1], pixels[i + 2]);
+        const high = Math.max(pixels[i], pixels[i + 1], pixels[i + 2]);
+        min = Math.min(min, low);
+        max = Math.max(max, high);
+        chroma = Math.max(chroma, high - low);
+      }
+      return { min, max, chroma, opacityOnly: !source.map && !!source.alphaMap?.isDataTexture };
+    });
+    assert.ok(cloud.opacityOnly && cloud.max - cloud.min > 20, JSON.stringify(cloud));
+    assert.equal(cloud.chroma, 0, JSON.stringify(cloud));
     await page.evaluate(() => BUNG.phone.open('weather'));
     await phone.getByRole('button', { name: 'Start solo storm drill' }).click();
     assert.match(await phone.locator('.s24-forecast').textContent(), /DRILL/);
@@ -215,6 +246,6 @@ const { chromium } = require('playwright');
     assert.ok(extreme.alertVisible && extreme.sky && extreme.darkened && extreme.maxHeight > 25 && extreme.maxRange > 140, JSON.stringify(extreme));
     assert.ok(extreme.flying > 0 && extreme.carHeight > 10 && extreme.damage > 5 && extreme.wallMoved, JSON.stringify(extreme));
     assert.deepEqual(errors, []);
-    console.log('S24 / WEATHER PASSED', { storm, extreme });
+    console.log('S24 / WEATHER PASSED', { cloud, storm, extreme });
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

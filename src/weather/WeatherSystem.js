@@ -15,22 +15,36 @@ const damageSites = [
 ];
 const mix = THREE.MathUtils.lerp;
 
-function cloudTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 256;
-  const ctx = canvas.getContext('2d'), random = rng(7401);
+function cloudOpacityTexture() {
+  // Upload opacity only. Canvas gradients can introduce RGB dithering on
+  // upload, which becomes visible inside translucent clouds on some GPUs.
+  const size = 256, mask = new Float32Array(size * size), random = rng(7401);
   for (let i = 0; i < 66; i++) {
     const a = random() * Math.PI * 2, d = Math.sqrt(random());
-    const x = 128 + Math.cos(a) * d * 88, y = 128 + Math.sin(a) * d * 61;
+    const cx = size / 2 + Math.cos(a) * d * 88, cy = size / 2 + Math.sin(a) * d * 61;
     const r = 17 + random() * 43;
-    const grad = ctx.createRadialGradient(x, y, r * .10, x, y, r);
-    grad.addColorStop(0, 'rgba(255,255,255,.36)');
-    grad.addColorStop(.49, 'rgba(255,255,255,.19)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+    for (let y = Math.max(0, Math.floor(cy - r)); y < Math.min(size, Math.ceil(cy + r)); y++) {
+      for (let x = Math.max(0, Math.floor(cx - r)); x < Math.min(size, Math.ceil(cx + r)); x++) {
+        const t = Math.max(0, 1 - Math.hypot(x + .5 - cx, y + .5 - cy) / r);
+        const at = y * size + x;
+        mask[at] += (1 - mask[at]) * .36 * t * t * (3 - 2 * t);
+      }
+    }
   }
-  return new THREE.CanvasTexture(canvas);
+  const pixels = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const at = y * size + x;
+    const edge = Math.min(1, x / 12, y / 12, (size - 1 - x) / 12, (size - 1 - y) / 12);
+    const opacity = Math.round(mask[at] * edge * 255);
+    pixels[at * 4] = pixels[at * 4 + 1] = pixels[at * 4 + 2] = opacity;
+    pixels[at * 4 + 3] = 255;
+  }
+  const texture = new THREE.DataTexture(pixels, size, size, THREE.RGBAFormat);
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 export class WeatherSystem {
@@ -66,9 +80,9 @@ export class WeatherSystem {
     this.sky = createStormSky(this.noise);
     this.root.add(this.sky);
     this.stormDamage = new StormDamage(zone);
-    this.cloudMap = cloudTexture();
+    this.cloudOpacity = cloudOpacityTexture();
     this.clouds = Array.from({ length: 5 }, (_, i) => {
-      const m = new THREE.SpriteMaterial({ map: this.cloudMap, depthWrite: false, transparent: true, fog: false });
+      const m = new THREE.SpriteMaterial({ alphaMap: this.cloudOpacity, depthWrite: false, transparent: true, fog: false });
       const cloud = new THREE.Sprite(m);
       cloud.renderOrder = -2 - i * .001;
       this.root.add(cloud);
@@ -78,12 +92,12 @@ export class WeatherSystem {
     this.funnel.frustumCulled = false;
     this.funnel.renderOrder = 3;
     this.root.add(this.funnel);
-    this.dust = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.cloudMap, color: 0x938373, transparent: true, depthWrite: false, fog: false }));
+    this.dust = new THREE.Sprite(new THREE.SpriteMaterial({ alphaMap: this.cloudOpacity, color: 0x938373, transparent: true, depthWrite: false, fog: false }));
     this.dust.renderOrder = 4;
     this.root.add(this.dust);
     this.vortexMist = Array.from({ length: 7 }, () => {
       const mist = new THREE.Sprite(new THREE.SpriteMaterial({
-        map: this.cloudMap, color: 0x8b969f, transparent: true, depthWrite: false, fog: false,
+        alphaMap: this.cloudOpacity, color: 0x8b969f, transparent: true, depthWrite: false, fog: false,
       }));
       mist.renderOrder = 4;
       this.root.add(mist);
@@ -172,7 +186,7 @@ export class WeatherSystem {
         object.material?.dispose();
         if (object.isInstancedMesh) object.dispose();
       });
-      this.cloudMap.dispose();
+      this.cloudOpacity.dispose();
       this.noise.dispose();
       this.damageAssets.forEach(asset => asset.dispose());
       this.game.scene.background.copy(this.base.sky);
