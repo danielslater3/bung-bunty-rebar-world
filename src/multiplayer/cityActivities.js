@@ -48,9 +48,19 @@ export const EXCHANGE_ITEMS = [
   { id: 'horn', label: 'Burger Buzzer Horn', price: 8, detail: 'Press H while riding. Nearby mates hear it.' },
   { id: 'trail', label: 'Hot Chips Trail', price: 10, detail: 'A pink spark trail other players can see.', swatch: 0xff6fa9 },
 ];
-export const availablePickup = (pickup, player, room, now) => pickup.kind === 'rare'
-  ? (room.rareUntil?.[pickup.id] || 0) <= now
-  : (player.claims?.[pickup.id] || 0) <= now;
+function huntTarget(room, player, item, now) {
+  const hunt = room.events?.hunt;
+  return hunt?.status === 'running' && hunt.deadline > now && Number.isFinite(hunt.entries[player.id]) &&
+    hunt.targets.includes(item.id);
+}
+export const huntOpen = (room, player, item, now) =>
+  huntTarget(room, player, item, now) && !room.events.hunt.found[item.id];
+export function availablePickup(pickup, player, room, now, ignoreHunt = false) {
+  if (!ignoreHunt && huntTarget(room, player, pickup, now)) return !room.events.hunt.found[pickup.id];
+  return pickup.kind === 'rare'
+    ? (room.rareUntil?.[pickup.id] || 0) <= now
+    : (player.claims?.[pickup.id] || 0) <= now;
+}
 
 // A level section of Raymond Park, Kangaroo Point. Cover sits off the centre
 // lane and leaves a route around both sides.

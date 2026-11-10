@@ -12,6 +12,8 @@ import {
 } from '../src/multiplayer/catalog.js';
 import { arenaContains, arenaLive, availablePickup, crossesGate, EXCHANGE, EXCHANGE_ITEMS, PICKUPS, RING_GATES } from '../src/multiplayer/cityActivities.js';
 import { arenaCommand, arenaTick, emptyArena, removeArenaPlayer } from './burgerHeist.js';
+import { advanceRace, collectHunt, eventCommand, eventTick, raceGate, racing, welcomeEvents } from './roomEvents.js';
+import { roomTrolley } from '../src/multiplayer/fleet.js';
 export const freshRoom = (code, now) => ({
   code,
   version: PROTOCOL,
@@ -21,6 +23,7 @@ export const freshRoom = (code, now) => ({
   host: null,
   chat: [],
   games: {},
+  events: {},
   quest: {
     status: 'waiting',
     roles: [null, null, null, null],
@@ -73,6 +76,7 @@ export class RoomEngine {
     this.s.savedPlayers ??= [];
     this.s.rareUntil ??= {};
     this.s.arena ??= emptyArena();
+    this.s.events ??= {};
     for (const p of Object.values(this.s.players)) {
       p.appearance = normalizeAppearance(p.appearance);
       p.rebar ??= 0;
@@ -83,7 +87,7 @@ export class RoomEngine {
     this.random = random;
     this.id = id;
   }
-  join(name, token, appearance) {
+  join(name, token, appearance, trolley) {
     this.expire();
     if (this.s.banned.some((t) => same(t, token)))
       fail('You were removed from this room.');
@@ -112,6 +116,7 @@ export class RoomEngine {
         rebar: profile?.rebar ?? 0,
         claims: profile?.claims || {},
         inventory: profile?.inventory || {},
+        trolley: roomTrolley(trolley ?? profile?.trolley).id,
         ringBest: profile?.ringBest,
         ring: profile?.ring?.deadline > this.now() ? profile.ring : null,
         moveSeq: -1,
@@ -132,9 +137,11 @@ export class RoomEngine {
     if (appearance !== undefined)
       p.appearance = normalizeAppearance(appearance);
     else p.appearance = normalizeAppearance(p.appearance);
+    p.trolley = roomTrolley(trolley ?? p.trolley).id;
     if (typeof name === 'string') p.name = clean(name, 20) || 'Bung';
     p.connected = true;
     p.lastSeen = this.now();
+    welcomeEvents(this, p);
     this.elect();
     this.changed();
     return p;
@@ -175,8 +182,8 @@ export class RoomEngine {
     removeArenaPlayer(this, id);
     const p = this.s.players[id];
     if (p && !kicked) {
-      const { token, score, rebar, inventory, claims, ringBest, ring, pos } = p;
-      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos });
+      const { token, score, rebar, inventory, claims, ringBest, ring, pos, trolley } = p;
+      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos, trolley });
       this.s.savedPlayers = this.s.savedPlayers.slice(-32);
     }
     delete this.s.players[id];
@@ -201,6 +208,7 @@ export class RoomEngine {
       n = this.now();
     if (!p) fail('Join first.');
     if ((msg.warp ?? 0) !== (p.warp ?? 0)) return false;
+    if (racing(this, id) && this.s.events.race.status === 'running' && n < this.s.events.race.launchAt) return false;
     if (!Number.isSafeInteger(msg.seq) || msg.seq <= p.moveSeq) return false;
     const v = msg.pos;
     if (
@@ -241,7 +249,7 @@ export class RoomEngine {
     const p = this.s.players[id], run = p.ring, now = this.now();
     if (run.index === 0) {
       run.start = now;
-      run.deadline = now + 90000;
+      run.deadline = Math.min(now + 90000, this.s.events.ring?.deadline ?? Infinity);
     }
     run.index++;
     if (run.index === RING_GATES.length) {
@@ -253,6 +261,8 @@ export class RoomEngine {
     this.changed();
     return true;
   }
+  raceGate(id, previous) { return raceGate(this, id, previous); }
+  advanceRace(id, previous) { return advanceRace(this, id, previous); }
   pickupOnMove(id, previous) {
     const p = this.s.players[id], now = this.now();
     const radius = p.riding ? 1.9 : 1.35;
@@ -277,9 +287,12 @@ export class RoomEngine {
   collectPickup(p, item) {
     const now = this.now();
     if (!availablePickup(item, p, this.s, now)) fail('That collectible has already been claimed.');
-    if (item.kind === 'rare') this.s.rareUntil[item.id] = now + 180000;
-    else p.claims[item.id] = now + (item.kind === 'rebar' ? 90000 : 86400000);
-    this.reward(p, item.kind === 'rare' ? 12 : 0, item.rebar, item.label, 'rebar');
+    if (availablePickup(item, p, this.s, now, true)) {
+      if (item.kind === 'rare') this.s.rareUntil[item.id] = now + 180000;
+      else p.claims[item.id] = now + (item.kind === 'rebar' ? 90000 : 86400000);
+      this.reward(p, item.kind === 'rare' ? 12 : 0, item.rebar, item.label, 'rebar');
+    }
+    collectHunt(this, p, item);
   }
   near(p, target, radius) {
     return p.moveAt != null && this.now() - p.moveAt <= 1400 &&
@@ -301,6 +314,8 @@ export class RoomEngine {
     if (p.actionIds.length > 32) p.actionIds.shift();
     p.lastSeen = this.now();
     const a = this.s.arena;
+    if (racing(this, id) && ['joinGame', 'startGame', 'questJoin', 'arenaJoin', 'arenaWatch'].includes(m.cmd))
+      fail('Leave the trolley race before joining another event.');
     if ((arenaLive(a) || a.phase === 'waiting') && a.players.includes(id) &&
         ['joinGame', 'startGame', 'questJoin', 'ringStart'].includes(m.cmd))
       fail('Leave Burger Heist before starting another activity.');
@@ -379,6 +394,9 @@ export class RoomEngine {
         )
           fail('Finish your minigame first.');
         this.s.quest.roles[slot] = id;
+        this.s.quest.invite ??= this.id();
+        this.s.quest.inviter ??= id;
+        this.s.quest.opened ??= this.now();
         break;
       }
       case 'questLeave': {
@@ -405,6 +423,7 @@ export class RoomEngine {
         if ((arenaLive(this.s.arena) || this.s.arena.phase === 'waiting') &&
             q.roles.some(id => this.s.arena.players.includes(id))) fail('All four quest players must leave the arena queue.');
         q.status = 'playing';
+        q.started = this.now();
         q.stage = 0;
         q.done = [false, false, false, false];
         q.pads = {};
@@ -424,6 +443,11 @@ export class RoomEngine {
         break;
       }
       case 'arenaJoin':
+        if (p.ring?.deadline) eventCommand(this, p, { cmd: 'ringCancel' });
+        arenaCommand(this, p, m);
+        this.s.arena.invite ??= this.id();
+        this.s.arena.opened ??= this.now();
+        break;
       case 'arenaReady':
       case 'arenaLeave':
       case 'arenaAct':
@@ -452,17 +476,15 @@ export class RoomEngine {
           fail('Equip the horn and drive your trolley before honking.');
         p.hornAt = this.now();
         break;
-      case 'ringStart': {
-        if (p.ring?.deadline > this.now()) fail('Ring Rush is already active.');
-        if (this.s.quest.status === 'playing' && this.s.quest.roles.includes(id))
-          fail('Finish the expedition before starting Ring Rush.');
-        if (Object.values(this.s.games).some(g => g.status === 'playing' && g.players.includes(id)))
-          fail('Finish your minigame before starting Ring Rush.');
-        p.ring = { index: 0, start: 0, deadline: this.now() + 240000 };
-        break;
-      }
+      case 'ringStart':
       case 'ringCancel':
-        p.ring = null;
+      case 'huntStart':
+      case 'huntLeave':
+      case 'raceStart':
+      case 'raceJoin':
+      case 'raceLeave':
+      case 'raceReset':
+        eventCommand(this, p, m);
         break;
       case 'questAct':
         this.questAct(p);
@@ -858,6 +880,7 @@ export class RoomEngine {
   tick() {
     this.expire();
     let changed = arenaTick(this);
+    if (eventTick(this)) changed = true;
     for (const p of Object.values(this.s.players)) {
       if (p.ring?.deadline && this.now() >= p.ring.deadline) {
         p.ring = { ...p.ring, deadline: 0, expired: true };

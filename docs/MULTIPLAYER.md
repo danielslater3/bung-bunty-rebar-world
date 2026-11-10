@@ -1,6 +1,6 @@
 # Brisbane multiplayer
 
-Open the game and choose **MULTIPLAYER · BRISBANE**. Choose a character, set four outfit colours and a display name, then create a room or enter a friend's eight-character code. The invite button copies a room link. This is guest multiplayer: names are display names, not verified accounts. There is no purchase, subscription or paid unlock in the game.
+Open the game and choose **MULTIPLAYER · BRISBANE**. Choose a character, four outfit colours, a display name, a Rebar S24 edition, and one of ten trolley editions. Then create a room or enter a friend's eight-character code. The invite button copies a room link. Guest display names and all cosmetic editions are free.
 
 The join screen has a real rotatable 3D preview. All 19 identities are available immediately: Bung, Chung, Gabor, Seb, Sir Girderface, Rebar Man, both sets of parents, the collector's guard, the Court, James Rebar and all six enemy types. Nonhuman characters use shell/panel/trim colours. Their movement and collision abilities are identical; cosmetic size does not grant extra reach. Story models and single-player clothing remain independent. Character and outfit preferences are stored on this browser; each room stores and broadcasts the validated selection. Reconnecting keeps the player's room identity, score and role. Returning through the join screen permits a fresh appearance and display name.
 
@@ -8,6 +8,7 @@ The join screen has a real rotatable 3D preview. All 19 identities are available
 
 - Normal movement and camera controls apply throughout the existing Brisbane map.
 - **B** opens the room board, games, leaderboard and four-player quest.
+- When a room activity invitation appears, click **Join** or press **J**. **K** dismisses it. Choose **Skip** to opt out of a shared hunt or Ring Rush.
 - **Enter** opens chat. In the message field, **Enter** (including numpad Enter) sends once and keeps chat open for the next message. **Escape** closes the current panel or opens the board.
 - **T** calls the trolley; **E** mounts/dismounts. **F** claims nearby quest/rally checkpoints or performs the active timing game's action.
 - Each table needs the required number of players, everyone ready, and its captain to start. Back to City keeps the seat. Leave Table / Leave Match releases it; leaving an active match forfeits.
@@ -32,6 +33,12 @@ Rooms cap at **10**, including disconnected seats reserved for 45 seconds. The c
 | Brisbane Rebar Rally | Ordered real CBD checkpoints, on foot or by trolley. |
 
 The server owns turns, hidden information, timers and scores. A victory earns 10 room points, a draw 3 and other completed participation 2, once per match. Timing games use server receipt times and shared clocks, so differing internet latency can affect competition. This is a casual game, not a competitive anti-cheat service.
+
+## Shared city events
+
+Start **Ring Rush** or **Room Rebar Hunt** from Explore. Eligible players in the room are enrolled together and can opt out. Ring Rush records each player's eight-gate run. In Rebar Hunt the room clears one shared list of collectibles, and every enrolled player receives the completion bonus.
+
+Open **Trolley Races** for five courses across the existing Brisbane map. The Toowong-bound Dash ends at the western edge of the mapped Coronation corridor. West End, Fortitude Valley, South Bank and Kangaroo Point have their own courses. Once the invitation closes, entrants are placed on the starting grid with matching race tuning. Drive through ordered gates to pick up boost and fuel, then cross the finish line. If you get stuck, reset to the last gate for a five-second penalty. Weather continues during races.
 
 ## Four-player quest
 

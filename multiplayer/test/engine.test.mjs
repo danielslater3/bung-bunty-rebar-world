@@ -524,3 +524,76 @@ test('accepted movement collects on foot and sweeps at trolley speed without a c
   assert.equal(a.rebar, steel.rebar + burger.rebar + rare.rebar);
   assert.equal(b.rebar, steel.rebar);
 });
+
+test('Ring Rush and Rebar Hunt enroll the room, sync rewards and allow a player to opt out', () => {
+  const { e, p, cmd } = setup(3);
+  cmd(p[0], 'ringStart');
+  const ring = e.view(p[1].id).events.ring;
+  assert.ok(p.every(player => player.ring.event === ring.id));
+  cmd(p[1], 'ringCancel');
+  assert.equal(p[1].ring, null);
+  cmd(p[1], 'ringStart');
+  assert.equal(p[1].ring.event, ring.id);
+  cmd(p[0], 'huntStart');
+  cmd(p[2], 'huntLeave');
+  for (const id of e.s.events.hunt.targets) {
+    const item = PICKUPS.find(pickup => pickup.id === id);
+    p[1].claims[item.id] = Infinity;
+    e.collectPickup(p[1], item);
+  }
+  assert.equal(e.s.events.hunt.status, 'finished');
+  assert.equal(e.view(p[0].id).events.hunt.entries[p[1].id], e.s.events.hunt.targets.length);
+  assert.equal(p[0].score, 45);
+  assert.equal(p[1].score, 45);
+  assert.equal(p[2].score, 0);
+});
+
+test('each trolley course counts accepted mounted movement, powerups and one finish per driver', async () => {
+  const { RACE_COURSES } = await import('../../src/multiplayer/raceCourses.js');
+  const { atDistance } = await import('../../src/systems/Navigation.js');
+  assert.ok(RACE_COURSES.length >= 5);
+  for (const course of RACE_COURSES) {
+    const s = setup(2), { e, p, cmd } = s;
+    cmd(p[0], 'raceStart', { course: course.id });
+    const race = e.s.events.race;
+    cmd(p[1], 'raceJoin', { event: race.id });
+    s.time += 15001;
+    assert.ok(e.tick());
+    const entry = race.entries[p[0].id];
+    assert.equal(race.status, 'running');
+    assert.equal(p[0].pos.x, course.start.x);
+    assert.equal(p[1].pos.z, course.start.z);
+    assert.equal(e.move(p[0].id, { seq: 0, pos: p[0].pos, yaw: 0, warp: p[0].warp, riding: true }), false);
+    s.time += 3500;
+    cmd(p[0], 'raceReset');
+    assert.equal(entry.penalty, 5000);
+    let seq = 0;
+    const move = (player, pos, riding = true) => {
+      const before = { pos: player.pos, at: player.moveAt || 0 };
+      s.time += 125;
+      if (e.move(player.id, { seq: ++seq, pos, yaw: 0, warp: player.warp, riding }))
+        e.advanceRace(player.id, before);
+    };
+    for (let d = 0; d < 19; d += 3) move(p[0], atDistance(course.path, d), false);
+    assert.equal(entry.index, 0);
+    for (let d = 18; d < course.length + 4; d += 4) move(p[0], atDistance(course.path, d));
+    assert.equal(entry.index, course.gates.length, course.id);
+    assert.ok(entry.power, course.id);
+    assert.equal(race.results.length, 1);
+    assert.equal(p[0].score, 60);
+    move(p[0], course.gates.at(-1));
+    assert.equal(p[0].score, 60);
+    assert.equal(race.status, 'running');
+    cmd(p[1], 'raceLeave');
+    e.tick();
+    assert.equal(race.status, 'finished');
+  }
+});
+
+test('trolley preferences are normalized, visible to other players and survive reconnect', () => {
+  const { e, p } = setup();
+  e.join(p[0].name, p[0].token, undefined, 'concrete');
+  assert.equal(e.view(p[1].id).players[p[0].id].trolley, 'concrete');
+  assert.equal(e.join(p[0].name, p[0].token).trolley, 'concrete');
+  assert.equal(e.join(p[0].name, p[0].token, undefined, 'unknown').trolley, 'james');
+});

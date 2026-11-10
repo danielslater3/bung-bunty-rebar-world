@@ -264,7 +264,7 @@ export class WeatherSystem {
       this.singletBark = barkKey;
       g.say('bung', 'OIII! The singlet is not weatherproof!');
     }
-    if (running && !fighting && !g.saga.freeze && !g.saga.scenePlaying && !g.dialogue.cinematic && this.exposed)
+    if (running && !fighting && !g.multiplayer.raceCountdown?.() && !g.saga.freeze && !g.saga.scenePlaying && !g.dialogue.cinematic && this.exposed)
       this.applyWind(dt, f, c, p);
     else this.caughtSince = null;
   }

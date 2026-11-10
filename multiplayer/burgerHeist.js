@@ -22,6 +22,7 @@ function warp(p, pos) {
 function start(engine) {
   const a = engine.s.arena;
   a.phase = 'countdown';
+  a.started = engine.now();
   a.deadline = engine.now() + 3500;
   a.burger = { x: ARENA.x, y: ARENA.y, z: ARENA.z };
   for (const [i, id] of a.players.entries()) {

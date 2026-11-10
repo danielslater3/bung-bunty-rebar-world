@@ -12,7 +12,7 @@ test('all source modules have one canonical cache URL at root and project subpat
     const path = 'src/' + file;
     assert.equal(imports['/' + path], imports['./' + path], path);
     assert.ok(imports['/' + path]?.startsWith('./' + path + '?v='), path);
-    const version = path.endsWith('.data.js') ? '20261028-data' : '20261110-volume-sky';
+    const version = path.endsWith('.data.js') ? '20261028-data' : '20261110-room-races';
     assert.ok(imports['/' + path].endsWith('?v=' + version), path);
     if (!path.endsWith('.data.js')) {
       const source = readFileSync(new URL(path, root), 'utf8');

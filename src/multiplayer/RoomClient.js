@@ -1,4 +1,5 @@
 import { PROTOCOL, normalizeAppearance } from './catalog.js';
+import { roomTrolley } from './fleet.js';
 export class RoomClient {
   constructor(endpoint, events = {}) {
     const url = new URL(endpoint);
@@ -26,12 +27,13 @@ export class RoomClient {
     if (!r.ok) throw Error(data.error || 'Could not create a room.');
     return data.code;
   }
-  async join(code, name, appearance) {
+  async join(code, name, appearance, trolley) {
     this.code = code.toUpperCase().replace(/\s/g, '');
     if (!/^[A-HJ-NP-Z2-9]{8}$/.test(this.code))
       throw Error('Enter the eight-character room code.');
     this.name = name.slice(0, 20);
     this.appearance = normalizeAppearance(appearance);
+    this.trolley = trolley == null ? undefined : roomTrolley(trolley).id;
     this.token = sessionStorage.getItem('bung-room-' + this.code) || '';
     return this.open();
   }
@@ -59,6 +61,7 @@ export class RoomClient {
             protocol: PROTOCOL,
             name: this.name,
             appearance: this.appearance,
+            trolley: this.trolley,
             token: this.token,
           }),
         );

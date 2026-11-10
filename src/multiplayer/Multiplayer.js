@@ -8,6 +8,7 @@ import {
   NavigationController,
   localRoute,
   atDistance,
+  nearestOnPath,
   turnToward,
 } from '../systems/Navigation.js';
 import { buildGuide, segmentClear } from '../story/guide.js';
@@ -16,8 +17,11 @@ import { positionClear } from '../core/motion.js';
 import { RoomClient } from './RoomClient.js';
 import { MiniGames, el } from './MiniGames.js';
 import { phonePicker } from '../phone/Phone.js';
+import { ActivityUI, drawRaces, raceArch, trolleyPicker } from './ActivityUI.js';
+import { roomTrolley } from './fleet.js';
+import { raceCourse } from './raceCourses.js';
 import { ROOM_SERVER } from './config.js';
-import { ARENA, ARENA_COVER, ARENA_DOCK, ARENA_STAND, arenaLive, availablePickup, EXCHANGE, EXCHANGE_ITEMS, PICKUPS, RING_GATES, RING_WIDTH, SOCIAL_CLUB } from './cityActivities.js';
+import { ARENA, ARENA_COVER, ARENA_DOCK, ARENA_STAND, arenaLive, availablePickup, EXCHANGE, EXCHANGE_ITEMS, huntOpen, PICKUPS, RING_GATES, RING_WIDTH, SOCIAL_CLUB } from './cityActivities.js';
 import {
   GAMES,
   COLORS,
@@ -35,6 +39,7 @@ const ROOM_TABS = [
   ['exchange', 'Exchange'],
   ['quest', 'Expedition'],
   ['games', 'Minigames'],
+  ['races', 'Trolley Races'],
   ['players', 'Players'],
 ];
 
@@ -73,6 +78,10 @@ export class Multiplayer {
         e.preventDefault();
         e.stopPropagation();
         this.openChat();
+      } else if (this.activityUI && !this.activityUI.root.hidden && !e.repeat && ['KeyJ', 'KeyK'].includes(e.code)) {
+        e.preventDefault();
+        e.stopPropagation();
+        (e.code === 'KeyJ' ? this.activityUI.join : this.activityUI.dismiss).click();
       } else if (e.code === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
@@ -81,7 +90,7 @@ export class Multiplayer {
         e.preventDefault();
         e.stopPropagation();
         this.openBoard();
-      } else if (e.code === 'KeyF' && this.mini.selected) {
+      } else if (e.code === 'KeyF' && this.mini.selected && !e.repeat) {
         e.preventDefault();
         e.stopPropagation();
         this.mini.liveAction();
@@ -140,6 +149,7 @@ export class Multiplayer {
     join.type = 'submit';
     form.append(name, code, create, join);
     const selectPhone = phonePicker(panel);
+    const selectTrolley = trolleyPicker(panel);
     panel.append(form, message);
     const settings = el('details', 'mp-server-setting'),
       summary = el('summary', '', 'Use a community server'),
@@ -177,7 +187,7 @@ export class Multiplayer {
           'bung-room-appearance',
           JSON.stringify(appearance),
         );
-        await this.client.join(room, name.value.trim() || 'Bung', appearance);
+        await this.client.join(room, name.value.trim() || 'Bung', appearance, selectTrolley());
         this.picker.dispose();
         this.picker = null;
         await this.enter();
@@ -263,14 +273,16 @@ export class Multiplayer {
         this.room.players[this.client.id]?.appearance,
       );
       g.player.mesh.add(this.selfAvatar);
-      this.trolleyModel = buildTrolley();
+      this.trolleyModels = new Map();
       this.prepareWorld();
       const p = this.room.players[this.client.id]?.pos || SPAWN;
+      g.trolley.applyFleet(roomTrolley(this.room.players[this.client.id]?.trolley ?? this.client.trolley).id, false);
       const gy = g.zone.groundAt(p.x, p.z);
       const target = { x: p.x, y: gy + 0.1, z: p.z };
       if (!positionClear(target, 0.6, g.zone))
         throw Error('The room spawn is obstructed.');
       g.player.teleport(new THREE.Vector3(target.x, target.y, target.z));
+      if (this.raceEntry()) this.mountRaceTrolley(this.room.players[this.client.id]);
       g.saga.snapCamera();
       g.player.mesh.visible = true;
       this.mountUI();
@@ -343,6 +355,7 @@ export class Multiplayer {
     }
     if (m.type === 'error') {
       this.error(m.message);
+      this.mini.showError(m.message);
       if (m.pos && /Position corrected/.test(m.message) && this.active) {
         this.game.player.teleport(new THREE.Vector3(m.pos.x, m.pos.y, m.pos.z));
         this.game.trolley.dismiss();
@@ -454,6 +467,7 @@ export class Multiplayer {
     notice.id = 'mp-notice';
     notice.setAttribute('role', 'status');
     ui.append(notice);
+    this.activityUI = new ActivityUI(this, ui);
     document.body.append(ui);
     this.refreshUI();
   }
@@ -621,6 +635,7 @@ export class Multiplayer {
       case 'exchange': this.drawExchange(body, p); break;
       case 'quest': this.drawExpedition(body, this.room.quest); break;
       case 'games': this.drawMinigames(body); break;
+      case 'races': drawRaces(this, body); break;
       case 'players': this.drawPlayers(body); break;
     }
     for (const row of body.querySelectorAll('[data-player]')) {
@@ -638,11 +653,11 @@ export class Multiplayer {
   drawExplore(panel, p) {
     const ring = el('section', 'mp-quest-card');
     const run = p?.ring;
-    ring.append(el('small', 'mp-eyebrow', 'QUEEN STREET · SOLO OR SIDE BY SIDE'),
+    ring.append(el('small', 'mp-eyebrow', 'QUEEN STREET · ROOM EVENT'),
       el('h3', '', 'RING RUSH'),
       el('p', '', run?.expired ? 'Time ran out. Start a new run.' : run?.time != null
         ? `Finished in ${(run.time / 1000).toFixed(1)}s. Best ${(p.ringBest / 1000).toFixed(1)}s.`
-        : 'Cross eight gates toward Edward Street on foot or by trolley. 90 seconds · 40 points + 24 rebar.'));
+        : 'Open a room run. Everyone gets the Queen Street course and can cross eight gates on foot or by trolley.'));
     const actions = el('div', 'mp-room-actions');
     this.roomButton(actions, run?.deadline ? 'RESUME RING RUSH' : 'START RING RUSH', () => {
       if (!run?.deadline) this.client.command('ringStart');
@@ -650,6 +665,13 @@ export class Multiplayer {
     }, 'gold');
     if (run?.deadline)
       this.roomButton(actions, 'CANCEL RUN', () => this.client.command('ringCancel'), 'subtle');
+    const round = this.room.events?.ring;
+    if (round) for (const other of Object.values(this.room.players)) {
+      const progress = other.ring;
+      if (!progress || progress.event !== round.id) continue;
+      ring.append(el('p', 'mp-score-line', other.name + ' · ' + (progress.time == null
+        ? `${progress.index}/${RING_GATES.length} gates` : `${(progress.time / 1000).toFixed(1)}s`)));
+    }
     ring.append(actions);
     panel.append(ring);
     const collection = el('section', 'mp-quest-card');
@@ -658,6 +680,15 @@ export class Multiplayer {
     collection.append(el('small', 'mp-eyebrow', 'ROOM-LOCAL PROGRESS'), el('h3', '', 'BRISBANE REBAR HUNT'),
       el('p', '', `${p.rebar} rebar · ${stamps}/3 landmark stamps · ${burgers}/3 burger tokens. Walk or drive through a collectible to pick it up.`));
     const hunt = el('div', 'mp-game-toolbar');
+    const event = this.room.events?.hunt;
+    this.roomButton(hunt, event?.status === 'running' ? 'JOIN / TRACK ROOM HUNT' : 'START ROOM REBAR HUNT', () => {
+      this.client.command('huntStart');
+      this.hidePanels();
+    }, 'gold');
+    if (event?.status === 'running') {
+      collection.append(el('p', 'mp-score-line', `Room found ${Object.keys(event.found).length}/${event.targets.length}`));
+      this.roomButton(hunt, 'LEAVE HUNT', () => this.client.command('huntLeave'), 'subtle');
+    }
     for (const [label, point] of [
       ['CITY HALL', PICKUPS[0]], ['QUEEN STREET', PICKUPS[2]], ['SOUTH BANK', PICKUPS[5]],
       ['BOTANIC GARDENS', PICKUPS[8]], ['RARE SHIPMENT', PICKUPS[4]],
@@ -887,6 +918,9 @@ export class Multiplayer {
     }
   }
   prepareWorld() {
+    this.raceGate = raceArch();
+    this.root.add(this.raceGate);
+    this.lastRacePower = null;
     const z = this.game.zone;
     this.rushGate = new THREE.Group();
     this.rushGate.visible = false;
@@ -970,7 +1004,8 @@ export class Multiplayer {
       if (p.id === this.client.id || !p.connected) continue;
       let a = this.peers.get(p.id);
       const appearanceKey = JSON.stringify(normalizeAppearance(p.appearance));
-      if (a && (a.appearanceKey !== appearanceKey || a.name !== p.name)) {
+      const trolleyId = roomTrolley(p.trolley).id;
+      if (a && (a.appearanceKey !== appearanceKey || a.name !== p.name || a.trolleyId !== trolleyId)) {
         disposeAvatar(a.mesh);
         a.trolley.removeFromParent();
         a.label.material.map.dispose();
@@ -979,8 +1014,9 @@ export class Multiplayer {
         a = null;
       }
       if (!a) {
+        if (!this.trolleyModels.has(trolleyId)) this.trolleyModels.set(trolleyId, buildTrolley(trolleyId));
         const mesh = buildAvatar(p.appearance),
-          trolley = this.trolleyModel.clone(true),
+          trolley = this.trolleyModels.get(trolleyId).clone(true),
           canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 64;
@@ -1006,6 +1042,7 @@ export class Multiplayer {
           mesh,
           appearanceKey: JSON.stringify(normalizeAppearance(p.appearance)),
           name: p.name,
+          trolleyId,
           trolley,
           label,
           target: new THREE.Vector3(p.pos.x, p.pos.y, p.pos.z),
@@ -1093,8 +1130,9 @@ export class Multiplayer {
     const g = this.game;
     g.phone.close();
     g.trolley.dismiss();
-    const y = g.zone.groundAt(p.pos.x, p.pos.z, p.pos.y) + .1;
+    const y = g.zone.groundAt(p.pos.x, p.pos.z, p.pos.y + 1.5) + .1;
     g.player.teleport(new THREE.Vector3(p.pos.x, y, p.pos.z));
+    if (this.raceEntry()) this.mountRaceTrolley(p);
     g.saga.snapCamera();
     if (p.watchReturn && !arenaLive(this.room.arena)) {
       g.camYaw = Math.PI;
@@ -1102,6 +1140,26 @@ export class Multiplayer {
       g.updateCamera(.2);
     }
     this.hidePanels();
+  }
+  raceEntry() {
+    const race = this.active && this.room?.events?.race;
+    const entry = race?.entries[this.client?.id];
+    return race?.status === 'running' && entry && !entry.finished ? entry : null;
+  }
+  raceCountdown() {
+    return !!this.raceEntry() && this.client.now() < this.room.events.race.launchAt;
+  }
+  mountRaceTrolley(p) {
+    const g = this.game, t = g.trolley;
+    t.pos.copy(g.player.pos);
+    t.heading = p.yaw;
+    t.speed = t.vy = 0;
+    t.summoned = t.riding = t.mesh.visible = true;
+    t.mesh.position.copy(t.pos);
+    t.mesh.rotation.y = t.heading;
+    g.player.facing = t.heading;
+    g.camYaw = t.heading;
+    state.fuel = t.fuelMax;
   }
   updateArena(dt) {
     const a = this.room.arena, v = this.arenaWorld, g = this.game;
@@ -1158,6 +1216,13 @@ export class Multiplayer {
     const id = this.client.id,
       q = this.room?.quest;
     const a = this.room.arena;
+    const race = this.room.events?.race, entry = this.raceEntry();
+    if (entry) {
+      const course = raceCourse(race.course), gate = course.gates[entry.index];
+      const seconds = Math.ceil((race.launchAt - this.client.now()) / 1000);
+      return { ...gate, course, gate, race, label: seconds > 0 ? `STARTING IN ${seconds}` :
+        `${course.name.toUpperCase()} · ${entry.index + 1}/${course.gates.length}${gate.power ? ' · ' + gate.power.toUpperCase() : ''}` };
+    }
     if (arenaLive(a) && a.players.includes(id)) {
       const team = a.teams[id], enemy = a.carrier && this.room.players[a.carrier];
       const target = a.carrier === id ? ARENA_DOCK[team] : enemy?.pos || a.burger || ARENA;
@@ -1191,6 +1256,14 @@ export class Multiplayer {
     if (run?.deadline && RING_GATES[run.index]) {
       return { ...RING_GATES[run.index], label: `RING RUSH ${run.index + 1}/${RING_GATES.length}`, rush: run };
     }
+    const hunt = this.room.events?.hunt;
+    const player = this.room.players[id];
+    if (hunt?.status === 'running' && Number.isFinite(hunt.entries[id])) {
+      const p = this.game.player.pos;
+      const next = PICKUPS.filter(item => huntOpen(this.room, player, item, this.client.now())).reduce(
+        (best, item) => !best || Math.hypot(p.x - item.x, p.z - item.z) < Math.hypot(p.x - best.x, p.z - best.z) ? item : best, null);
+      if (next) return { ...next, label: `ROOM HUNT ${Object.keys(hunt.found).length}/${hunt.targets.length} · ${next.label}` };
+    }
     if (this.manualTarget && this.room.players[this.manualTarget]?.connected) {
       const p = this.room.players[this.manualTarget];
       return { ...p.pos, label: 'FIND ' + p.name.toUpperCase() };
@@ -1205,7 +1278,7 @@ export class Multiplayer {
     const a = this.room.arena, id = this.client.id;
     const fighter = arenaLive(a) && a.players.includes(id);
     const held = fighter && (a.phase === 'countdown' || this.room.players[id].stunnedUntil > this.client.now());
-    if (!this.focus) {
+    if (!this.focus && !this.raceCountdown()) {
       const m = g.input.consumeMouse();
       g.camYaw -= m.dx * 0.0024 * state.settings.sensitivity;
       g.camPitch = Math.max(-0.4, Math.min(1.1, g.camPitch + m.dy * 0.0024));
@@ -1307,15 +1380,46 @@ export class Multiplayer {
     this.updateArena(dt);
     const goal = this.objective(),
       hud = document.getElementById('mp-goal');
+    this.activityUI.update();
+    const race = this.room.events?.race, course = race && raceCourse(race.course);
+    const marker = goal?.gate ?? (race?.status === 'recruiting' ? course.start : null);
+    this.raceGate.visible = !!marker;
+    if (marker) {
+      this.raceGate.position.set(marker.x, marker.y, marker.z);
+      this.raceGate.rotation.y = marker.yaw;
+      this.raceGate.userData.trim.color.setHex(!goal?.gate ? 0x55e7a1 :
+        marker === course.gates.at(-1) ? 0xf784cd : marker.power ? 0xffc23d : 0x71d7fa);
+      this.raceGate.userData.sign(!goal?.gate ? 'STARTING GRID' :
+        marker === course.gates.at(-1) ? 'FINISH' : marker === course.gates[0] ? 'START' : marker.power?.toUpperCase() || 'CHECKPOINT');
+    }
+    const power = this.raceEntry()?.power;
+    const powerKey = power && race.id + '/' + power.index;
+    if (power && this.lastRacePower !== powerKey) {
+      this.lastRacePower = powerKey;
+      if (this.client.now() - power.at < 6500) {
+        state.fuel = Math.min(g.trolley.fuelMax, state.fuel + (power.type === 'refuel' ? 60 : 20));
+        this.error(power.type === 'refuel' ? 'REFUEL · FULL TANK' : 'BOOST · 6 SECONDS');
+        g.audio.sfx('portal');
+      }
+    }
     this.guide.visible = false;
     this.guide.userData.trail.visible = false;
-    if (goal && !this.focus) {
+    const gridOpen = race?.status === 'recruiting' && race.entries[this.client.id];
+    if (goal && !this.focus && !gridOpen) {
       const target = {
         x: goal.x,
         y: g.zone.groundAt(goal.x, goal.z, g.player.pos.y),
         z: goal.z,
       };
-      const r = this.navigation.update({
+      const onCourse = goal.course && nearestOnPath(goal.course.path, g.player.pos);
+      const along = onCourse && Math.min(onCourse.along, goal.gate.along);
+      const ahead = onCourse && atDistance(goal.course.path, Math.min(goal.gate.along, along + 12));
+      const r = onCourse?.off < 24 ? {
+        path: goal.course.path,
+        on: { ...onCourse, along, length: goal.gate.along },
+        distance: Math.max(0, goal.gate.along - along) + onCourse.off,
+        yaw: Math.atan2(ahead.x - g.player.pos.x, ahead.z - g.player.pos.z),
+      } : this.navigation.update({
         key: goal.label,
         from: g.player.pos,
         target,
@@ -1327,6 +1431,14 @@ export class Multiplayer {
         extra = run.start ? ` · CHAIN ×${run.index} · ${90 - Math.min(90, seconds)}s ELAPSED · ${seconds}s LEFT` : ' · CROSS TOWARD EDWARD STREET';
       }
       if (goal.arena) extra = ` · ${Math.max(0, Math.ceil((goal.arena.deadline - this.client.now()) / 1000))}s`;
+      if (goal.race && !this.raceCountdown()) {
+        const competitors = Object.entries(goal.race.entries).filter(([id]) => this.room.players[id]);
+        const me = this.raceEntry();
+        const ahead = competitors.filter(([id, e]) => e.finished || e.index > me.index ||
+          (e.index === me.index && Math.hypot(this.room.players[id].pos.x - goal.x, this.room.players[id].pos.z - goal.z)
+            < Math.hypot(g.player.pos.x - goal.x, g.player.pos.z - goal.z) && id !== this.client.id));
+        extra = ` · PLACE ${ahead.length + 1}/${competitors.length}`;
+      }
       const distance = r?.distance ?? Math.hypot(goal.x - g.player.pos.x, goal.z - g.player.pos.z);
       hud.textContent = goal.label + ' · ' + Math.ceil(distance) + ' m' + extra + (goal === EXCHANGE && this.near(EXCHANGE, 5) ? ' · E OPEN' : '');
       if (r && !r.unavailable && r.distance > 2) {
@@ -1355,6 +1467,8 @@ export class Multiplayer {
       }
     } else if (hud)
       hud.textContent =
+        (gridOpen
+          ? `TROLLEY RACE · GRID OPENS IN ${Math.max(0, Math.ceil((race.deadline - this.client.now()) / 1000))}s` : null) ||
         (this.near(EXCHANGE, 5) ? 'E · REBAR EXCHANGE' : null) ||
         g.zone.cityLife?.hintAt(g.player.pos) ||
         'B · ROOM  |  ENTER · CHAT  |  T · TROLLEY  |  E · MOUNT / ARRIVALS  |  F · QUEST';
@@ -1420,6 +1534,7 @@ export class Multiplayer {
     this.originalChildren = null;
     this.root?.traverse((o) => {
       if (o.isMesh) {
+        if (o.isInstancedMesh) o.dispose();
         o.geometry?.dispose();
         if (o !== this.guide)
           for (const m of Array.isArray(o.material)
@@ -1438,7 +1553,10 @@ export class Multiplayer {
     this.mint?.dispose();
     this.mint = null;
     this.game.trolley.dismiss();
-    if (this.previous) Object.assign(state, DEFAULT_STATE(), this.previous);
+    if (this.previous) {
+      Object.assign(state, DEFAULT_STATE(), this.previous);
+      this.game.trolley.applyFleet(state.trolley, false);
+    }
     this.previous = null;
     this.game.mode = 'menu';
     this.game.input.enabled = false;

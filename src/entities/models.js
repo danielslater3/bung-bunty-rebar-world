@@ -3,6 +3,7 @@
 // THREE.Group with named parts stashed in .userData for animation.
 import * as THREE from 'three';
 import { mat, box, sphere, cyl, goldMat, rebarMat, addOutline } from '../core/utils.js';
+import { ROOM_FLEET } from '../multiplayer/fleet.js';
 
 const SKIN = () => mat(0xe8b88a, { roughness: 0.75 });
 const SKIN_D = () => mat(0xd6a173, { roughness: 0.75 });
@@ -445,12 +446,18 @@ export const TROLLEY_FLEET = [
 ];
 
 export function trolleySpec(id) {
-  return TROLLEY_FLEET.find((t) => t.id === id) || TROLLEY_FLEET[0];
+  const legacy = TROLLEY_FLEET.find(t => t.id === id);
+  const edition = ROOM_FLEET.find(t => t.id === id);
+  if (legacy) return edition && id === 'bun' ? { ...legacy, ...edition } : legacy;
+  if (!edition) return TROLLEY_FLEET[0];
+  return { ...TROLLEY_FLEET[0], ...edition, trail: edition.flag, glow: edition.flag,
+    blurb: edition.name + ' ready to roll.' };
 }
 
 export function buildTrolley(id = 'james') {
   const spec = trolleySpec(id);
   const g = new THREE.Group();
+  g.userData.fleetId = spec.id;
   const gold = id === 'james' ? goldMat() : mat(spec.metal, { metalness: 0.62, roughness: 0.38 });
   const trim = mat(spec.trim, { roughness: 0.45, metalness: 0.4 });
 

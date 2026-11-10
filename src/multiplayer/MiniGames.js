@@ -37,7 +37,8 @@ export class MiniGames {
     const mp = this.mp,
       g = mp.room?.games[this.selected],
       def = GAMES.find((x) => x.id === this.selected),
-      key = mp.room?.revision + ':' + this.selected;
+      key = JSON.stringify([this.selected, g, mp.client.connected,
+        g?.players.map(id => [mp.name(id), mp.room.players[id]?.connected])]);
     if (!force && key === this.lastKey) return;
     this.lastKey = key;
     this.root?.remove();
@@ -71,6 +72,10 @@ export class MiniGames {
       mp.openBoard();
     });
     card.append(row);
+    this.message = el('p', 'mp-table-error');
+    this.message.setAttribute('role', 'status');
+    this.message.hidden = true;
+    card.append(this.message);
     overlay.append(card);
     document.body.append(overlay);
     const send = (action) =>
@@ -349,9 +354,14 @@ export class MiniGames {
       scores.append(el('span', '', `${mp.name(id)} · ${g.scores[id] || 0}`));
     card.append(scores);
   }
+  showError(message) {
+    if (!this.root || !this.message) return;
+    this.message.hidden = false;
+    this.message.textContent = message;
+  }
   liveAction() {
     const g = this.mp.room?.games[this.selected];
-    if (!g || g.status !== 'playing') return;
+    if (!g || g.status !== 'playing' || !g.players.includes(this.mp.client.id) || !this.mp.client.connected) return;
     let action = {};
     if (this.selected === 'rhythm') {
       const i = Math.round((this.mp.client.now() - g.go) / 750);

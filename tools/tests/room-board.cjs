@@ -31,7 +31,7 @@ const { chromium } = require('playwright');
     const headings = {
       Explore: 'RING RUSH', Arena: 'BURGER HEIST', Exchange: 'BUNG’S REBAR EXCHANGE',
       Expedition: 'THE GREAT BRISBANE REBAR RESCUE', Minigames: 'TEN TABLES. ZERO SENSIBLE IDEAS.',
-      Players: 'ROOM LEADERBOARD',
+      'Trolley Races': 'TROLLEY RACES', Players: 'ROOM LEADERBOARD',
     };
     for (const [width, height] of [[1280, 800], [760, 620], [390, 844], [375, 667], [667, 375]]) {
       await page.setViewportSize({ width, height });
@@ -70,7 +70,7 @@ const { chromium } = require('playwright');
     await page.keyboard.press('KeyE');
     assert.equal(await tab('Exchange').getAttribute('aria-selected'), 'true');
     assert.deepEqual(errors, []);
-    console.log('ROOM BOARD PASSED · six tabs, five viewport sizes, keyboard and direct Exchange');
+    console.log('ROOM BOARD PASSED · seven tabs, five viewport sizes, keyboard and direct Exchange');
   } finally {
     await browser.close();
   }

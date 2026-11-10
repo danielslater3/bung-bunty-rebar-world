@@ -212,6 +212,7 @@ export class BungRoom extends DurableObject {
             m.name,
             typeof m.token === 'string' ? m.token : null,
             m.appearance,
+            m.trolley,
           );
         // Rejoining a session replaces the old socket without taking an extra slot.
         for (const other of this.ctx.getWebSockets())
@@ -234,16 +235,18 @@ export class BungRoom extends DurableObject {
         const previous = current && { pos: current.pos, at: current.moveAt || 0 };
         if (this.engine.move(a.id, m)) {
           const gate = this.engine.ringCrossed(a.id, previous);
+          const race = this.engine.raceGate(a.id, previous);
           const pickup = this.engine.pickupOnMove(a.id, previous);
-          if (gate || pickup) {
+          if (gate || race || pickup) {
             const next = this.next();
             if (pickup) {
               next.collectPickup(next.s.players[a.id], pickup);
               next.changed();
             }
             if (gate) next.advanceRing(a.id, previous);
+            if (race) next.advanceRace(a.id, previous);
             this.persist(next);
-            reschedule = gate;
+            reschedule = !!(gate || race);
             this.broadcast();
           }
           const p = this.engine.s.players[a.id];
@@ -326,6 +329,8 @@ export class BungRoom extends DurableObject {
     if (!this.engine) return;
     let next = Date.now() + 3600000;
     if (this.engine.s.arena?.deadline) next = Math.min(next, this.engine.s.arena.deadline);
+    for (const event of Object.values(this.engine.s.events))
+      if (event.status !== 'finished' && event.deadline) next = Math.min(next, event.deadline);
     for (const g of Object.values(this.engine.s.games))
       if (g.status === 'playing') {
         next = Math.min(

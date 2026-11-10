@@ -375,7 +375,7 @@ body.multiplayer-active:has(#dialogue:not(.hidden)) .mp-notice{visibility:hidden
 .mp-room-tools .mp-button { padding: 9px 12px; white-space: nowrap; }
 .mp-room-tabs {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   flex: 0 0 auto;
   gap: 5px;
   padding: 9px 16px;
@@ -529,3 +529,24 @@ body.multiplayer-active:has(.s24-alert:not([hidden])) .mp-notice{top:152px}
 @media(max-width:900px){body.multiplayer-active .s24-alert{top:156px}body.multiplayer-active:has(.s24-alert:not([hidden])) .mp-notice{top:224px}}
 @media(max-width:550px){.s24-slot{bottom:61px}.s24-app-grid{gap:10px 3px}.s24-shell{height:min(750px,calc(100dvh - 12px))}.s24-body{padding-inline:11px}}
 @media(max-width:900px){body.multiplayer-active .s24-slot{bottom:64px;left:auto;right:12px;transform:none}}
+
+/* Shared room activities */
+.mp-trolley-picker label{display:block;margin-top:8px}
+.mp-fleet-swatches{display:flex;gap:6px;margin:8px 0}
+.mp-fleet-swatches i{width:25px;height:17px;border:1px solid #ffffff69;border-radius:5px}
+.mp-activity-toast{--room-invite-top:82px;position:absolute;z-index:2;top:var(--room-invite-top);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:8px 11px;width:min(460px,calc(100vw - 24px));background:#14293cf5;border:1px solid #81bbc4;border-radius:14px;box-shadow:0 6px 22px #0007;pointer-events:auto}
+.mp-activity-toast[hidden]{display:none}
+.mp-activity-toast div{flex:1;min-width:0}
+.mp-activity-toast strong,.mp-activity-toast small{display:block;overflow-wrap:anywhere}
+.mp-activity-toast strong{color:#ffe08b;font-size:14px}
+.mp-activity-toast small{color:#c0dae5;font-size:11px}
+.mp-activity-toast button{padding:7px 8px;border:1px solid #6d8796;border-radius:8px;background:#30495d;color:#fff5e5;cursor:pointer;white-space:nowrap;font-size:11px}
+.mp-activity-toast .mp-activity-join{color:#182432;background:#ffce55;border-color:#ffe39c}
+.mp-table-error{color:#ffd4c5;background:#512d3d;border-radius:9px;padding:7px 10px;margin:8px 0}
+body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .s24-alert{top:151px}
+body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .mp-notice{top:222px}
+@media(max-width:900px){
+  .mp-activity-toast{--room-invite-top:158px}
+  body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .s24-alert{top:230px}
+  body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .mp-notice{top:300px}
+}

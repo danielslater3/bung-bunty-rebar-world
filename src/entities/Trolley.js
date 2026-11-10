@@ -72,19 +72,21 @@ export class Trolley {
 
   get spec() { return trolleySpec(state.trolley); }
   get maxSpeed() {
-    let m = (18 + upgLevel('turbo') * 2.5) * this.spec.speed * (this.boosting ? 1.55 : 1);
+    const race = this.game.multiplayer?.raceEntry();
+    const power = race?.power?.type === 'boost' && this.game.multiplayer.client.now() < race.power.at + 6500 ? 1.2 : 1;
+    let m = (18 + upgLevel('turbo') * 2.5) * (race ? 1 : this.spec.speed) * (this.boosting ? 1.55 : 1) * power;
     if (state.saga?.trolleyDamage) m *= 0.42;
     if (state.saga?.bigBoy) m *= 1.32;
     return m;
   }
   get accel() {
-    let a = (16 + upgLevel('turbo') * 2) * this.spec.accel;
+    let a = (16 + upgLevel('turbo') * 2) * (this.game.multiplayer?.raceEntry() ? 1 : this.spec.accel);
     if (state.saga?.trolleyDamage) a *= 0.45;
     if (state.saga?.bigBoy) a *= 1.35;
     return a;
   }
-  get turnRate() { return (1.9 + upgLevel('handling') * 0.35) * this.spec.turn; }
-  get fuelMax() { return (60 + upgLevel('tank') * 30) * this.spec.fuel; }
+  get turnRate() { return this.game.multiplayer?.raceEntry() ? 1.9 : (1.9 + upgLevel('handling') * 0.35) * this.spec.turn; }
+  get fuelMax() { return this.game.multiplayer?.raceEntry() ? 60 : (60 + upgLevel('tank') * 30) * this.spec.fuel; }
 
   // ============ BOOST STATE MACHINE ============
   // Transitions (the ONLY place boost audio/FX start or stop):
@@ -113,9 +115,10 @@ export class Trolley {
     }
   }
 
-  applyFleet(id) {
+  applyFleet(id, announce = true) {
     const spec = trolleySpec(id);
     state.trolley = spec.id;
+    if (this.mesh.userData.fleetId === spec.id) return;
     const next = buildTrolley(spec.id);
     next.visible = this.summoned;
     next.position.copy(this.mesh.position);
@@ -129,8 +132,10 @@ export class Trolley {
     this.trail.material.color.setHex(spec.trail);
     this.head.color.setHex(spec.glow);
     bus.emit('hud');
-    this.game.toast(spec.name);
-    if (this.game.mode === 'playing') this.game.say('bung', spec.blurb);
+    if (announce) {
+      this.game.toast(spec.name);
+      if (this.game.mode === 'playing') this.game.say('bung', spec.blurb);
+    }
   }
 
   cycle() {
