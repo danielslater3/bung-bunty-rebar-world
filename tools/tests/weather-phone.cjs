@@ -22,8 +22,9 @@ const { chromium } = require('playwright');
     }, process.env.ROOM_SERVER || 'https://bung-bunty-rooms.sitecraft-au.workers.dev');
     await page.locator('#btn-multiplayer').click();
     await page.getByLabel('Your player name').fill('Storm Runner');
-    await page.locator('.s24-picker summary').click();
     const editions = page.getByLabel('Handset edition');
+    await editions.waitFor({ state: 'visible' });
+    await page.locator('.s24-picker img').waitFor({ state: 'visible' });
     assert.equal(await editions.locator('option').count(), 10);
     for (const id of ['titanium','rebar','concrete','girder','james','night','emerald','mcrebar','transition','yard']) {
       await editions.selectOption(id);

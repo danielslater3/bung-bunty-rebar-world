@@ -41,8 +41,7 @@ function art(edition) {
 }
 export function phonePicker(parent) {
   const wrap = el('section', '', 's24-picker');
-  const details = el('details');
-  details.append(el('summary', 'Choose your Rebar S24'));
+  const title = el('h3', '', 's24-picker-title');
   const content = el('div', '', 's24-picker-content');
   const preview = el('div', '', 's24-picker-preview');
   const controls = el('div');
@@ -59,14 +58,13 @@ export function phonePicker(parent) {
   const render = () => {
     const e = editionFor(select.value);
     preview.replaceChildren(art(e));
-    details.style.setProperty('--s24-accent', e.accent);
-    details.querySelector('summary').textContent = 'Rebar S24 · ' + e.name;
+    wrap.style.setProperty('--s24-accent', e.accent);
+    title.textContent = 'Rebar S24 · ' + e.name;
   };
   select.onchange = render;
   controls.append(label, select, el('p', 'All editions include Bung Weather, City Map, Camera, Notes and the Arcade.'));
   content.append(preview, controls);
-  details.append(content);
-  wrap.append(details);
+  wrap.append(title, content);
   parent.append(wrap);
   render();
   return () => {

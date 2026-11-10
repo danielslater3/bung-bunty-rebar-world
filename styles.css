@@ -515,7 +515,7 @@ body.multiplayer-active .s24-alert{top:106px}
 .s24-arcade-grid:has(button:nth-child(9):last-child){grid-template-columns:repeat(3,minmax(0,1fr))}
 .s24-arcade-grid button{min-height:46px;font-size:22px}
 .s24-picker{margin:10px 0 13px;border:1px solid #66818d;border-radius:12px;padding:10px 13px;background:#132637}
-.s24-picker summary{cursor:pointer;color:var(--s24-accent,#ffd16e);font-weight:700}
+.s24-picker-title{margin:0;color:var(--s24-accent,#ffd16e);font-size:inherit;font-weight:700}
 .s24-picker-content{display:grid;grid-template-columns:105px 1fr;gap:13px;margin-top:10px;align-items:center}
 .s24-picker select{display:block;width:100%;margin:4px 0 7px;padding:8px;color:#f4f7fa;background:#1e3449;border:1px solid #698894;border-radius:8px;font:inherit}
 .s24-picker p{font:600 12px var(--font-body);color:#b2c7d7}
