@@ -105,6 +105,12 @@ const { chromium } = require('playwright');
     }
     await b.waitForFunction(() => BUNG.multiplayer.room.games.tictactoe.status === 'finished');
     await b.evaluate(() => BUNG.multiplayer.hidePanels());
+    const wallet=await a.evaluate(()=>{const m=BUNG.multiplayer,p=m.room.players[m.client.id];return {score:p.score,rebar:p.rebar};});
+    assert.ok(wallet.score>0);
+    await a.evaluate(()=>BUNG.multiplayer.openBoard('exchange'));
+    await a.getByRole('button',{name:'SELL SCORE FOR REBAR',exact:true}).click();
+    await a.waitForFunction(()=>{const m=BUNG.multiplayer;return m.room.players[m.client.id].score===0;});
+    assert.equal(await a.evaluate(()=>{const m=BUNG.multiplayer;return m.room.players[m.client.id].rebar;}),wallet.rebar+Math.max(1,Math.round(wallet.score/10)));
 
     const roads = await a.evaluate(async () => {
       const { RACE_COURSES } = await import('/src/multiplayer/raceCourses.js');

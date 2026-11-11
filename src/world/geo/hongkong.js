@@ -105,7 +105,7 @@ export function buildOsmHongKong(game) {
       state.flags.noodleQuest = true;
       addCoins(100);
       game.audio.sfx('buy');
-      game.toast('NOODLEMART DELIVERY COMPLETE: +100 BUNGBUCKS', 'blue');
+      game.toast('NOODLEMART DELIVERY COMPLETE: +100 REBAR', 'blue');
       game.dialogue.conversation([
         ['system', 'NOODLEMART: deliver these noodles to literally anyone.'],
         ['bung', 'Delivered them to myself. The receipt is a concept.'],

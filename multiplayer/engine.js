@@ -338,6 +338,12 @@ export class RoomEngine {
         ['joinGame', 'startGame', 'questJoin', 'ringStart'].includes(m.cmd))
       fail('Leave Burger Heist before starting another activity.');
     switch (m.cmd) {
+      case 'sellScore': {
+        const sold=p.score;
+        if(sold<=0)fail('No Bung Score to sell.');
+        this.reward(p,-sold,Math.max(1,Math.round(sold/10)),'Bung Score sold for rebar','sell');
+        break;
+      }
       case 'garageBuy': {
         if(racing(this,id))fail('Finish the race before visiting Bung Garage.');
         if(!this.near(p,GARAGE,22))fail('Drive into Bung Garage to fit parts.');

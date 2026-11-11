@@ -31,11 +31,11 @@ export const UPGRADES = [
   { id: 'map_shenzhen', cat: 'MAPS', name: 'Shenzhen Cyber Rebar Core', desc: 'Skip straight to the endgame zone.', cost: 1500, max: 1, mapUnlock: 'shenzhen' },
   { id: 'map_void',     cat: 'MAPS', name: 'Rebar Void', desc: 'The floating portal dimension. Score attack heaven.', cost: 800, max: 1, mapUnlock: 'void' },
   // ---- Empire ----
-  { id: 'warehouse', cat: 'EMPIRE', name: 'Brisbane Rebar Yard', desc: 'Pays BungBucks while you play. One shed. A whole personality.', cost: 400, max: 1, flag: 'warehouse' },
+  { id: 'warehouse', cat: 'EMPIRE', name: 'Brisbane Rebar Yard', desc: 'Pays rebar while you play. One shed. A whole personality.', cost: 400, max: 1, flag: 'warehouse' },
   { id: 'hkdesk', cat: 'EMPIRE', name: 'Hong Kong Exchange Desk', desc: 'Bigger payout. Needs the Brisbane yard first.', cost: 900, max: 1, flag: 'hkdesk', requires: 'warehouse' },
 ];
 
-export const SHOP_CATEGORIES = ['BUNG', 'GRAPPLE', 'TROLLEY', 'FOOD', 'MAPS', 'EMPIRE'];
+export const SHOP_CATEGORIES = ['BUNG', 'GRAPPLE', 'FOOD', 'MAPS', 'EMPIRE'];
 
 export class ShopSystem {
   constructor(game) {
@@ -49,18 +49,19 @@ export class ShopSystem {
   }
 
   canBuy(upg) {
+    if (upg.cat==='TROLLEY') return false;
     if (!upg.consumable && upgLevel(upg.id) >= (upg.max || 1)) return false;
     if (upg.mapUnlock && state.unlockedZones.includes(upg.mapUnlock)) return false;
     if (upg.flag && state.flags[upg.flag]) return false;
     if (upg.requires && !state.flags[upg.requires]) return false;
-    return state.coins >= this.costOf(upg);
+    return state.rebars >= this.costOf(upg);
   }
 
   buy(upgId) {
     const upg = UPGRADES.find((u) => u.id === upgId);
     const g = this.game;
-    if (!upg || !this.canBuy(upg)) { g.audio.sfx('denied'); return false; }
-    state.coins -= this.costOf(upg);
+    if (!upg || upg.cat==='TROLLEY' || !this.canBuy(upg)) { g.audio.sfx('denied'); return false; }
+    state.rebars -= this.costOf(upg);
     g.audio.sfx('buy');
 
     if (upg.consumable) {
@@ -118,7 +119,7 @@ export class ShopSystem {
     bus.emit('hud');
   }
 
-  // Score → Rebar Coins at 10:1, with a combo-best bonus.
+  // Score → rebar at 10:1, with a combo-best bonus.
   sellScore() {
     const g = this.game;
     if (state.score <= 0) {
@@ -127,14 +128,14 @@ export class ShopSystem {
       return;
     }
     const coins = Math.max(1, Math.round(state.score / 10));
-    state.coins += coins;
+    state.rebars += coins;
     const sold = state.score;
     state.score = 0;
     g.hud.displayScore = 0; // no slow tween down after a sale
     g.chain.resetChain('sold', true); // intentional chain reset (silent)
     g.audio.sfx('sell');
-    g.toast(`SOLD ${sold} SCORE FOR ${coins} BUNGBUCKS`);
-    g.say('chung', 'BungBucks processed. Try not to spend them all on burgers.');
+    g.toast(`SOLD ${sold} SCORE FOR ${coins} REBAR`);
+    g.say('chung', 'rebar processed. Try not to spend them all on burgers.');
     bus.emit('hud');
     bus.emit('qe', { type: 'sell', target: 'any' });
     SaveSystem.save();

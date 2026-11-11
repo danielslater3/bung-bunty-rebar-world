@@ -118,7 +118,10 @@ export class ZoneKit {
     const liftV = (v) => { if (v) v.y += dAt(v.x, v.z); };
     for (let i = s.pick; i < this.pickups.length; i++) {
       const c = this.pickups[i];
-      if (!c._abs) c.pos.y += dAt(c.pos.x, c.pos.z);
+      if (!c._abs) {
+        c.pos.y += dAt(c.pos.x, c.pos.z);
+        c.home?.copy(c.pos);
+      }
     }
     for (let i = s.inter; i < this.interactables.length; i++) {
       if (!this.interactables[i]._abs) liftV(this.interactables[i].pos);

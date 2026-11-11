@@ -632,3 +632,10 @@ test('server allows full-strength tornado throws only around its shared weather 
  s.time+=15000;player.moveAt=s.time-125;
  assert.throws(move,/Position corrected/,'grace expires outside the storm');
 });
+test('Bung Score converts directly to rebar once per request',()=>{
+ const {e,p}=setup();p[0].score=150;p[0].rebar=2;
+ const message={cmd:'sellScore',requestId:'sale-once'};
+ e.command(p[0].id,message);e.command(p[0].id,message);
+ assert.equal(p[0].score,0);assert.equal(p[0].rebar,17);
+ assert.throws(()=>e.command(p[0].id,{cmd:'sellScore',requestId:'empty-sale'}),/No Bung Score/);
+});

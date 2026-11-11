@@ -66,7 +66,7 @@ export function dressBrisbane(Z, game, places) {
     state.rebars = Math.max(0, state.rebars - 3);
     state.flags.sebContract = true;
     addCoins(180);
-    game.toast('SEB DALY PAID 180 BUNGBUCKS', 'blue');
+    game.toast('SEB DALY PAID 180 REBAR', 'blue');
     game.say('chung', 'You just sold steel to the Big Boss. Try to look like that was a plan.');
   }, 4);
 
@@ -125,7 +125,7 @@ export function dressBrisbane(Z, game, places) {
       });
     });
     addCoins(2500);
-    game.toast('SIR GIRDERFACE AWAKENS — +2500 BUNGBUCKS', 'red');
+    game.toast('SIR GIRDERFACE AWAKENS — +2500 REBAR', 'red');
     game.dialogue.conversation([
       ['bung', 'Ten eyes. Molten trail. I am choosing to be flattered.'],
       ['chung', 'You woke the Rebar Overlord on a real bridge. We are leaving the river.'],
@@ -183,7 +183,7 @@ export function dressHongKong(Z, game, places) {
     state.stock.forbidden -= 1;
     addCoins(350);
     state.flags.smugglerDeal = true;
-    game.toast('HARBOUR STALL PAID 350 BUNGBUCKS', 'red');
+    game.toast('HARBOUR STALL PAID 350 REBAR', 'red');
     game.say('bung', 'I have participated in a crime. It was about rebar, so it counts as work.');
   }, 3.6);
   Z.addCollectible('forbidden', new THREE.Vector3(ferry.x + 6, 1.2, ferry.z + 4));

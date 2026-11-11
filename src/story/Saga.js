@@ -1258,7 +1258,7 @@ export class Saga {
     closePlay();
     const ch = this.chapter();
     const first = awardChapter(state, ch);
-    if (first && ch.reward?.coins) this.game.toast(`+${ch.reward.coins} BUNGBUCKS`, 'blue');
+    if (first && ch.reward?.coins) this.game.toast(`+${ch.reward.coins} REBAR`, 'blue');
     if (ch.reward?.archive) unlockArchive(ch.reward.archive);
     state.saga.trolleyDamage = false;
     hideGuide(this);

@@ -749,31 +749,9 @@ export class Multiplayer {
       this.activityTarget={x:108.45,z:22,y:10,label:'BUNG GARAGE · G TO CUSTOMISE'};
       this.hidePanels();
     });
-    if (!atExchange) {
-      const visit = el('div', 'mp-exchange-visit');
-      visit.append(el('p', '', 'Visit the counter to buy or upgrade your trolley.'));
-      this.roomButton(visit, 'FIND EXCHANGE', () => {
-        this.activityTarget = EXCHANGE;
-        this.hidePanels();
-      });
-      shop.append(visit);
-    }
-    for (const item of EXCHANGE_ITEMS) {
-      const row = el('div', 'mp-exchange-item');
-      const detail = el('div');
-      detail.append(el('b', '', item.label), el('p', '', item.detail));
-      if (item.swatch) {
-        const color = el('span', 'mp-swatch');
-        color.style.backgroundColor = '#' + item.swatch.toString(16).padStart(6, '0');
-        detail.prepend(color);
-      }
-      const owned = p.inventory?.[item.id];
-      const buy = el('button', 'mp-button', owned ? 'EQUIPPED' : `BUY · ${item.price}`);
-      buy.disabled = !!owned || p.rebar < item.price || !atExchange;
-      buy.onclick = () => this.client.command('exchangeBuy', { item: item.id });
-      row.append(detail, buy);
-      shop.append(row);
-    }
+    shop.append(el('p','',`${p.score} Bung Score · sell directly at 10:1 for rebar. Trolley upgrades are at Bung Garage.`));
+    const sell=el('button','mp-button','SELL SCORE FOR REBAR');
+    sell.disabled=p.score<=0;sell.onclick=()=>this.client.command('sellScore');shop.append(sell);
     panel.append(shop);
   }
 

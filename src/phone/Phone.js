@@ -374,7 +374,7 @@ export class Phone {
       const g = this.game, mp = g.multiplayer, p = mp.room?.players[mp.client?.id];
       const text = mp.active && p
         ? [p.score + ' room points', p.rebar + ' room rebar', Object.keys(p.inventory || {}).length + ' equipped upgrades']
-        : [state.coins + ' BungBucks', state.rebars + ' rebar', state.score + ' campaign score'];
+        : [state.rebars + ' rebar', state.score + ' campaign score'];
       if (balances.dataset.values === text.join()) return;
       balances.dataset.values = text.join();
       balances.replaceChildren(...text.map(v => el('p', v)));

@@ -452,7 +452,7 @@ function buildHongKong(game) {
       state.flags.noodleQuest = true;
       addCoins(100);
       game.audio.sfx('buy');
-      game.toast('NOODLEMART DELIVERY COMPLETE: +100 REBAR COINS', 'blue');
+      game.toast('NOODLEMART DELIVERY COMPLETE: +100 REBAR', 'blue');
       game.dialogue.conversation([
         ['system', 'NOODLEMART: Please deliver these noodles to literally anyone.'],
         ['bung', 'Delivery complete. I delivered them to myself. Legally fine.'],

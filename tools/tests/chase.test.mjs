@@ -62,7 +62,7 @@ test('chapter-clear rewards are idempotent and old clear saves migrate', () => {
     state.saga.step = chapter.steps.length;
     assert.equal(awardChapter(state, chapter), true);
     assert.equal(awardChapter(state, chapter), false);
-    assert.equal(state.coins, chapter.reward?.coins || 0);
+    assert.equal(state.rebars, chapter.reward?.coins || 0);
     state.saga.intermission = false;
     assert.equal(repairProgress(state.saga, CHAPTERS), false);
     assert.equal(state.saga.intermission, true);

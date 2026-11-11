@@ -27,7 +27,8 @@ export const DEFAULT_STATE = () => ({
   fuel: 60, maxFuel: 60,
 
   // Currencies & collectibles
-  coins: 0,
+  coins: 0, // Legacy save field; migrated once into rebar.
+  currencyVersion: 1,
   rebars: 0,
   shards: 0,
   score: 0,
@@ -54,7 +55,7 @@ export const DEFAULT_STATE = () => ({
   quests: { activeIndex: 0, completed: [], progress: {} },
   flags: {}, // misc story flags (foundPhone, gaborDefeated, etc.)
 
-  // Rebirth: graded rebar yard + unlocked lore cards. Coins are BungBucks.
+  // Rebirth: graded rebar yard + unlocked lore cards. Rebar is the spending currency.
   stock: {},
   archive: ['bung', 'chung', 'gabor', 'james', 'conspiracy'],
 
@@ -71,12 +72,18 @@ export let state = DEFAULT_STATE();
 const SAVE_KEY = 'bung-bunty-rebar-world-save-v1';
 const REPLAY_KEY = SAVE_KEY + '-replay';
 
+export function migrateCurrency(data) {
+  if(!data || data.currencyVersion===1)return data;
+  data.rebars=Math.max(0,Number(data.rebars)||0)+Math.max(0,Number(data.coins)||0);
+  data.coins=0;data.currencyVersion=1;
+  return data;
+}
 export const SaveSystem = {
   hasSave() {
     try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; }
   },
   peek() {
-    try { return migrateCharacterState(JSON.parse(localStorage.getItem(SAVE_KEY) || 'null')); } catch { return null; }
+    try { return migrateCurrency(migrateCharacterState(JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'))); } catch { return null; }
   },
   save(game) {
     if(state._multiplayer)return true;
@@ -115,13 +122,13 @@ export const SaveSystem = {
   beginReplay(prepared) {
     // Persist first: if storage is full, leave the active game untouched.
     localStorage.setItem(REPLAY_KEY, JSON.stringify(prepared));
-    Object.assign(state, DEFAULT_STATE(), prepared);
+    Object.assign(state, DEFAULT_STATE(), migrateCurrency(prepared));
   },
   load(replay = false) {
     try {
       const raw = localStorage.getItem(replay ? REPLAY_KEY : SAVE_KEY);
       if (!raw) return false;
-      const data = migrateCharacterState(JSON.parse(raw));
+      const data = migrateCurrency(migrateCharacterState(JSON.parse(raw)));
       if (replay && (!data?._replay || !data?.saga?.active)) return false;
       Object.assign(state, DEFAULT_STATE(), data);
       if (!replay) state._replay = null;
@@ -143,7 +150,7 @@ export const SaveSystem = {
 };
 
 // ---- Convenience mutators (emit events for HUD/quests) ----
-export function addCoins(n) { state.coins += n; bus.emit('hud'); }
+export function addCoins(n) { state.rebars += n; bus.emit('hud'); }
 export function addRebars(n) {
   state.rebars += n;
   bus.emit('hud');

@@ -39,7 +39,7 @@ export class HUD {
     // Low trolley fuel warning rattle (only meaningful once unlocked)
     this.$('fuel-wrap').classList.toggle('fuel-low',
       state.flags.trolleyUnlocked && state.fuel < state.maxFuel * 0.18);
-    this.$('coins-val').textContent = state.coins.toLocaleString();
+    this.$('coins-val').textContent = '';
     const yard = this.$('yard-val');
     if (yard) yard.textContent = yardCount();
     this.$('rebars-val').textContent = state.rebars;

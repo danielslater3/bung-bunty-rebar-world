@@ -12,6 +12,8 @@ Campaign purchases spend campaign rebar and save with the campaign (or isolated 
 
 ## Weather
 
+Rebar is now the spending currency throughout campaign and rooms. Former BungBucks balances migrate into rebar once at 1:1. Score sells directly into rebar at 10:1 in either Exchange. Campaign character upgrades, food, maps and empire purchases spend rebar; trolley tuning is sold only through the new garage UI. Existing purchased upgrades remain effective. Normal and graded campaign rebar pickups respawn after 45 seconds, including across reloads; unique story pickups remain collected. Multiplayer keeps its existing server-timed pickup respawns. Campaign and room wallets remain isolated so joining a room cannot overwrite campaign progress.
+
 Tornadoes ray march a three-dimensional density field with 40 bounded samples. Rotating, rising noise at three scales, changing radius, asymmetric bends and orbiting sub-vortices animate the actual condensation volume. EF5 has a broader, optically denser dark core. Existing warnings, wind, player throws, airborne vehicles and temporary building damage remain connected to the same forecast. There are no new weather image assets.
 
 Room clients use the room code and shared server clock for weather. The singlet and sunshine announcements use the visible room notice. Multiplayer uses the same throw strength as campaign; movement validation allows a short, bounded higher-speed window around a server-derived tornado and rejects excessive travel after recovery. Ordinary movement limits and arena restrictions remain in place.

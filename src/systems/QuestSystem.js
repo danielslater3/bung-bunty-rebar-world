@@ -82,7 +82,7 @@ export const QUESTS = [
   {
     id: 'q6', name: 'Rain, Rebars, and Rooftops', chapter: 'CHAPTER 4 — DIGITECH BLUE MODE', zone: 'hongkong',
     brief: [['chung', 'Hong Kong. Gabor\'s supply line runs under the neon. DIGITECH BLUE MODE is on, and the streets are not optional.'],
-            ['bung', 'I can smell the Rebar Coins through the rain.']],
+            ['bung', 'I can smell the rebar through the rain.']],
     objectives: [
       { text: 'Travel to Hong Kong Neon Rain City', type: 'enter', target: 'hongkong', count: 1 },
       { text: 'Complete the harbourfront portal chain (12 portals)', type: 'portal', target: 'any', count: 12 },
@@ -204,7 +204,7 @@ export class QuestSystem {
     g.hud.questBanner(q.name); // big centre-screen completion banner
     g.toast(`OPERATION COMPLETE: ${q.name.toUpperCase()}`, 'blue');
     if (q.reward) {
-      if (q.reward.coins) { state.coins += q.reward.coins; g.toast(`+${q.reward.coins} REBAR COINS`); }
+      if (q.reward.coins) { state.rebars += q.reward.coins; g.toast(`+${q.reward.coins} REBAR`); }
       if (q.reward.unlock && !state.unlockedZones.includes(q.reward.unlock)) {
         state.unlockedZones.push(q.reward.unlock);
       }

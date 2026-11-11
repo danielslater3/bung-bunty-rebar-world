@@ -157,7 +157,7 @@ export class Menus {
         <div class="panel-sub">ACT ${act?.id || 1}${!next || next.act !== ch.act ? ' COMPLETE' : ''}</div>
         <h2>CHAPTER ${ch.n}</h2>
         <div class="panel-sub">${ch.title}</div>
-        <p style="margin:14px 0;font-weight:800;">${ch.reward?.relic ? ch.reward.relic + ' is on the shelf. ' : ''}${ch.reward?.coins ? '+' + ch.reward.coins + ' BungBucks.' : ''}</p>
+        <p style="margin:14px 0;font-weight:800;">${ch.reward?.relic ? ch.reward.relic + ' is on the shelf. ' : ''}${ch.reward?.coins ? '+' + ch.reward.coins + ' rebar.' : ''}</p>
         <div class="menu-btns" style="width:100%;">
           <button class="mbtn gold" id="btn-next">${next?.playable ? 'NEXT CHAPTER' : 'ROAM BRISBANE'}</button>
         </div>
@@ -212,11 +212,12 @@ export class Menus {
         <div class="panel">
           <h2>REBAR EXCHANGE</h2>
           <div class="panel-sub">"REAL WEALTH IS MEASURED IN REBARS." — B. BUNTY · SCORE SELLS AT 10:1</div>
-          <div class="shop-wallet">BUNGBUCKS: ${state.coins.toLocaleString()} &nbsp;·&nbsp; BUNG SCORE: ${state.score.toLocaleString()}</div>
+          <div class="shop-wallet">REBAR: ${state.rebars.toLocaleString()} &nbsp;·&nbsp; BUNG SCORE: ${state.score.toLocaleString()}</div>
           <div class="shop-cats">
             ${SHOP_CATEGORIES.map((c) => `<div class="shop-cat${c === this.shopCat ? ' active' : ''}" data-cat="${c}">${c}</div>`).join('')}
             <div class="shop-cat" id="sell-score" style="border-color:rgba(255,201,64,.6);color:var(--gold);">SELL SCORE</div>
           </div>
+          <p>Trolley parts and tuning are now at BUNG GARAGE. Walk or drive inside and press G.</p>
           <div class="shop-grid">
             ${items.map((u) => {
               const lvl = state.upgrades[u.id] || 0;
@@ -229,7 +230,7 @@ export class Menus {
                   ${!u.consumable && u.max > 1 ? `<div class="si-lvl">LEVEL ${lvl}/${u.max}</div>` : ''}
                 </div>
                 <button class="buy-btn" data-id="${u.id}" ${maxed || !shop.canBuy(u) ? 'disabled' : ''}>
-                  ${maxed ? 'OWNED' : `${cost} ¢`}
+                  ${maxed ? 'OWNED' : `${cost} REBAR`}
                 </button>
               </div>`;
             }).join('')}
@@ -447,7 +448,7 @@ export class Menus {
     const s = this._screen(`
       <div class="panel">
         <h2>LORE ARCHIVE</h2>
-        <div class="panel-sub">${owned.size} / ${ARCHIVE.length} RECORDS. CURIOSITY PAYS BUNGBUCKS IN SELF-RESPECT.</div>
+        <div class="panel-sub">${owned.size} / ${ARCHIVE.length} RECORDS. CURIOSITY PAYS REBAR IN SELF-RESPECT.</div>
         <div class="archive-list">
           ${ARCHIVE.map((e) => owned.has(e.id)
             ? `<div class="archive-card"><b>${e.title}</b><p>${e.body}</p></div>`
@@ -498,13 +499,13 @@ export class Menus {
       this.game.audio.sfx(hit ? 'coin' : 'denied');
       if (ball >= 3) {
         const pay = runs * 20;
-        state.coins += pay;
+        state.rebars += pay;
         if (runs >= 10) unlockArchive('cricket');
         bus.emit('hud');
         SaveSystem.save();
-        scoreEl.textContent = `${runs} RUNS · PAID ${pay} BUNGBUCKS`;
+        scoreEl.textContent = `${runs} RUNS · PAID ${pay} REBAR`;
         s.querySelector('#btn-swing').disabled = true;
-        this.game.toast(`CRICKET PAYS ${pay} BUNGBUCKS`, 'blue');
+        this.game.toast(`CRICKET PAYS ${pay} REBAR`, 'blue');
       } else {
         scoreEl.textContent = `${runs} RUNS · BALL ${ball + 1}/3`;
       }

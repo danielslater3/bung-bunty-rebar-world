@@ -563,3 +563,4 @@ body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .mp-notice{top:222
 .bung-garage-ui nav{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
 .bung-garage-ui nav button{background:#294657;color:#d3e4e8}
 .bung-garage-ui nav button[aria-pressed=true]{background:#ffce63;color:#182b39}
+.hud-currency[hidden]{display:none}

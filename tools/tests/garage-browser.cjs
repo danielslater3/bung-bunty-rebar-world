@@ -35,6 +35,9 @@ console.log(await p.evaluate(async()=>{
  }
  if(!exited)throw Error('Trolley could not drive out of garage');
  g.input.keys={};trolley.dismiss();
+ const pickup=z.rebar(1000,20,1000),before=state.rebars;
+ pickup.collect();pickup.collect();if(state.rebars!==before+1)throw Error('Pickup paid twice');
+ pickup.readyAt=Date.now()-1;pickup.update(0);if(pickup.collected||!pickup.mesh.visible)throw Error('Rebar did not respawn');
  state.rebars=200;
  const pos=garage.frame.world({x:0,y:garage.floor+.1,z:10});g.player.teleport(new T.Vector3(pos.x,pos.y,pos.z));
  g.garage.open();

@@ -569,7 +569,7 @@ export class Game {
       this._lastSay = this.elapsed;
       const barks = [
         'Real wealth is measured in rebars.',
-        'I can smell the Rebar Coins.',
+        'I can smell the rebar.',
         'Operation Rebar is proceeding... operationally.',
         'The trolley never lies.',
       ];

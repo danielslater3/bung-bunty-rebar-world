@@ -1,4 +1,4 @@
-// Rebars, Rebar Coins, Cyber Rebar Shards, Trolley Fuel, burger ingredients,
+// Rebars, rebar, Cyber Rebar Shards, Trolley Fuel, burger ingredients,
 // and one Titanium Samsung S24 parody phone.
 //
 // 2.0 pickup detection: SWEPT CAPSULE. Each frame we measure the distance
@@ -35,7 +35,7 @@ function tintedRebar(kind) {
 
 const BUILDERS = {
   rebar: buildRebar,
-  coin: buildCoin,
+  coin: buildRebar,
   shard: () => buildShard(false),
   redshard: () => buildShard(true),
   fuel: buildFuelCan,
@@ -67,12 +67,20 @@ export class Collectible {
     this.mesh.position.copy(pos);
     this.t = Math.random() * 10;
     this.key = `${game.zone?.name || 'world'}|${kind}|${this.pos.x.toFixed(1)}|${this.pos.y.toFixed(1)}|${this.pos.z.toFixed(1)}`;
-    this.collected = !!state.picked?.[this.key];
+    this.home=pos.clone();
+    this.renewable=kind==='rebar'||kind==='coin'||!!REBAR_TYPES[kind];
+    const saved=state.picked?.[this.key];
+    this.readyAt=this.renewable ? (typeof saved==='number'?saved:0):Infinity;
+    this.collected=this.renewable ? this.readyAt>Date.now() : !!saved;
     this.mesh.visible = !this.collected;
     game.zone.group.add(this.mesh);
   }
 
   update(dt) {
+    if(this.collected && this.renewable && Date.now()>=this.readyAt){
+      this.collected=false;this.pos.copy(this.home);this.mesh.position.copy(this.home);this.mesh.visible=true;
+      delete state.picked[this.key];
+    }
     if (this.collected) return;
     this.t += dt;
     this.mesh.rotation.y += dt * 1.8;
@@ -107,7 +115,8 @@ export class Collectible {
     this.collected = true;
     this.mesh.visible = false;
     if (!state.picked) state.picked = {};
-    state.picked[this.key] = true;
+    this.readyAt=Date.now()+45000;
+    state.picked[this.key] = this.renewable ? this.readyAt : true;
     const g = this.game;
     dlog('pickup', `collected ${this.kind} at ${this.pos.x.toFixed(1)},${this.pos.y.toFixed(1)},${this.pos.z.toFixed(1)}`);
 
@@ -182,7 +191,7 @@ export class Collectible {
           break;
         case 'phone':
           g.audio.sfx('unlock');
-          g.toast('TITANIUM PHONE RECOVERED! +150 BUNGBUCKS', 'blue');
+          g.toast('TITANIUM PHONE RECOVERED! +150 REBAR', 'blue');
           g.say('bung', 'The Titanium phone! Bung-approved engineering!');
           break;
         default:

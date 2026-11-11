@@ -46,7 +46,7 @@ export class Rebirth {
       if (this.incomeT > 30) {
         this.incomeT = 0;
         addCoins(pay);
-        if (Math.random() < 0.35) g.toast(`REBAR EMPIRE PAID ${pay} BUNGBUCKS`, 'blue');
+        if (Math.random() < 0.35) g.toast(`REBAR EMPIRE PAID ${pay} REBAR`, 'blue');
       }
     }
 

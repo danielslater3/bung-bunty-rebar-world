@@ -12,7 +12,7 @@ export function awardChapter(state, chapter) {
   const first = !saga.done.includes(chapter.id);
   if (first) {
     saga.done.push(chapter.id);
-    state.coins += chapter.reward?.coins || 0;
+    state.rebars = (state.rebars || 0) + (chapter.reward?.coins || 0);
   }
   if (chapter.reward?.relic && !saga.relics.includes(chapter.reward.relic))
     saga.relics.push(chapter.reward.relic);

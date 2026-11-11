@@ -169,9 +169,9 @@ export class Enemy {
       if (this.def.drainsCombo && state.combo > 0) {
         g.breakCombo('PORTAL LEECH DRAINED YOUR CHAIN!');
       }
-      if (this.def.stealsCoins && state.coins > 0) {
-        const steal = Math.min(10, state.coins);
-        state.coins -= steal;
+      if (this.def.stealsCoins && state.rebars > 0) {
+        const steal = Math.min(10, state.rebars);
+        state.rebars -= steal;
         g.toast(`BURGER BANDIT NICKED ${steal} COINS!`, 'red');
         bus.emit('hud');
       }
