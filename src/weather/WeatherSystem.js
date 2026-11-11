@@ -269,8 +269,7 @@ export class WeatherSystem {
     const nextWeather = wet ? 'storm' : sunny ? 'sun' : 'haze';
     const changed = nextWeather !== this.legacyWeather;
     this.legacyWeather = nextWeather;
-    if (changed && (nextWeather === 'storm' || nextWeather === 'sun'))
-      this.weatherAnnouncement = nextWeather;
+    if (changed) this.weatherAnnouncement = nextWeather === 'haze' ? null : nextWeather;
     if (g.mode === 'playing' && !g.phone.opened && !g.dialogue.current && !fighting &&
         !g.saga.freeze && !g.saga.scenePlaying && this.exposed && this.weatherAnnouncement) {
       const storm = this.weatherAnnouncement === 'storm';
