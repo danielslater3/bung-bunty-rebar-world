@@ -8,6 +8,16 @@ import {
   nearestOnPath,
 } from '../../src/systems/Navigation.js';
 const p = (x, z, y = 0) => ({ x, z, y });
+test('planned routes do not retain live player or target position references', () => {
+  const from=p(0,0),to=p(10,0);
+  const network=new RoadNetwork([{p:[0,0,10,0],w:4}],()=>0,()=>true);
+  const routes=[network.route(from,to),localRoute(from,to,()=>true)];
+  from.x=6;to.z=15;
+  for(const route of routes){
+    assert.deepEqual(route[0],p(0,0));
+    assert.deepEqual(route.at(-1),p(10,0));
+  }
+});
 test('shortest-angle rotation is frame independent across +/- pi', () => {
   const target = -Math.PI + 0.1;
   let a = Math.PI - 0.1,

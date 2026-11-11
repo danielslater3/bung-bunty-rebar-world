@@ -10,6 +10,8 @@ import { pushFootprints } from '../world/geo/footprints.js';
 import { state, bus, upgLevel } from '../core/state.js';
 import { buildTrolley, trolleySpec } from './models.js';
 import { dlog } from '../core/Debug.js';
+import { tuning } from '../garage/catalog.js';
+import { releaseTrolley } from '../garage/models.js';
 
 const GRAVITY = 26;
 // Minimum fuel required to START a boost. Boost may continue down to 0,
@@ -71,22 +73,30 @@ export class Trolley {
   }
 
   get spec() { return trolleySpec(state.trolley); }
+  get tune() {
+    const mp=this.game.multiplayer;
+    const record=(mp?.active?mp.room?.players[mp.client.id]?.garage:state.garage)?.[state.trolley];
+    if(!this._garageTune || record!==this._garageRecord){
+      this._garageRecord=record;this._garageTune=tuning(record);
+    }
+    return this._garageTune;
+  }
   get maxSpeed() {
     const race = this.game.multiplayer?.raceEntry();
     const power = race?.power?.type === 'boost' && this.game.multiplayer.client.now() < race.power.at + 6500 ? 1.2 : 1;
     let m = (18 + upgLevel('turbo') * 2.5) * (race ? 1 : this.spec.speed) * (this.boosting ? 1.55 : 1) * power;
     if (state.saga?.trolleyDamage) m *= 0.42;
     if (state.saga?.bigBoy) m *= 1.32;
-    return m;
+    return Math.min(44,m*this.tune.speed*(this.boosting?this.tune.nitro:1));
   }
   get accel() {
     let a = (16 + upgLevel('turbo') * 2) * (this.game.multiplayer?.raceEntry() ? 1 : this.spec.accel);
     if (state.saga?.trolleyDamage) a *= 0.45;
     if (state.saga?.bigBoy) a *= 1.35;
-    return a;
+    return a*this.tune.accel;
   }
-  get turnRate() { return this.game.multiplayer?.raceEntry() ? 1.9 : (1.9 + upgLevel('handling') * 0.35) * this.spec.turn; }
-  get fuelMax() { return this.game.multiplayer?.raceEntry() ? 60 : (60 + upgLevel('tank') * 30) * this.spec.fuel; }
+  get turnRate() { return (this.game.multiplayer?.raceEntry() ? 1.9 : (1.9 + upgLevel('handling') * 0.35) * this.spec.turn)*this.tune.turn; }
+  get fuelMax() { return (this.game.multiplayer?.raceEntry() ? 60 : (60 + upgLevel('tank') * 30) * this.spec.fuel)*this.tune.fuel; }
 
   // ============ BOOST STATE MACHINE ============
   // Transitions (the ONLY place boost audio/FX start or stop):
@@ -123,7 +133,7 @@ export class Trolley {
     next.visible = this.summoned;
     next.position.copy(this.mesh.position);
     next.rotation.copy(this.mesh.rotation);
-    this.game.scene.remove(this.mesh);
+    releaseTrolley(this.mesh);
     this.mesh = next;
     this.wheels = next.userData.wheels;
     this.wheelRadius = next.userData.wheelRadius;
@@ -254,7 +264,7 @@ export class Trolley {
       this.drifting = wantDrift;
       if (this.drifting) {
         steer *= 1.9 + upgLevel('drift') * 0.4;
-        this.driftCharge = Math.min(1.5, this.driftCharge + dt);
+        this.driftCharge = Math.min(1.5, this.driftCharge + dt*this.tune.drift);
         if (Math.random() < 0.6) g.fx.spark(this.pos.clone().add(new THREE.Vector3(0, 0.15, 0)), 0xffc23d);
       } else if (this.driftCharge > 0.4) {
         // Mini-boost on drift release
@@ -265,8 +275,9 @@ export class Trolley {
       } else this.driftCharge = 0;
 
       // ---- Speed model ----
-      const accel = throttle > 0 ? this.accel * (this.boosting ? 1.8 : 1) : this.accel * 1.4;
-      this.speed += throttle * accel * dt;
+      const accel = throttle > 0 ? this.accel * (this.boosting ? 1.8 : 1) : this.accel * 1.4*this.tune.brake;
+      const slope = g.zone?.slopeAt?.(this.pos.x,this.pos.z) || 0;
+      this.speed += throttle * accel * dt * (slope > .18 ? this.tune.terrain : 1);
       this.speed = clamp(this.speed, -7, this.maxSpeed);
       this.speed = damp(this.speed, 0, throttle === 0 ? 1.2 : 0.08, dt);
 
@@ -349,6 +360,9 @@ export class Trolley {
 
     // Wall collisions — soft bounce
     for (const b of this.game.zone.colliders) {
+      // Rotated venues were resolved in their local frame by moveHorizontal.
+      // Their world broad-phase boxes must never act as solid crash volumes.
+      if (b.frame) continue;
       if (this.pos.y > b.max.y - 0.3 || this.pos.y + 1.2 < b.min.y) continue;
       const cx = clamp(this.pos.x, b.min.x, b.max.x);
       const cz = clamp(this.pos.z, b.min.z, b.max.z);
@@ -427,7 +441,7 @@ export class Trolley {
     }
     this._fwd.set(Math.sin(this.heading), 0, Math.cos(this.heading));
     const lit = this.summoned && (this.riding || this.boosting);
-    this.head.intensity = lit ? (this.boosting ? 6 : 2.4) : 0;
+    this.head.intensity = lit ? (this.boosting ? 6 : 2.4)*this.tune.headlight : 0;
     this.head.position.copy(this.pos).add(this._headPos.set(0, 0.9, 0)).addScaledVector(this._fwd, 0.7);
     this.headTarget.position.copy(this.pos).add(this._headPos.set(0, 0.4, 0)).addScaledVector(this._fwd, 8);
 

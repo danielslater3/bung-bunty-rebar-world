@@ -1,5 +1,6 @@
 import { ARENA, ARENA_DOCK, ARENA_STAND, EXCHANGE, PICKUPS, RING_GATES } from "../../src/multiplayer/cityActivities.js";
 import { layoutShopSigns } from "../../src/world/geo/shopSigns.js";
+import { isGarageBuilding } from '../../src/garage/Garage.js';
 import { signAnchors } from "../../src/world/geo/cbdFronts.js";
 
 import * as THREE from "three";
@@ -207,4 +208,12 @@ test('Queen Street wordmarks are above real ground and project beyond the shop g
     assert.ok(sign.y - terrain.walkAt(sign.x, sign.z) > 2.4, name);
     assert.ok(sign.width >= 2, name);
   }
+});
+test('converted garage does not retain floating signs from its old shop shell',()=>{
+ assert.equal(GEO.buildings.filter(isGarageBuilding).length,1);
+ const original=layoutShopSigns(GEO.buildings,signAnchors(),terrain.walkAt);
+ const converted=layoutShopSigns(GEO.buildings,signAnchors(),terrain.walkAt,isGarageBuilding);
+ assert.ok(converted.length<original.length);
+ assert.ok(!converted.some(p=>p.shop[0]==='BUNG GARAGE'));
+ assert.ok(converted.some(p=>p.shop[0]==='OSCAR WYLEE'));
 });

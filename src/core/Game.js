@@ -20,6 +20,7 @@ import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
 import { WeatherSystem } from '../weather/WeatherSystem.js';
+import { Garage } from '../garage/Garage.js';
 import { Phone } from '../phone/Phone.js';
 import { Multiplayer } from '../multiplayer/Multiplayer.js';
 import { Saga, createSaga } from '../story/Saga.js';
@@ -76,6 +77,7 @@ export class Game {
     this.weather = new WeatherSystem(this);
     this.scene.onBeforeRender = (renderer, _scene, camera) => this.weather.renderSky(renderer, camera);
     this.phone = new Phone(this);
+    this.garage = new Garage(this);
 
     this.mode = 'menu'; // menu | playing | paused
     this.scoreAttack = null;
@@ -239,6 +241,7 @@ export class Game {
     if (seq !== this._zoneSeq) return;
 
     this.phone.close();
+    this.garage.close();
     this.weather.detach();
     if (this.zone) this.zone.dispose();
     this.allEnemies = [];
@@ -389,6 +392,7 @@ export class Game {
     const dt = Math.min(0.05, this.clock.getDelta());
     this._dt = dt;
     this.elapsed += dt;
+    if(!this.loading)this.garage.update();
 
     if(this.loading){this.phone.update(dt);this.input.endFrame();return;}
     if (this.multiplayer?.active) {
@@ -400,7 +404,7 @@ export class Game {
       return;
     }
     this.phone.update(dt);
-    if (this.mode === 'playing' && !this.phone.opened) this.updatePlaying(dt);
+    if (this.mode === 'playing' && !this.phone.opened && !this.garage.opened) this.updatePlaying(dt);
     else if (this.mode === 'playing') {
       this.zone?.update(dt, this.elapsed);
       this.dialogue.update(dt);
@@ -409,7 +413,7 @@ export class Game {
       this.zone?.update(dt, this.elapsed);
       this.dialogue.update(dt);
     }
-    if ((this.mode === 'playing' || this.mode === 'cutscene') && !this.phone.opened) this.saga?.update(dt);
+    if ((this.mode === 'playing' || this.mode === 'cutscene') && !this.phone.opened && !this.garage.opened) this.saga?.update(dt);
     this.weather.update(dt);
     if (this.mode === 'playing' || this.mode === 'paused') {
       this._autosave += dt;
@@ -554,7 +558,7 @@ export class Game {
         const it = this.zone.nearestInteract(this.player.pos);
         if (it) { prompt = it.label; action = it.fn; }
       }
-      this.hud.prompt(prompt);
+      this.hud.prompt(prompt || (this.garage.near() ? '<b>[G]</b> BUNG GARAGE' : null));
       if (prompt && input.pressed['KeyE'] && !this.saga?.freeze) action();
     } else {
       this.hud.prompt(null);
@@ -590,6 +594,7 @@ export class Game {
   }
 
   indoorCeiling(x, y, z) {
+    if(this.zone?.garage?.inside({x,y,z}))return this.zone.garage.floor+8;
     const venue=this.saga?.venues?.room(x,y,z);if(venue)return venue.ceil;
     const rooms = this.saga?.actors?.house?.rooms;
     if (rooms) {

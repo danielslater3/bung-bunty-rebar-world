@@ -15,6 +15,7 @@ import { buildGuide, segmentClear } from '../story/guide.js';
 import { mergeStatic } from '../world/geo/cityModels.js';
 import { positionClear } from '../core/motion.js';
 import { RoomClient } from './RoomClient.js';
+import { fitGarage, releaseTrolley } from '../garage/models.js';
 import { MiniGames, el } from './MiniGames.js';
 import { phonePicker } from '../phone/Phone.js';
 import { ActivityUI, drawRaces, raceArch, trolleyPicker } from './ActivityUI.js';
@@ -54,7 +55,7 @@ export class Multiplayer {
     this.lastSent = 0;
     this.lastPing = 0;
     this.handleKeys = (e) => {
-      if (!this.active || this.game.phone?.opened) return;
+      if (!this.active || this.game.phone?.opened || this.game.garage?.opened) return;
       const enter =
         e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
       if (e.target.matches('input,textarea')) {
@@ -273,7 +274,6 @@ export class Multiplayer {
         this.room.players[this.client.id]?.appearance,
       );
       g.player.mesh.add(this.selfAvatar);
-      this.trolleyModels = new Map();
       this.prepareWorld();
       const p = this.room.players[this.client.id]?.pos || SPAWN;
       g.trolley.applyFleet(roomTrolley(this.room.players[this.client.id]?.trolley ?? this.client.trolley).id, false);
@@ -354,6 +354,7 @@ export class Multiplayer {
       }
     }
     if (m.type === 'error') {
+      if(this.game.garage.opened){const status=this.game.garage.root.querySelector('[role=status]');if(status)status.textContent=m.message;}
       this.error(m.message);
       this.mini.showError(m.message);
       if (m.pos && /Position corrected/.test(m.message) && this.active) {
@@ -744,6 +745,10 @@ export class Multiplayer {
     const atExchange = this.near(EXCHANGE, 5);
     shop.append(el('small', 'mp-eyebrow', 'CITY HALL'),
       el('h3', '', 'BUNG’S REBAR EXCHANGE'));
+    this.roomButton(shop,'FIND BUNG GARAGE',()=>{
+      this.activityTarget={x:108.45,z:22,y:10,label:'BUNG GARAGE · G TO CUSTOMISE'};
+      this.hidePanels();
+    });
     if (!atExchange) {
       const visit = el('div', 'mp-exchange-visit');
       visit.append(el('p', '', 'Visit the counter to buy or upgrade your trolley.'));
@@ -995,7 +1000,7 @@ export class Multiplayer {
     for (const [id, a] of this.peers)
       if (!this.room.players[id]?.connected) {
         disposeAvatar(a.mesh);
-        a.trolley.removeFromParent();
+        releaseTrolley(a.trolley);
         a.label.material.map.dispose();
         a.label.material.dispose();
         this.peers.delete(id);
@@ -1007,16 +1012,15 @@ export class Multiplayer {
       const trolleyId = roomTrolley(p.trolley).id;
       if (a && (a.appearanceKey !== appearanceKey || a.name !== p.name || a.trolleyId !== trolleyId)) {
         disposeAvatar(a.mesh);
-        a.trolley.removeFromParent();
+        releaseTrolley(a.trolley);
         a.label.material.map.dispose();
         a.label.material.dispose();
         this.peers.delete(p.id);
         a = null;
       }
       if (!a) {
-        if (!this.trolleyModels.has(trolleyId)) this.trolleyModels.set(trolleyId, buildTrolley(trolleyId));
         const mesh = buildAvatar(p.appearance),
-          trolley = this.trolleyModels.get(trolleyId).clone(true),
+          trolley = buildTrolley(trolleyId),
           canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 64;
@@ -1055,6 +1059,7 @@ export class Multiplayer {
       a.target.set(p.pos.x, p.pos.y, p.pos.z);
       a.yaw = p.yaw;
       a.riding = p.riding;
+      fitGarage(a.trolley,p.garage?.[trolleyId]);
     }
   }
   prepareArena() {
@@ -1471,7 +1476,7 @@ export class Multiplayer {
           ? `TROLLEY RACE · GRID OPENS IN ${Math.max(0, Math.ceil((race.deadline - this.client.now()) / 1000))}s` : null) ||
         (this.near(EXCHANGE, 5) ? 'E · REBAR EXCHANGE' : null) ||
         g.zone.cityLife?.hintAt(g.player.pos) ||
-        'B · ROOM  |  ENTER · CHAT  |  T · TROLLEY  |  E · MOUNT / ARRIVALS  |  F · QUEST';
+        (g.garage.near() ? 'G · BUNG GARAGE' : 'B · ROOM  |  ENTER · CHAT  |  T · TROLLEY  |  E · MOUNT / ARRIVALS  |  F · QUEST');
     const run = this.room.players[this.client.id]?.ring;
     const gate = run?.deadline && RING_GATES[run.index];
     this.rushGate.visible = !!gate;

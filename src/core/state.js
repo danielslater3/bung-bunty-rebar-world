@@ -38,6 +38,7 @@ export const DEFAULT_STATE = () => ({
 
   // Upgrades: id -> level
   upgrades: {},
+  garage: {},
 
   // Buff timers (seconds remaining)
   buffs: { strength: 0, speed: 0, cyber: 0, fuelregen: 0 },

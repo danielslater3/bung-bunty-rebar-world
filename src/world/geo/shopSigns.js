@@ -143,7 +143,7 @@ function pushSign(positions, uvs, px, py, pz, nx, nz, width, u0, v0, u1, v1) {
   }
 }
 
-export function layoutShopSigns(buildings, anchors, groundAt) {
+export function layoutShopSigns(buildings, anchors, groundAt, excludeHost = () => false) {
   const index = indexBuildings(buildings);
   const placed = [];
   for (const shop of SHOPS) {
@@ -153,7 +153,7 @@ export function layoutShopSigns(buildings, anchors, groundAt) {
       return d < 2 || (a.name.toLowerCase() === (name === 'McREBARS' ? 'mcrebar' : name.toLowerCase()) && d < 28);
     })) continue;
     const host = hostFor(index, x, z);
-    if (!host) continue;
+    if (!host || excludeHost(host)) continue;
     const edge = closestEdge(host.r, x, z);
     if (!edge || edge.d > 24) continue;
     for (const width of [edge.width, edge.width * .8, edge.width * .65]) {
@@ -178,8 +178,8 @@ export function layoutShopSigns(buildings, anchors, groundAt) {
   return placed;
 }
 
-export function dressShops(group, buildings, anchors, groundAt) {
-  const placed = layoutShopSigns(buildings, anchors, groundAt);
+export function dressShops(group, buildings, anchors, groundAt, excludeHost) {
+  const placed = layoutShopSigns(buildings, anchors, groundAt, excludeHost);
   const per = COLS * ROWS;
   for (let start = 0; start < placed.length; start += per) {
     const slice = placed.slice(start, start + per);

@@ -8,6 +8,7 @@ const attachmentPlayer = (p) => ({
   moveSeq: p.moveSeq,
   moveAt: p.moveAt,
   warp: p.warp,
+  weatherFlight: p.weatherFlight,
 });
 const json = (data, status = 200, headers = {}) =>
   Response.json(data, { status, headers });

@@ -122,7 +122,7 @@ export class Phone {
 
   available() {
     const g = this.game;
-    return g.mode === 'playing' && !g.loading && !g.dialogue.cinematic && !g.saga.freeze &&
+    return g.mode === 'playing' && !g.garage?.opened && !g.loading && !g.dialogue.cinematic && !g.saga.freeze &&
       !g.saga.scenePlaying && !g.photo && !document.getElementById('hotel-lift-menu') &&
       !g.saga.venues?.pending && (!g.multiplayer.active || !g.multiplayer.focus || this.opened);
   }
@@ -302,7 +302,7 @@ export class Phone {
         forecast.textContent = (w.exercise ? 'DRILL · ' : '') + 'IN 60 GAME SECONDS · ' + next.label + ' · gusts ' + Math.round(next.gust) + ' km/h';
       };
     } else {
-      if (g.multiplayer.active) for (const [label,x,z] of [['City Hall', 1.7, 0], ['Queen Street', 173, 81.5], ['South Bank', -194, 774], ['Botanic Gardens', 605, 886]]) {
+      if (g.multiplayer.active) for (const [label,x,z] of [['City Hall', 1.7, 0], ['Bung Garage', 108.45, 22], ['Queen Street', 173, 81.5], ['South Bank', -194, 774], ['Botanic Gardens', 605, 886]]) {
         tools.append(button(label, () => {
           g.multiplayer.activityTarget = { label, x, z };
           this.close();

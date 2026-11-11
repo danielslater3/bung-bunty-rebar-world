@@ -273,7 +273,8 @@ export class WeatherSystem {
     if (g.mode === 'playing' && !g.phone.opened && !g.dialogue.current && !fighting &&
         !g.saga.freeze && !g.saga.scenePlaying && this.exposed && this.weatherAnnouncement) {
       const storm = this.weatherAnnouncement === 'storm';
-      g.toast(storm ? 'BRISBANE STORM — THE SINGLET IS NOT WEATHERPROOF' : "SUN'S OUT. REBARS OUT.", 'blue');
+      const message=storm ? 'BRISBANE STORM — THE SINGLET IS NOT WEATHERPROOF' : "SUN'S OUT. REBARS OUT.";
+      if(g.multiplayer.active)g.multiplayer.error(message);else g.toast(message,'blue');
       if (storm) g.say('bung', 'OIII! The singlet is not weatherproof!');
       this.weatherAnnouncement = null;
     }
@@ -440,6 +441,7 @@ export class WeatherSystem {
       u.reach.value = Math.min(1, .10 + 1.08 * t.touchdown);
       u.density.value = Math.min(1, .20 + t.strength * (.66 + t.tier * .04));
       u.wedge.value = Math.max(0, (t.tier - 1) / 4);
+      u.morph.value = f.shape;
       u.flash.value = this.reduceFlash ? 0 : this.flash;
       this.dust.position.set(t.x, ground + 7 + t.tier * 3, t.z);
       this.dust.scale.set(t.core * (2.9 + t.tier * .28), t.core * (1 + t.tier * .13), 1);
@@ -592,7 +594,7 @@ export class WeatherSystem {
       if (state.stability > 18) state.stability = Math.max(18, state.stability - dt * (2 + t.tier));
       if (f.time - this.caughtSince > 1.45 + t.tier * .22) {
         const a = this.launchAngle(p, t);
-        const speed = g.multiplayer.active ? Math.min(34, t.toss) : t.toss;
+        const speed = t.toss;
         this.throwDuration = t.duration;
         this.throwX = Math.cos(a) * speed;
         this.throwZ = Math.sin(a) * speed;
@@ -610,11 +612,6 @@ export class WeatherSystem {
     const carry = caught && !trolley.riding && p.y > ground + .8 ? 1 : 0;
     let vx = (v?.x || 0) * vortexWeight + f.vx * carry + c.windX * push * .13 + this.throwX * throwing;
     let vz = (v?.z || 0) * vortexWeight + f.vz * carry + c.windZ * push * .13 + this.throwZ * throwing;
-    if (g.multiplayer.active) {
-      const cap = Math.min(1, 36 / Math.max(1, Math.hypot(vx, vz)));
-      vx *= cap;
-      vz *= cap;
-    }
     const grid = g.geoBrisbane.grid;
     const dx = THREE.MathUtils.clamp(target.x + vx * dt, grid.minX + 3, grid.minX + grid.w * grid.cell - 3) - target.x;
     const dz = THREE.MathUtils.clamp(target.z + vz * dt, grid.minZ + 3, grid.minZ + grid.h * grid.cell - 3) - target.z;

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomEngine, freshRoom } from '../engine.js';
+import { hashWeather, weatherAt } from '../../src/weather/model.js';
 import { RING_GATES, PICKUPS, EXCHANGE, ARENA, ARENA_DOCK, ARENA_STAND } from "../../src/multiplayer/cityActivities.js";
 
 import { GAMES, QUEST_STAGES } from '../../src/multiplayer/catalog.js';
@@ -596,4 +597,38 @@ test('trolley preferences are normalized, visible to other players and survive r
   assert.equal(e.view(p[1].id).players[p[0].id].trolley, 'concrete');
   assert.equal(e.join(p[0].name, p[0].token).trolley, 'concrete');
   assert.equal(e.join(p[0].name, p[0].token, undefined, 'unknown').trolley, 'james');
+});
+
+test('Bung Garage validates location, funds and per-trolley saved builds',()=>{
+ const {e,p,cmd}=setup(2);
+ p[0].rebar=100;
+ assert.throws(()=>cmd(p[0],'garageBuy',{part:'v12',action:'equip'}),/Garage/);
+ p[0].pos={x:94,y:9.7,z:37};p[0].moveAt=e.now();
+ cmd(p[0],'garageBuy',{part:'v12',action:'equip'});
+ assert.equal(p[0].rebar,35);
+ cmd(p[0],'garageBuy',{part:'v12',action:'equip'});
+ assert.equal(p[0].rebar,35);
+ assert.equal(e.view(p[1].id).players[p[0].id].garage.james.equipped.engine,'v12');
+ e.join(p[0].name,p[0].token,undefined,'emerald');
+ assert.equal(p[0].garage.emerald,undefined);
+ assert.equal(p[0].garage.james.equipped.engine,'v12');
+ const restored=new RoomEngine(JSON.parse(JSON.stringify(e.s)),()=>e.now());
+ assert.equal(restored.s.players[p[0].id].garage.james.equipped.engine,'v12');
+ e.disconnect(p[0].id);
+ assert.equal(e.join('Back at garage',p[0].token).garage.james.equipped.engine,'v12');
+});
+test('server allows full-strength tornado throws only around its shared weather and for a bounded recovery',()=>{
+ const s=setup(1),{e,p}=s,player=p[0];
+ let f;
+ for(let time=0;time<360*100000;time+=3){
+  f=weatherAt(hashWeather(e.s.code),time);
+  if(f.tornado?.ground&&f.tornado.tier===5){s.time=e.s.created+time*1000;break;}
+ }
+ assert.equal(f.tornado?.tier,5);
+ player.pos={x:f.tornado.x,y:20,z:f.tornado.z};player.moveAt=s.time-125;
+ const move=()=>e.move(player.id,{seq:player.moveSeq+1,pos:{x:player.pos.x+15,y:25,z:player.pos.z},yaw:0});
+ assert.ok(move(),'94 m/s throw is accepted near the actual tornado');
+ player.pos={x:8000,y:20,z:8000};s.time+=125;assert.ok(move(),'launch grace survives leaving the funnel');
+ s.time+=15000;player.moveAt=s.time-125;
+ assert.throws(move,/Position corrected/,'grace expires outside the storm');
 });

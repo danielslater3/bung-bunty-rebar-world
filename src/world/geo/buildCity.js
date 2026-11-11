@@ -1,6 +1,7 @@
 // Turns the compiled OpenStreetMap extract into a walkable Three.js district.
 // 1 metre of geometry is 1 metre of Brisbane. Heights without an OSM height tag are estimates.
 import * as THREE from 'three';
+import { installGarage, isGarageBuilding } from '../../garage/Garage.js';
 import { mat } from '../../core/utils.js';
 import { ZoneKit } from '/src/world/ZoneKit.js';
 import { BRISBANE_GEO as SOURCE_GEO } from './brisbane.data.js';
@@ -374,6 +375,7 @@ export function buildOsmBrisbane(game) {
     damage: (b, x, z) => b !== macArthur && closestMall(GEO.mall, x, z).d > 55 &&
       Math.hypot(x - hallL.cx, z - hallL.cz) > 80 && Math.hypot(x + 830, z - 900) > 95,
     skip: (b, cx, cz) => {
+      if (isGarageBuilding(b)) return true;
       if (venueBuilding(b)) return true;
       if (Math.hypot(cx - hallL.cx, cz - hallL.cz) < 15 && b.r.length > 40) {
         if (!hall || b.r.length > hall.ring.length) hall = { ring: b.r, cx, cz };
@@ -455,13 +457,17 @@ export function buildOsmBrisbane(game) {
     console.warn('[brisbane street] City Hall footprint was not matched');
   }
   if (hallInfo) Z.cleanups.push(hallInfo.dispose);
-  const cbd = dressCbd(Z.group, GEO.buildings, GEO.mall, hall, T.walkAt);
-  const mallFronts = addMallFronts(Z.group, GEO.buildings, GEO.mall, hall, kit, T.walkAt, macArthur);
+  const storefrontBuildings = GEO.buildings.filter(b => !isGarageBuilding(b));
+  const cbd = dressCbd(Z.group, storefrontBuildings, GEO.mall, hall, T.walkAt);
+  const mallFronts = addMallFronts(Z.group, storefrontBuildings, GEO.mall, hall, kit, T.walkAt, macArthur);
   const streetFronts = shells.stats.awnings;
-  const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors(), T.walkAt);
+  const shopSigns = dressShops(Z.group, GEO.buildings, signAnchors(), T.walkAt, isGarageBuilding);
 
   Z.venues = buildVenueExteriors(Z, GEO);
   const feet = indexFootprints(GEO.buildings,48,(x,z)=>T.walkAt(x,z));
+  for (const b of GEO.buildings) if(isGarageBuilding(b)) {
+    const poly=feet.byRing.get(b.r);if(poly)poly.disabled=true;
+  }
   Z.footBuckets = feet.buckets;
   Z.footCell = feet.cell;
   Z.stormBuildings = shells.damage.map(({ ring, wall, trim, wallStart, wallEnd, trimStart, trimEnd, roofStart, roofEnd, ...b }) => ({
@@ -607,6 +613,7 @@ export function buildOsmBrisbane(game) {
   }
   Z.streetDetail = installStreetDetail(Z, GEO, kit.mark);
   Z.cityLife = installCityLife(Z, GEO);
+  installGarage(Z);
   Z.spawn.y = T.walkAt(Z.spawn.x, Z.spawn.z) + 0.5;
   const bridgeGroup = new THREE.Group();
   bridgeGroup.userData.abs = true;

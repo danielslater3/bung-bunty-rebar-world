@@ -32,6 +32,22 @@ const { chromium } = require('playwright');
     const b = await boot('Crew', 'emerald', code);
     await a.waitForFunction(() => [...BUNG.multiplayer.peers.values()][0]?.trolleyId === 'emerald');
     assert.equal(await a.evaluate(() => BUNG.trolley.mesh.userData.fleetId), 'concrete');
+    const sharedWeather=[];
+    for(const page of [a,b])sharedWeather.push(await page.evaluate(async()=>{
+      const g=BUNG,w=g.weather,{weatherAt}=await import('/src/weather/model.js');
+      const exercise=w.exercise,position=g.player.pos.clone();
+      g.dialogue.clear();w.exercise={track:0,tier:5,time:156};
+      const storm=weatherAt(w.seed,156,w.exercise).tornado;
+      g.player.pos.set(storm.x+900,20,storm.z);w.sampleIn=1;w.exposed=true;w.legacyWeather='sun';w.update(0);
+      const message=document.getElementById('mp-notice').textContent;
+      g.dialogue.clear();w.exercise.time=0;w.legacyWeather='storm';w.update(0);
+      const sunny=document.getElementById('mp-notice').textContent;
+      w.exercise=exercise;g.player.pos.copy(position);w.sampleIn=0;w.update(0);
+      return {seed:w.seed,storm,message,sunny};
+    }));
+    assert.deepEqual(sharedWeather[0],sharedWeather[1]);
+    assert.match(sharedWeather[0].message,/SINGLET IS NOT WEATHERPROOF/);
+    assert.match(sharedWeather[0].sunny,/SUN'S OUT/);
     const notice = b.getByRole('region', { name: 'Room activity invitation' });
     await a.evaluate(() => BUNG.multiplayer.openBoard('explore'));
     await a.getByRole('button', { name: 'START RING RUSH', exact: true }).click();
@@ -50,6 +66,30 @@ const { chromium } = require('playwright');
       g.player.pos.set(pickup.x, pickup.y, pickup.z);
     });
     await b.waitForFunction(() => !!BUNG.multiplayer.room.events.hunt.found['hall-stamp']);
+    await a.evaluate(async () => {
+      const g=BUNG,mp=g.multiplayer;
+      const {atDistance,nearestOnPath}=await import('/src/systems/Navigation.js');
+      g.renderer.setAnimationLoop(null);
+      const target={x:94,y:g.zone.garage.floor+.1,z:37};
+      const path=mp.navigation.plan(g.player.pos,target);
+      if(!path.length)throw Error('Garage has no navigable approach');
+      const length=nearestOnPath(path,path.at(-1)).length;
+      for(let along=0;along<length+4;along+=4){
+        const p=atDistance(path,Math.min(length,along));
+        g.player.pos.set(p.x,p.y,p.z);
+        mp.client.send({type:'move',seq:mp.client.seq++,pos:{...g.player.pos},yaw:0,riding:false,warp:mp.appliedWarp});
+        await new Promise(resolve=>setTimeout(resolve,145));
+      }
+      g.garage.open();
+      if(!g.garage.opened)throw Error('Garage entry '+JSON.stringify({pos:g.player.pos,near:g.garage.near(),floor:g.zone.garage.floor,mode:g.mode}));
+      g.renderer.setAnimationLoop(()=>g.frame());
+    });
+    const garage=a.getByRole('dialog',{name:'Bung Garage'});
+    await garage.getByRole('navigation',{name:'Garage sections'}).getByRole('button',{name:'Style',exact:true}).click();
+    await garage.locator('.bung-garage-part').filter({hasText:'River cyan underglow'}).getByRole('button').click();
+    await b.waitForFunction(() => Object.values(BUNG.multiplayer.room.players).some(p=>p.garage?.concrete?.equipped.underglow==='cyan'));
+    await b.waitForFunction(() => [...BUNG.multiplayer.peers.values()].some(p=>p.trolley.userData.garageKey.includes('cyan')&&p.trolley.getObjectByName('Garage equipment')));
+    await garage.getByRole('button',{name:'BACK TO BRISBANE'}).click();
 
     await a.evaluate(() => { BUNG.multiplayer.hidePanels(); BUNG.multiplayer.mini.open('tictactoe'); });
     await a.getByRole('button', { name: 'OPEN THIS TABLE', exact: true }).click();
@@ -84,9 +124,13 @@ const { chromium } = require('playwright');
     await a.getByRole('button', { name: /South Bank Shuffle/ }).click();
     await notice.getByText('South Bank Shuffle', { exact: true }).waitFor();
     await notice.getByRole('button', { name: 'JOIN RACE', exact: true }).click();
-    for (const page of [a,b])
+    for (const page of [a,b]) {
       await page.waitForFunction(() => BUNG.multiplayer.raceEntry() && BUNG.trolley.riding,
-        null, { polling: 150, timeout: 30000 });
+        null, { polling: 150, timeout: 30000 }).catch(async error=>{
+          console.error('RACE STATE',errors,await page.evaluate(()=>({race:BUNG.multiplayer.room.events.race,me:BUNG.multiplayer.client.id,riding:BUNG.trolley.riding,mode:BUNG.mode,focus:BUNG.multiplayer.focus,warp:BUNG.multiplayer.appliedWarp,garage:BUNG.garage.opened})));
+          throw error;
+        });
+    }
     await a.waitForFunction(() => !BUNG.multiplayer.raceCountdown());
     await a.keyboard.down('KeyW');
     await a.waitForFunction(() => BUNG.multiplayer.raceEntry()?.index > 0, null, { timeout: 7000 })

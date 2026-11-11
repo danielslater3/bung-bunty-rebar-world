@@ -713,7 +713,7 @@ export const SHOPS = [
 ["INDRIYA", 88.26, -731.06, "#2c2420", "#f6efe4"],
 ["PHÚC DELI VIET", 92.31, -41.03, "#2c2420", "#f6efe4"],
 ["OASIS JUICE BAR", 93.51, 147.75, "#c4532a", "#fff4e8"],
-["EB GAMES", 97.01, 20.48, "#f4efe6", "#241c16"],
+["BUNG GARAGE", 97.01, 20.48, "#ffce63", "#182a36"],
 ["PETER ALEXANDER", 97.42, 122.87, "#f7f4ee", "#1a1a1a"],
 ["GOLDEN CASKET HEAD OFFICE", 97.76, -214.22, "#f4efe6", "#241c16"],
 ["METROPOLE BAR EATERY", 97.77, -241.44, "#c4532a", "#fff4e8"],

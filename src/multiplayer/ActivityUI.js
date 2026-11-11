@@ -29,7 +29,7 @@ export function trolleyPicker(panel) {
   select.onchange = paint;
   paint();
   section.append(title, label, select, swatches,
-    el('p', '', 'Ten S24-inspired editions. All trolleys get the same race tuning.'));
+    el('p', '', 'Ten S24-inspired editions. Fit performance parts at Bung Garage.'));
   panel.append(section);
   return () => {
     const id = roomTrolley(select.value).id;

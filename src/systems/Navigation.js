@@ -160,13 +160,13 @@ export class RoadNetwork {
       const { id, g } = open.pop();
       if (g !== cost.get(id)) continue;
       if (goals.has(id)) {
-        const result = [to];
+        const result = [{ ...to }];
         let at = id;
         while (at != null) {
           result.push(this.nodes[at]);
           at = parent.get(at);
         }
-        result.push(from);
+        result.push({ ...from });
         return result.reverse();
       }
       for (const next of this.nodes[id].edges) {
@@ -190,7 +190,7 @@ export class RoadNetwork {
 // Small collision-aware grid for room/plaza connections. Never joins different
 // streets through a building. Only used at a route's ends, not over the whole city.
 export function localRoute(from, to, clear, spacing = 1) {
-  if (clear(from, to)) return [from, to];
+  if (clear(from, to)) return [{ ...from }, { ...to }];
   if (distance(from, to) > 70) return [];
   const open = new Heap(),
     cost = new Map(),
@@ -208,10 +208,10 @@ export function localRoute(from, to, clear, spacing = 1) {
     const p = points.get(id),
       [ix, iz] = id.split(',').map(Number);
     if (distance(p, to) < spacing * 2 && clear(p, to)) {
-      const out = [to];
+      const out = [{ ...to }];
       let at = id;
       while (at != null) {
-        out.push(points.get(at));
+        out.push({ ...points.get(at) });
         at = parent.get(at);
       }
       return out.reverse();

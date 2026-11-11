@@ -550,3 +550,16 @@ body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .mp-notice{top:222
   body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .s24-alert{top:230px}
   body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .mp-notice{top:300px}
 }
+
+.bung-garage-ui{width:min(850px,94vw);max-height:90dvh;overflow:auto;background:#172b3a;color:#fff0d5;border:2px solid #e4ad52;border-radius:18px;padding:22px;font:600 15px var(--font-body)}
+.bung-garage-ui::backdrop{background:#07121b9c}
+.bung-garage-ui h2,.bung-garage-ui h3{color:#ffcc69}
+.bung-garage-ui section{border-top:1px solid #49616c;margin-top:17px;padding-top:8px}
+.bung-garage-part{display:flex;align-items:center;gap:16px;margin:8px 0;padding:10px;background:#213c4e;border-radius:9px}
+.bung-garage-part div{flex:1}
+.bung-garage-part small{display:block;color:#c0d5db;margin-top:4px}
+.bung-garage-ui button{background:#ffce63;color:#182b39;border:0;border-radius:8px;padding:9px 12px;font:inherit;cursor:pointer}
+.bung-garage-ui button:disabled{opacity:.4;cursor:default}
+.bung-garage-ui nav{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.bung-garage-ui nav button{background:#294657;color:#d3e4e8}
+.bung-garage-ui nav button[aria-pressed=true]{background:#ffce63;color:#182b39}

@@ -279,7 +279,25 @@ const { chromium } = require('playwright');
       return { visibleSkyChange: distinct / (width * height / 2), tones: tones.size };
     });
     assert.ok(coverage.visibleSkyChange > .25 && coverage.tones > 35, JSON.stringify(coverage));
+    const animation=await page.evaluate(async()=>{
+      const {createFunnel}=await import('/src/weather/stormSky.js');
+      const mesh=createFunnel(),scene=new THREE.Scene();scene.background=new THREE.Color(0x96bacc);scene.add(mesh);
+      mesh.scale.set(1,2,1);
+      const u=mesh.material.uniforms;u.reach.value=1;u.density.value=1;u.wedge.value=1;u.morph.value=.73;
+      const camera=new THREE.PerspectiveCamera(48,1,.1,50);camera.position.set(5,2.1,5);camera.lookAt(0,1,0);
+      const size=160,target=new THREE.WebGLRenderTarget(size,size),first=new Uint8Array(size*size*4),next=new Uint8Array(first.length);
+      const g=BUNG;
+      try{
+        g.renderer.setRenderTarget(target);
+        u.time.value=0;drawWeather(scene,camera);g.renderer.readRenderTargetPixels(target,0,0,size,size,first);
+        u.time.value=.8;drawWeather(scene,camera);g.renderer.readRenderTargetPixels(target,0,0,size,size,next);
+      }finally{g.renderer.setRenderTarget(null);target.dispose();mesh.geometry.dispose();mesh.material.dispose();mesh.userData.dispose();}
+      let moving=0,dark=0;
+      for(let i=0;i<first.length;i+=4){if(Math.abs(first[i]-next[i])+Math.abs(first[i+1]-next[i+1])+Math.abs(first[i+2]-next[i+2])>6)moving++;if(first[i]<65&&first[i+1]<65&&first[i+2]<65)dark++;}
+      return {moving:moving/(size*size),dark:dark/(size*size)};
+    });
+    assert.ok(animation.moving>.025&&animation.dark>.04,JSON.stringify(animation));
     assert.deepEqual(errors, []);
-    console.log('S24 / WEATHER PASSED', { cloud, storm, extreme, coverage });
+    console.log('S24 / WEATHER PASSED', { cloud, storm, extreme, coverage, animation });
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

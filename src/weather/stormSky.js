@@ -264,7 +264,7 @@ export function createFunnel() {
       noiseMap: { value: noise }, eye: { value: new THREE.Vector3() },
       localToClip: { value: new THREE.Matrix4() },
       time: { value: 0 }, reach: { value: 0 }, density: { value: 0 },
-      flash: { value: 0 }, wedge: { value: 0 },
+      flash: { value: 0 }, wedge: { value: 0 }, morph: { value: 0 },
     },
     vertexShader: `
       varying vec3 sampleRay;
@@ -277,7 +277,7 @@ export function createFunnel() {
       uniform highp sampler3D noiseMap;
       uniform vec3 eye;
       uniform mat4 localToClip;
-      uniform float time, reach, density, flash, wedge;
+      uniform float time, reach, density, flash, wedge, morph;
       varying vec3 sampleRay;
       void main() {
         vec3 ray = normalize(sampleRay - eye);
@@ -288,29 +288,47 @@ export function createFunnel() {
         float start = max(0., max(enter.x, max(enter.y, enter.z)));
         float end = min(leave.x, min(leave.y, leave.z));
         if (end <= start) discard;
-        float stepSize = (end - start) / 18.;
+        float stepSize = (end - start) / 40.;
         vec4 integrated = vec4(0.);
         float front = -1.;
-        for (int i = 0; i < 18; i++) {
+        for (int i = 0; i < 40; i++) {
           float distance = start + (float(i) + .5) * stepSize;
           vec3 p = eye + ray * distance;
           float h = (p.y - (1. - reach)) / max(.04, reach);
           if (h < 0. || h > 1.) continue;
-          vec2 bend = vec2(sin(h * 4.9 + time * .29), cos(h * 5.3 + time * .25)) * h * mix(.30,.14,wedge);
+          vec2 bend = vec2(sin(h * (4.3+morph*1.7) + time * .29 + morph*6.), cos(h * 5.3 + time * .25)) * h * mix(.30,.14,wedge);
           vec2 rel = p.xz - bend;
-          float angle = -time * (.41 + .18 * (1. - h)) + h * 2.2;
-          float radius = mix(.16 + pow(h, 1.12) * 1.54, .76 + pow(h, .8) * .93, wedge);
+
+          float radius = mix(.12 + pow(h, 1.27) * 1.62, .98 + pow(h, .7) * .83, wedge);
+          float radiusPulse = .94 + .07*sin(time*.71+h*9.) + .045*sin(time*1.23-h*17.);
+          radius *= radiusPulse;
+          float radial = length(rel) / max(.1,radius);
+          float angularSpeed = (1.02 + .34*(1.-h)) / (.55 + radial*.55);
+          float angle = -time * angularSpeed + h * 4.1;
           vec2 spin = mat2(cos(angle), -sin(angle), sin(angle), cos(angle)) * rel;
-          vec3 uv = vec3(spin.x * .39, h * .73 - time * .031, spin.y * .39);
-          float n = .68 * texture(noiseMap, uv).r + .24 * texture(noiseMap, uv * 2.17 + .21).r
-                  + .08 * texture(noiseMap, uv * 3.8 - .32).r;
-          float wall = 1. - smoothstep(.49, 1.04, length(rel) / (radius * (.69 + n * .56)));
-          float taper = smoothstep(0., .075, h) * (1. - smoothstep(.82, 1., h));
-          float optical = wall * taper * smoothstep(.22, .77, n) * density;
-          float a = 1. - exp(-optical * stepSize * (4.1 + wedge * 3.2));
+          vec3 uv = vec3(spin.x*.48, h*.89-time*.09, spin.y*.48);
+          float coarse = textureLod(noiseMap,uv,0.).r;
+          float medium = textureLod(noiseMap,uv*2.13+vec3(.21,-time*.017,.31),0.).r;
+          float fine = textureLod(noiseMap,uv*4.27+vec3(-time*.023,.17,.61),0.).r;
+          float n = .56*coarse+.31*medium+.13*fine;
+          float roughRadius = radius*(.82 + .31*coarse + .10*medium);
+          float edge = 1. - smoothstep(.68,1.05,length(rel)/roughRadius);
+          float core = 1.-smoothstep(.23,.91,radial);
+          float subvortex = 0.;
+          for(int j=0;j<3;j++){
+            float phase=float(j)*2.094+time*(1.23+float(j)*.13)-h*3.1;
+            vec2 centre=vec2(cos(phase),sin(phase))*radius*.69;
+            float r=length(rel-centre)/max(.06,radius*.19);
+            subvortex += exp(-r*r*2.3)*(.5+.5*sin(time*.69+float(j)*2.1));
+          }
+          float fadeTop = 1.-smoothstep(.81,1.,h);
+          float condensation = max(core*(.61+wedge*.25), edge*smoothstep(.2,.73,n));
+          condensation += subvortex*wedge*.63*(1.-smoothstep(.15,.79,h));
+          float optical = condensation*fadeTop*density;
+          float a = 1.-exp(-optical*stepSize*(7.2+wedge*8.5));
           if (front < 0. && a > .035) front = distance;
-          float daylight = clamp(n * .82 + rel.x / max(.2,radius) * .23 + h * .14, 0., 1.);
-          vec3 base = mix(vec3(.018,.025,.032), vec3(.28,.32,.36), daylight * daylight);
+          float daylight = clamp(n*.55+rel.x/max(.2,radius)*.18+h*.11-core*.15,0.,1.);
+          vec3 base = mix(vec3(.011,.015,.022),vec3(.22,.25,.28),daylight*daylight);
           base = mix(base, vec3(.19,.15,.118), (1.-smoothstep(.04,.52,h)) * (.23 + wedge*.26));
           integrated.rgb += (base + flash * .24) * a * (1. - integrated.a);
           integrated.a += a * (1. - integrated.a);

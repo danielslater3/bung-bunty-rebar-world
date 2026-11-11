@@ -14,6 +14,8 @@ import { arenaContains, arenaLive, availablePickup, crossesGate, EXCHANGE, EXCHA
 import { arenaCommand, arenaTick, emptyArena, removeArenaPlayer } from './burgerHeist.js';
 import { advanceRace, collectHunt, eventCommand, eventTick, raceGate, racing, welcomeEvents } from './roomEvents.js';
 import { roomTrolley } from '../src/multiplayer/fleet.js';
+import { GARAGE, garageAction } from '../src/garage/catalog.js';
+import { hashWeather, weatherAt } from '../src/weather/model.js';
 export const freshRoom = (code, now) => ({
   code,
   version: PROTOCOL,
@@ -82,6 +84,8 @@ export class RoomEngine {
       p.rebar ??= 0;
       p.claims ??= {};
       p.inventory ??= {};
+      p.garage ??= {};
+      p.trolley = roomTrolley(p.trolley).id;
     }
     this.now = now;
     this.random = random;
@@ -117,6 +121,7 @@ export class RoomEngine {
         claims: profile?.claims || {},
         inventory: profile?.inventory || {},
         trolley: roomTrolley(trolley ?? profile?.trolley).id,
+        garage: profile?.garage || {},
         ringBest: profile?.ringBest,
         ring: profile?.ring?.deadline > this.now() ? profile.ring : null,
         moveSeq: -1,
@@ -182,8 +187,8 @@ export class RoomEngine {
     removeArenaPlayer(this, id);
     const p = this.s.players[id];
     if (p && !kicked) {
-      const { token, score, rebar, inventory, claims, ringBest, ring, pos, trolley } = p;
-      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos, trolley });
+      const { token, score, rebar, inventory, claims, ringBest, ring, pos, trolley, garage } = p;
+      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos, trolley, garage });
       this.s.savedPlayers = this.s.savedPlayers.slice(-32);
     }
     delete this.s.players[id];
@@ -226,8 +231,21 @@ export class RoomEngine {
       if ((arena.phase === 'countdown' || p.stunnedUntil > n) && gap(p.pos, v) > .65) return false;
     }
     if (n - (p.moveAt || 0) < 80) return false;
+    let speedLimit = 58;
+    if (!fighter) {
+      const frame = weatherAt(hashWeather(this.s.code), Math.max(0, (n-this.s.created)/1000));
+      const tornado = frame.tornado;
+      if (tornado?.ground && Math.hypot(p.pos.x-tornado.x,p.pos.z-tornado.z)<tornado.reach+30)
+        p.weatherFlight={until:n+(tornado.duration+3)*1000,speed:Math.max(82,tornado.toss+60)};
+      if (p.weatherFlight?.until>n) speedLimit=p.weatherFlight.speed;
+      else {
+        delete p.weatherFlight;
+        // Driving and the deterministic storm's wind can combine.
+        if(frame.core>.35 && Math.hypot(p.pos.x-frame.x,p.pos.z-frame.z)<1700) speedLimit=82;
+      }
+    }
     const allowed =
-      (fighter ? 13 : 58) * Math.min(2, Math.max(0.08, (n - (p.moveAt || n - 125)) / 1000)) + 2;
+      (fighter ? 13 : speedLimit) * Math.min(2, Math.max(0.08, (n - (p.moveAt || n - 125)) / 1000)) + 2;
     if (gap(p.pos, v) > allowed)
       fail('Position corrected: travel through the city normally.');
     p.pos = { x: v.x, y: v.y, z: v.z };
@@ -320,6 +338,14 @@ export class RoomEngine {
         ['joinGame', 'startGame', 'questJoin', 'ringStart'].includes(m.cmd))
       fail('Leave Burger Heist before starting another activity.');
     switch (m.cmd) {
+      case 'garageBuy': {
+        if(racing(this,id))fail('Finish the race before visiting Bung Garage.');
+        if(!this.near(p,GARAGE,22))fail('Drive into Bung Garage to fit parts.');
+        const {next,cost}=garageAction(p.garage?.[p.trolley],m.part,m.action,p.rebar);
+        p.garage??={};p.garage[p.trolley]=next;
+        this.reward(p,0,-cost,'Bung Garage fitted your part','buy');
+        break;
+      }
       case 'chat': {
         const text = clean(m.text, 180);
         if (!text) fail('Write a message first.');
