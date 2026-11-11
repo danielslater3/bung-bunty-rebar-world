@@ -8,7 +8,7 @@ import { ZONE_INFO } from '../world/zones.js';
 import { ARCHIVE, DISTRICTS, unlockArchive } from '../lore/universe.js';
 import { chapterFrontier, chapterReplay } from '../story/progression.js';
 import { ACTS, CHAPTERS, createSaga } from '../story/sagaData.js';
-import { TROLLEY_FLEET } from '../entities/models.js';
+import { ALL_TROLLEYS as TROLLEY_FLEET } from '../entities/models.js';
 import { BRISBANE_GEO } from '../world/geo/brisbane.data.js';
 
 export class Menus {

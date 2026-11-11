@@ -454,6 +454,8 @@ export function trolleySpec(id) {
     blurb: edition.name + ' ready to roll.' };
 }
 
+// Campaign calibration includes the room editions as well as the legacy fleet.
+export const ALL_TROLLEYS = [...new Map([...TROLLEY_FLEET,...ROOM_FLEET.map(t=>trolleySpec(t.id))].map(t=>[t.id,t])).values()];
 export function buildTrolley(id = 'james') {
   const spec = trolleySpec(id);
   const g = new THREE.Group();

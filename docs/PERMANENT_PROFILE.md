@@ -4,6 +4,8 @@ Each player automatically receives a private, randomly generated recovery code a
 
 **Player Profile** is available on menu screens and in the S24 Wallet. Copy the recovery code somewhere private, or enter it under Restore on another browser/device. A display name is not a login. Anyone with the code can access that profile. No email or paid game account is required. The backend stores a hash as its profile address, and profile credentials are removed from room snapshots.
 
+Campaign Trolley Calibration and cycling now include every room edition alongside the legacy fleet, so a build purchased in a room can be selected in campaign too.
+
 New Saga and Free Roam reset story progress as before, while preserving the permanent wallet and purchases. Chapter replay shares the wallet and upgrades while keeping its chapter checkpoints isolated. Campaign story progress, photos, phone notes, outfits and room points are not included in this cloud profile. Score can still be sold into the shared rebar wallet.
 
 The browser first imports its existing campaign wallet/builds once. Rejoining an old room with its original room token also imports that old room's wallet/builds once. The game cannot discover balances in forgotten rooms or browser data that was already erased. An existing cloud profile ignores subsequent seed balances, preventing reloading an old campaign save from repeatedly importing money.

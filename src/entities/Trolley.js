@@ -8,7 +8,7 @@ import { clamp, damp } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
 import { pushFootprints } from '../world/geo/footprints.js';
 import { state, bus, upgLevel } from '../core/state.js';
-import { buildTrolley, trolleySpec } from './models.js';
+import { buildTrolley, trolleySpec, ALL_TROLLEYS } from './models.js';
 import { dlog } from '../core/Debug.js';
 import { tuning } from '../garage/catalog.js';
 import { releaseTrolley } from '../garage/models.js';
@@ -154,7 +154,7 @@ export class Trolley {
       this.game.audio.sfx('denied');
       return;
     }
-    const order = ['james', 'ferry', 'night', 'bun', 'iron'];
+    const order = ALL_TROLLEYS.map(t=>t.id);
     const i = order.indexOf(this.spec.id);
     this.applyFleet(order[(i + 1) % order.length]);
     this.game.audio.sfx('trolleyStart');
