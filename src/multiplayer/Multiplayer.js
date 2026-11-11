@@ -15,6 +15,7 @@ import { buildGuide, segmentClear } from '../story/guide.js';
 import { mergeStatic } from '../world/geo/cityModels.js';
 import { positionClear } from '../core/motion.js';
 import { RoomClient } from './RoomClient.js';
+import { profile } from '../profile/Profile.js';
 import { fitGarage, releaseTrolley } from '../garage/models.js';
 import { MiniGames, el } from './MiniGames.js';
 import { phonePicker } from '../phone/Phone.js';
@@ -226,6 +227,7 @@ export class Multiplayer {
       flags: { trolleyUnlocked: true },
       settings: this.previous.settings,
     });
+    profile.apply(state);
     g.loading = true;
     document.body.classList.add('chapter-loading');
     try {
@@ -313,6 +315,8 @@ export class Multiplayer {
     if (m.type === 'welcome' || m.type === 'state') {
       const lastRun = this.room?.players[this.client.id]?.ring;
       this.room = m.room;
+      const me=this.room.players[this.client.id];
+      if(me&&this.client.profile)profile.room({rebar:me.rebar,garage:me.garage,upgrades:me.sharedUpgrades,inventory:me.inventory,revision:me.profileRevision});
       if (this.active) {
         const target = this.activityTarget;
         if (target?.kind && !availablePickup(target, this.room.players[this.client.id], this.room, this.client.now()))
@@ -1180,8 +1184,8 @@ export class Multiplayer {
   applyEquipment() {
     if (!this.root || !this.mint) return;
     const p = this.room.players[this.client.id], inventory = p.inventory || {};
-    state.upgrades.handling = Number(!!inventory.handling);
-    state.upgrades.tank = Number(!!inventory.tank);
+    state.upgrades.handling = Math.max(p.sharedUpgrades?.handling||0,Number(!!inventory.handling));
+    state.upgrades.tank = Math.max(p.sharedUpgrades?.tank||0,Number(!!inventory.tank));
     state.maxFuel = this.game.trolley.fuelMax;
     state.fuel = Math.min(state.maxFuel, state.fuel);
     this.paintTrolley(this.game.trolley.mesh, !!inventory.paint);
@@ -1540,6 +1544,8 @@ export class Multiplayer {
       Object.assign(state, DEFAULT_STATE(), this.previous);
       this.game.trolley.applyFleet(state.trolley, false);
     }
+    profile.leaveRoom();
+    SaveSystem.save();
     this.previous = null;
     this.game.mode = 'menu';
     this.game.input.enabled = false;

@@ -122,6 +122,8 @@ export class RoomEngine {
         inventory: profile?.inventory || {},
         trolley: roomTrolley(trolley ?? profile?.trolley).id,
         garage: profile?.garage || {},
+        profileKey: profile?.profileKey,
+        sharedUpgrades: profile?.sharedUpgrades || {},
         ringBest: profile?.ringBest,
         ring: profile?.ring?.deadline > this.now() ? profile.ring : null,
         moveSeq: -1,
@@ -187,8 +189,8 @@ export class RoomEngine {
     removeArenaPlayer(this, id);
     const p = this.s.players[id];
     if (p && !kicked) {
-      const { token, score, rebar, inventory, claims, ringBest, ring, pos, trolley, garage } = p;
-      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos, trolley, garage });
+      const { token, score, rebar, inventory, claims, ringBest, ring, pos, trolley, garage, profileKey, sharedUpgrades } = p;
+      this.s.savedPlayers.push({ id, token, score, rebar, inventory, claims, ringBest, ring, pos, trolley, garage, profileKey, sharedUpgrades });
       this.s.savedPlayers = this.s.savedPlayers.slice(-32);
     }
     delete this.s.players[id];
@@ -953,6 +955,7 @@ export class RoomEngine {
     delete s.savedPlayers;
     for (const p of Object.values(s.players)) {
       delete p.token;
+      delete p.profileKey;
       delete p.actionIds;
       delete p.chatAt;
       delete p.moveAt;

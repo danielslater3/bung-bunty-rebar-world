@@ -1,3 +1,7 @@
+# Permanent wallet update — 11 November 2026
+
+Rebar, purchased garage builds and legacy upgrade levels now belong to a cloud-backed player profile, shared across modes and rooms. Old room balances import once when their original room token reconnects. Rooms can expire without removing profiles. Recover on another device using **Player Profile** and the private recovery code. Campaign chapter progress remains separate. See [PERMANENT_PROFILE.md](PERMANENT_PROFILE.md); older room-local wallet descriptions below are historical.
+
 # Brisbane multiplayer
 
 Open the game and choose **MULTIPLAYER · BRISBANE**. Choose a character, four outfit colours, a display name, a Rebar S24 edition, and one of ten trolley editions. Then create a room or enter a friend's eight-character code. The invite button copies a room link. Guest display names and all cosmetic editions are free.

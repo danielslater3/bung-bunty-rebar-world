@@ -1,6 +1,7 @@
 // All menu screens: main menu, Bung Control Centre (pause), Rebar Exchange
 // (shop), Deployment Board (map select), Trolley Calibration (settings),
 // Portal Rush results, game over, and victory.
+import { openProfile } from '../profile/ProfileUI.js';
 import { state, bus, SaveSystem } from '../core/state.js';
 import { UPGRADES, SHOP_CATEGORIES } from '../systems/ShopSystem.js';
 import { ZONE_INFO } from '../world/zones.js';
@@ -29,6 +30,8 @@ export class Menus {
         this.game.audio.sfx('hover');
       }
     });
+    const profileButton=document.createElement('button');profileButton.className='mbtn profile-shortcut';profileButton.textContent='PLAYER PROFILE';profileButton.onclick=()=>openProfile();
+    div.querySelector('.menu-btns')?.append(profileButton);
     this.root.appendChild(div);
     this.current = div;
     return div;
@@ -63,7 +66,7 @@ export class Menus {
         <button class="mbtn" id="btn-settings">SETTINGS</button>
         <button class="mbtn" id="btn-controls">CONTROLS</button>
       </div>
-      <div class="hint-line" id="tip-line">NEW SAGA STARTS IN WEST END. FREE ROAM IS THE OLD SANDBOX AND REPLACES THE SAVE.</div>
+      <div class="hint-line" id="tip-line">NEW SAGA STARTS IN WEST END. FREE ROAM REPLACES STORY PROGRESS. YOUR PROFILE WALLET AND UPGRADES STAY.</div>
       <div class="version-tag">BUNG INDUSTRIES PTY LTD · 3 MARCH 1977</div>
     `);
     if (sagaSave || hasSave) s.querySelector('#btn-continue').onclick = () => this.game.startGame(false);

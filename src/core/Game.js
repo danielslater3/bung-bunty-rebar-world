@@ -20,6 +20,7 @@ import { ZONE_INFO, resolveBuilder } from '/src/world/zones.js';
 import { Rebirth } from '../systems/Rebirth.js';
 import { migrateState } from '../lore/universe.js';
 import { WeatherSystem } from '../weather/WeatherSystem.js';
+import { profile } from '../profile/Profile.js';
 import { Garage } from '../garage/Garage.js';
 import { Phone } from '../phone/Phone.js';
 import { Multiplayer } from '../multiplayer/Multiplayer.js';
@@ -61,6 +62,7 @@ export class Game {
     this.quests = new QuestSystem(this);
     this.shop = new ShopSystem(this);
     this.hud = new HUD(this);
+    profile.onChange=()=>this.hud.refresh();
     this.menus = new Menus(this);
     this.saga = new Saga(this);
     this.chain = new ChainManager(this); // central Rebar Chain manager
@@ -392,6 +394,7 @@ export class Game {
     const dt = Math.min(0.05, this.clock.getDelta());
     this._dt = dt;
     this.elapsed += dt;
+    profile.tick(dt);
     if(!this.loading)this.garage.update();
 
     if(this.loading){this.phone.update(dt);this.input.endFrame();return;}

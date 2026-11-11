@@ -1,5 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { RoomEngine, freshRoom } from './engine.js';
+import { profileKey, BungProfile } from './profiles.js';
+import { profileRecord, profileDelta } from '../src/profile/data.js';
+export { BungProfile };
 import { PROTOCOL } from '../src/multiplayer/catalog.js';
 const attachmentPlayer = (p) => ({
   pos: p.pos,
@@ -12,6 +15,15 @@ const attachmentPlayer = (p) => ({
 });
 const json = (data, status = 200, headers = {}) =>
   Response.json(data, { status, headers });
+async function profileBody(request){
+  const reader=request.body?.getReader();if(!reader)throw Error('Missing profile request.');
+  const decoder=new TextDecoder();let size=0,body='';
+  try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;
+    if(size>65536){await reader.cancel();throw Error('Profile request too large.');}
+    body+=decoder.decode(value,{stream:true});
+  }}finally{reader.releaseLock();}
+  return body+decoder.decode();
+}
 export default {
   async fetch(request, env) {
     const u = new URL(request.url),
@@ -22,13 +34,29 @@ export default {
     const cors = {
       'Access-Control-Allow-Origin': origin || '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       Vary: 'Origin',
       'Cache-Control': 'no-store',
     };
     if (request.method === 'OPTIONS')
       return new Response(null, { status: 204, headers: cors });
     try {
+      if(u.pathname==='/profile'&&request.method==='POST'){
+        if(Number(request.headers.get('content-length'))>65536)return json({error:'Profile request too large.'},413,cors);
+        const key=await profileKey((request.headers.get('Authorization')||'').replace(/^Bearer /,''));
+        const body=await profileBody(request);
+        const m=JSON.parse(body),stub=env.PROFILES.getByName(key);
+        if(m.type==='restore'){
+          const record=await stub.existing();return json(record||{error:'That recovery code has no saved profile.'},record?200:404,cors);
+        }
+        if(m.type==='read')return json(await stub.read(m.seed),200,cors);
+        if(m.type==='apply')try{return json(await stub.apply(m.operation),200,cors);}
+          catch(error){
+            if(!/Not enough rebar|Invalid |Wallet limit/.test(String(error.message)))throw error;
+            return json({error:String(error.message).slice(0,180),record:await stub.read()},409,cors);
+          }
+        return json({error:'Unknown profile action.'},400,cors);
+      }
       if (u.pathname === '/health')
         return json(
           { ok: true, protocol: PROTOCOL, maxPlayers: 10 },
@@ -77,16 +105,19 @@ export default {
 export class BungRoom extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    this.profiles=env.PROFILES;
     this.ctx.blockConcurrencyWhile(async () => {
       ctx.storage.sql.exec(
         'CREATE TABLE IF NOT EXISTS room_state (id INTEGER PRIMARY KEY CHECK (id=1), body TEXT NOT NULL)',
       );
+      ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS commit_journal(id INTEGER PRIMARY KEY,body TEXT NOT NULL)');
       const rows = ctx.storage.sql
         .exec('SELECT body FROM room_state WHERE id=1')
         .toArray();
       this.engine = rows.length
         ? new RoomEngine(JSON.parse(rows[0].body))
         : null;
+      await this.drainPending();
       if (this.engine) {
         for (const p of Object.values(this.engine.s.players))
           p.connected = false;
@@ -121,6 +152,46 @@ export class BungRoom extends DurableObject {
       JSON.stringify(next.s),
     );
     this.engine = next;
+  }
+  economy(p){return profileRecord({rebar:p.rebar,garage:p.garage,upgrades:p.sharedUpgrades,inventory:p.inventory});}
+  applyEconomy(p,record){p.rebar=record.rebar;p.garage=record.garage;p.sharedUpgrades=record.upgrades;p.inventory=record.inventory;p.profileRevision=record.revision;}
+  async refreshEconomy(id){
+    const p=this.engine?.s.players[id];if(!p?.profileKey)return;
+    const record=await this.profiles.getByName(p.profileKey).read();
+    if(record.revision!==p.profileRevision||record.rebar!==p.rebar){this.applyEconomy(p,record);this.persist(this.engine);}
+  }
+  async commit(next){
+    const operations=[];
+    for(const p of Object.values(next.s.players)){
+      if(!p.profileKey)continue;
+      const before=this.engine.s.players[p.id];
+      if(!before||before.profileKey!==p.profileKey)continue;
+      const change=profileDelta(this.economy(before),this.economy(p));
+      if(change)operations.push({key:p.profileKey,player:p.id,operation:{...change,id:crypto.randomUUID()}});
+    }
+    if(!operations.length){this.persist(next);return;}
+    operations.sort((a,b)=>a.operation.delta-b.operation.delta);
+    this.ctx.storage.sql.exec('INSERT INTO commit_journal(id,body) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body',JSON.stringify({state:next.s,operations}));
+    await this.drainPending();
+  }
+  async drainPending(){
+    const rows=this.ctx.storage.sql.exec('SELECT body FROM commit_journal WHERE id=1').toArray();if(!rows.length)return;
+    const journal=JSON.parse(rows[0].body);
+    const records=new Map();
+    for(const item of journal.operations){
+      let record;
+      try{record=await this.profiles.getByName(item.key).apply(item.operation);}
+      catch(error){
+        if(String(error.message).includes('Not enough rebar'))this.ctx.storage.sql.exec('DELETE FROM commit_journal WHERE id=1');
+        throw error;
+      }
+      records.set(item.key,record);
+    }
+    for(const p of Object.values(journal.state.players))if(records.has(p.profileKey))this.applyEconomy(p,records.get(p.profileKey));
+    this.ctx.storage.transactionSync(()=>{
+      this.persist(new RoomEngine(journal.state));
+      this.ctx.storage.sql.exec('DELETE FROM commit_journal WHERE id=1');
+    });
   }
   next() {
     return new RoomEngine(structuredClone(this.engine.s));
@@ -185,7 +256,13 @@ export class BungRoom extends DurableObject {
         });
     }
   }
-  async webSocketMessage(ws, message) {
+  async webSocketMessage(ws,message){
+    return this.ctx.blockConcurrencyWhile(async()=>{
+      try{await this.drainPending();await this.handleMessage(ws,message);}
+      catch{this.send(ws,{type:'error',message:'Profile sync interrupted. Reconnect to finish saving.'});}
+    });
+  }
+  async handleMessage(ws, message) {
     if (typeof message !== 'string' || message.length > 8192) {
       ws.close(1009, 'Message too large');
       return;
@@ -215,6 +292,13 @@ export class BungRoom extends DurableObject {
             m.appearance,
             m.trolley,
           );
+        if(m.profile){
+          const key=await profileKey(m.profile),stub=this.profiles.getByName(key);
+          let record=await stub.read();
+          if(!p.profileKey&&(p.rebar||Object.keys(p.garage||{}).length||Object.keys(p.inventory||{}).length))
+            record=await stub.apply({id:'legacy-room:'+next.s.code+':'+p.id,delta:p.rebar,garage:p.garage,inventory:p.inventory,upgrades:{}});
+          p.profileKey=key;this.applyEconomy(p,record);
+        }
         // Rejoining a session replaces the old socket without taking an extra slot.
         for (const other of this.ctx.getWebSockets())
           if (other !== ws && other.deserializeAttachment()?.id === p.id)
@@ -246,7 +330,7 @@ export class BungRoom extends DurableObject {
             }
             if (gate) next.advanceRing(a.id, previous);
             if (race) next.advanceRace(a.id, previous);
-            this.persist(next);
+            await this.commit(next);
             reschedule = !!(gate || race);
             this.broadcast();
           }
@@ -266,16 +350,18 @@ export class BungRoom extends DurableObject {
               });
         }
       } else if (m.type === 'command') {
+        await this.refreshEconomy(a.id);
         const next = this.next();
         if (next.command(a.id, m)) {
-          this.persist(next);
+          await this.commit(next);
           this.broadcast();
         }
         a.player = attachmentPlayer(this.engine.s.players[a.id]);
         ws.serializeAttachment(a);
       } else if (m.type === 'sync') {
+        await this.refreshEconomy(a.id);
         const next = this.next();
-        if (next.tick()) this.persist(next);
+        if (next.tick()) await this.commit(next);
         this.send(ws, {
           type: 'state',
           room: this.engine.view(a.id),
@@ -296,7 +382,10 @@ export class BungRoom extends DurableObject {
       if (a?.pending) ws.close(4003, 'Cannot join');
     }
   }
-  async webSocketClose(ws, code, reason) {
+  async webSocketClose(ws,code,reason){
+    return this.ctx.blockConcurrencyWhile(async()=>{await this.drainPending();await this.handleClose(ws,code,reason);});
+  }
+  async handleClose(ws, code, reason) {
     const a = ws.deserializeAttachment();
     if (a?.id && this.engine.s.players[a.id]) {
       const replacement = this.ctx
@@ -355,7 +444,8 @@ export class BungRoom extends DurableObject {
     const at = Math.max(Date.now() + 100, next);
     if (scheduled == null || at < scheduled) await this.ctx.storage.setAlarm(at);
   }
-  async alarm() {
+  async alarm(){return this.ctx.blockConcurrencyWhile(async()=>{await this.drainPending();await this.handleAlarm();});}
+  async handleAlarm() {
     if (!this.engine) return;
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment();
@@ -364,7 +454,7 @@ export class BungRoom extends DurableObject {
     }
     const next = this.next();
     next.tick();
-    this.persist(next);
+    await this.commit(next);
     this.broadcast();
     if (
       !this.ctx.getWebSockets().length &&

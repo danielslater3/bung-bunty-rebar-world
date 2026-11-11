@@ -1,8 +1,11 @@
 // BUNG BUNTY: REBAR WORLD — entry point.
+import { profile } from './profile/Profile.js';
+import { state, SaveSystem } from './core/state.js';
 import { Game } from '/src/core/Game.js';
 
 const boot = document.getElementById('boot');
 try {
+  await profile.connect(state,SaveSystem.peek()||state);
   const game = new Game();
   window.BUNG = game; // handy for debugging in the console
   game.mode = 'menu';

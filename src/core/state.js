@@ -1,3 +1,4 @@
+import { profile } from '../profile/Profile.js';
 import { migrateCharacterState } from './characterNames.js';
 // Central game state, event bus, and save system.
 // Everything that needs to persist lives in `state`; everything that needs
@@ -86,6 +87,7 @@ export const SaveSystem = {
     try { return migrateCurrency(migrateCharacterState(JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'))); } catch { return null; }
   },
   save(game) {
+    profile.capture(state);
     if(state._multiplayer)return true;
     try {
       if (game?.player && (game.mode === 'playing' || game.mode === 'paused')) {
@@ -120,17 +122,21 @@ export const SaveSystem = {
     try { const s=migrateCharacterState(JSON.parse(localStorage.getItem(REPLAY_KEY)||'null'));return s?._replay && s?.saga?.active ? s : null; } catch { return null; }
   },
   beginReplay(prepared) {
+    profile.capture(state);
     // Persist first: if storage is full, leave the active game untouched.
     localStorage.setItem(REPLAY_KEY, JSON.stringify(prepared));
     Object.assign(state, DEFAULT_STATE(), migrateCurrency(prepared));
+    profile.apply(state);
   },
   load(replay = false) {
     try {
+      profile.capture(state);
       const raw = localStorage.getItem(replay ? REPLAY_KEY : SAVE_KEY);
       if (!raw) return false;
       const data = migrateCurrency(migrateCharacterState(JSON.parse(raw)));
       if (replay && (!data?._replay || !data?.saga?.active)) return false;
       Object.assign(state, DEFAULT_STATE(), data);
+      profile.apply(state);
       if (!replay) state._replay = null;
       if (!state.stock || typeof state.stock !== 'object') state.stock = {};
       if (!Array.isArray(state.archive)) state.archive = ['bung', 'chung', 'gabor', 'james', 'conspiracy'];
@@ -144,7 +150,9 @@ export const SaveSystem = {
     } catch (e) { console.warn('Load failed', e); return false; }
   },
   reset() {
+    profile.capture(state);
     state = Object.assign(state, DEFAULT_STATE());
+    profile.apply(state);
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(REPLAY_KEY); } catch {}
   },
 };

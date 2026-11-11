@@ -1,3 +1,4 @@
+import { profile } from '../profile/Profile.js';
 import { PROTOCOL, normalizeAppearance } from './catalog.js';
 import { roomTrolley } from './fleet.js';
 export class RoomClient {
@@ -28,6 +29,7 @@ export class RoomClient {
     return data.code;
   }
   async join(code, name, appearance, trolley) {
+    this.profile=await profile.prepareRoom();
     this.code = code.toUpperCase().replace(/\s/g, '');
     if (!/^[A-HJ-NP-Z2-9]{8}$/.test(this.code))
       throw Error('Enter the eight-character room code.');
@@ -63,6 +65,7 @@ export class RoomClient {
             appearance: this.appearance,
             trolley: this.trolley,
             token: this.token,
+            profile: this.profile,
           }),
         );
       ws.onmessage = (e) => {

@@ -1,3 +1,5 @@
+import { openProfile } from '../profile/ProfileUI.js';
+
 import { state } from '../core/state.js';
 import { conditionsAt, TIERS, weatherAt, weatherWarning } from '../weather/model.js';
 import { EDITIONS, editionFor, editionImage } from './editions.js';
@@ -370,6 +372,7 @@ export class Phone {
   wallet() {
     const balances = el('div', '', 's24-wallet');
     this.body.append(balances);
+    this.body.append(button('Player profile · save / restore',()=>openProfile()));
     this.drawWallet = () => {
       const g = this.game, mp = g.multiplayer, p = mp.room?.players[mp.client?.id];
       const text = mp.active && p
