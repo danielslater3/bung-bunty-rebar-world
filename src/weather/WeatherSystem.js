@@ -70,6 +70,8 @@ export class WeatherSystem {
     if (!zone.terrain || zone.name !== 'brisbane') return;
     if (!Number.isFinite(state.brisbaneWeatherTime) || state.brisbaneWeatherTime < 0) state.brisbaneWeatherTime = 0;
     this.zone = zone;
+    this.legacyWeather = null;
+    this.weatherAnnouncement = null;
     this.root = new THREE.Group();
     this.root.name = 'Brisbane weather';
     zone.group.add(this.root);
@@ -195,6 +197,9 @@ export class WeatherSystem {
       this.zone.sun.intensity = this.base.sun;
       if (this.hemi) this.hemi.intensity = this.base.hemi;
     }
+    const tint = document.getElementById('weather-tint');
+    if (tint) tint.className = '';
+    this.game.renderer.toneMappingExposure = 1.05;
     this.root = null;
     this.zone = null;
     this.exercise = null;
@@ -258,12 +263,26 @@ export class WeatherSystem {
     this.audio(dt, running ? (c.rain * .55 + (f.tornado?.ground && Math.hypot(f.tornado.x - p.x, f.tornado.z - p.z) < 250 ? .4 : 0)) * (this.exposed ? 1 : .20) : 0);
     const arena = room?.arena, fighting = arena?.players.includes(g.multiplayer.client.id) &&
       ['playing', 'countdown'].includes(arena.phase);
-    const barkKey = this.seed + '/' + f.cycle + '/' + !!this.exercise;
-    if (g.mode === 'playing' && !g.phone.opened && !g.dialogue.current && !fighting && this.exposed &&
-      c.rain > .5 && (f.mode === 'supercell' || f.mode === 'storm') && this.singletBark !== barkKey) {
-      this.singletBark = barkKey;
-      g.say('bung', 'OIII! The singlet is not weatherproof!');
+    const nearbyTornado = f.tornado?.ground && Math.hypot(p.x - f.tornado.x, p.z - f.tornado.z) < 950;
+    const wet = nearbyTornado || c.rain > (this.legacyWeather === 'storm' ? .16 : .40);
+    const sunny = !wet && c.rain < .08 && f.core < .22;
+    const nextWeather = wet ? 'storm' : sunny ? 'sun' : 'haze';
+    const changed = nextWeather !== this.legacyWeather;
+    this.legacyWeather = nextWeather;
+    if (changed && (nextWeather === 'storm' || nextWeather === 'sun'))
+      this.weatherAnnouncement = nextWeather;
+    if (g.mode === 'playing' && !g.phone.opened && !g.dialogue.current && !fighting &&
+        !g.saga.freeze && !g.saga.scenePlaying && this.exposed && this.weatherAnnouncement) {
+      const storm = this.weatherAnnouncement === 'storm';
+      g.toast(storm ? 'BRISBANE STORM — THE SINGLET IS NOT WEATHERPROOF' : "SUN'S OUT. REBARS OUT.", 'blue');
+      if (storm) g.say('bung', 'OIII! The singlet is not weatherproof!');
+      this.weatherAnnouncement = null;
     }
+    const tint = document.getElementById('weather-tint');
+    if (tint) tint.className = nextWeather === 'storm' ? 'storm' : '';
+    const exposure = nextWeather === 'storm' ? .88 : nextWeather === 'sun' ? 1.12 : 1.02;
+    if (!g.saga.venues?.nightBackup)
+      g.renderer.toneMappingExposure += (exposure - g.renderer.toneMappingExposure) * Math.min(1, dt * .8);
     if (running && !fighting && !g.multiplayer.raceCountdown?.() && !g.saga.freeze && !g.saga.scenePlaying && !g.dialogue.cinematic && this.exposed)
       this.applyWind(dt, f, c, p);
     else this.caughtSince = null;
@@ -517,7 +536,7 @@ export class WeatherSystem {
     this.flash = 0;
     this.throwUntil = -Infinity;
     this.caughtSince = null;
-    this.singletBark = null;
+    this.weatherAnnouncement = null;
     this.update(0);
   }
 

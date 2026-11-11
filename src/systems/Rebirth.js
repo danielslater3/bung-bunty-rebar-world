@@ -8,8 +8,6 @@ export class Rebirth {
   constructor(game) {
     this.game = game;
     this.incomeT = 0;
-    this.weatherT = 0;
-    this.weather = 'sun';
     this.follower = null;
     this._target = new THREE.Vector3();
   }
@@ -52,21 +50,11 @@ export class Rebirth {
       }
     }
 
-    this.weatherT += dt;
-    const zone = state.currentZone;
-    const outdoor = zone === 'brisbane' || zone === 'mansion';
-    const phase = this.weatherT % 110;
-    const next = !outdoor ? 'clear' : phase < 55 ? 'sun' : phase < 85 ? 'haze' : 'storm';
-    if (next !== this.weather) {
-      this.weather = next;
-      if (next === 'storm') g.toast('BRISBANE STORM — THE SINGLET IS NOT WEATHERPROOF', 'blue');
-      if (next === 'sun' && outdoor) g.toast('SUN\'S OUT. REBARS OUT.', 'blue');
-    }
-    const exposure = { sun: 1.12, haze: 0.96, storm: 0.78, clear: 1.02 }[this.weather] || 1.05;
-    g.renderer.toneMappingExposure += (exposure - g.renderer.toneMappingExposure) * Math.min(1, dt * 0.8);
-    const tint = document.getElementById('weather-tint');
-    if (tint) {
-      tint.className = outdoor ? this.weather : '';
+    // Brisbane's weather controller owns its lighting, tint and announcements.
+    if (!g.weather.zone) {
+      g.renderer.toneMappingExposure += (1.05 - g.renderer.toneMappingExposure) * Math.min(1, dt * .8);
+      const tint = document.getElementById('weather-tint');
+      if (tint) tint.className = '';
     }
   }
 }
