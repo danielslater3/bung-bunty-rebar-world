@@ -1143,7 +1143,7 @@ export class Multiplayer {
   }
   raceEntry() {
     const race = this.active && this.room?.events?.race;
-    const entry = race?.entries[this.client?.id];
+    const entry = race?.entries?.[this.client?.id];
     return race?.status === 'running' && entry && !entry.finished ? entry : null;
   }
   raceCountdown() {
