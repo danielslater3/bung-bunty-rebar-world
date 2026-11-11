@@ -65,7 +65,7 @@ export class Profile {
   this.cache.record=profileRecord(record);this.save();this.rebase();
  }
  async flush(){
-  if(!this.ready)return;
+  if(!this.ready||this.restoring)return;
   if(this.busy)return this.busy;
   this.busy=this.perform().finally(()=>{this.busy=null;});return this.busy;
  }
@@ -91,7 +91,7 @@ export class Profile {
   }catch(error){this.online=false;this.status='Saved on this device · sync pending';throw error;}
  }
  tick(dt){
-  if(!this.ready||this.inRoom)return;
+  if(!this.ready||this.inRoom||this.restoring)return;
   this.elapsed+=dt;this.poll+=dt;
   if(this.elapsed<.5)return;this.elapsed=0;this.capture();
   if(this.pending().length||this.poll>8){this.poll=0;this.flush().catch(()=>{});}
@@ -106,9 +106,11 @@ export class Profile {
   if(this.inRoom)throw Error('Leave the room before restoring a different profile.');
   if(!/^bung-[a-f0-9]{64}$/.test(code.trim()))throw Error('Enter the complete recovery code.');
   await this.flush();const previous=this.cache;
+  this.restoring=true;
   this.cache={key:code.trim(),initial:profileRecord(),record:profileRecord()};
   try{const record=await this.request({type:'restore'});this.cache.record=record;this.save();this.rebase();this.online=true;this.status='Cloud saved';}
   catch(error){this.cache=previous;this.rebase();throw error;}
+  finally{this.restoring=false;}
  }
 }
 export const profile=new Profile();
