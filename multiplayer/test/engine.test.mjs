@@ -649,3 +649,18 @@ test('garage stance tuning validates location, fitted hardware and independent a
  assert.equal(p[0].rebar,balance);assert.equal(p[0].garage.james.setup.frontHeight,-.4);assert.equal(p[0].garage.james.setup.rearHeight,-.1);
  assert.equal(e.view(p[1].id).players[p[0].id].garage.james.setup.rearWidth,1.8);
 });
+
+test('elite engines purchase, reconnect, replicate and authorize upgraded driving speeds',()=>{
+ for(const [id,price,velocity] of [['r16',180,61.6],['g18',350,88]]){
+  const s=setup(2),{e,p,cmd}=s,driver=p[0];driver.rebar=price;driver.pos={x:94,y:9.7,z:37};driver.moveAt=e.now();
+  cmd(driver,'garageBuy',{part:id,action:'equip'});assert.equal(driver.rebar,0);
+  assert.equal(e.view(p[1].id).players[driver.id].garage.james.equipped.engine,id);
+  cmd(driver,'garageBuy',{part:id,action:'equip'});assert.equal(driver.rebar,0);
+  const reloaded=new RoomEngine(JSON.parse(JSON.stringify(e.s)),()=>s.time);
+  assert.equal(reloaded.s.players[driver.id].garage.james.equipped.engine,id);
+  s.time+=1000;
+  assert.ok(e.move(driver.id,{seq:1,pos:{x:94+velocity,y:9.7,z:37},yaw:0,riding:true}));
+  s.time+=1000;
+  assert.throws(()=>e.move(driver.id,{seq:2,pos:{x:94+velocity+250,y:9.7,z:37},yaw:0,riding:true}),/corrected/);
+ }
+});

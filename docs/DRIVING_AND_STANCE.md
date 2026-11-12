@@ -4,6 +4,8 @@
 
 Fit **Drift tyres** in Bung Garage → Handling. Accelerate and turn with W/A/D to break rear traction. The trolley now retains sideways momentum while its body rotates. A steers left and D steers right from the chase camera. Drift tyres use assisted arcade steering: hold a steering key to sustain a fast slide, release it to smoothly straighten out, or countersteer to change direction. Space is an optional rear handbrake for any tyre type. Bounded ground ribbons show tyre marks; release effects no longer apply repeated speed impulses. The campaign trolley chip displays speed in km/h and slip angle while sliding. The follow camera blends toward travel direction during a slide.
 
+Bung Garage → **Engine** includes REBAR R16 (180 rebar, 1.4× V12 speed/acceleration ratings, 16 visible cyan cylinders) and GIRDER G18 (350 rebar, 2× V12 ratings, 18 visible gold cylinders). These replace the engine slot, retain purchased ownership, and save through the same permanent profile. The existing speed ceiling scales by the engine tier, including boosts; multiplayer accepts these higher speeds while retaining its movement checks.
+
 Garage → **Setup** has a live turntable preview, rider visibility toggle, orbit/zoom and independent front/rear controls:
 
 - **Street coilovers / Raised suspension:** ride-height offsets from −420 mm to +280 mm. Front/rear height controls can be linked or independent.

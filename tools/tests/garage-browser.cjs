@@ -38,7 +38,7 @@ console.log(await p.evaluate(async()=>{
  const pickup=z.rebar(1000,20,1000),before=state.rebars;
  pickup.collect();pickup.collect();if(state.rebars!==before+1)throw Error('Pickup paid twice');
  pickup.readyAt=Date.now()-1;pickup.update(0);if(pickup.collected||!pickup.mesh.visible)throw Error('Rebar did not respawn');
- state.rebars=200;
+ state.rebars=1000;
  const pos=garage.frame.world({x:0,y:garage.floor+.1,z:10});g.player.teleport(new T.Vector3(pos.x,pos.y,pos.z));
  g.garage.open();
  return {floor:garage.floor,near:g.garage.near()};
@@ -47,6 +47,12 @@ const dialog=p.getByRole('dialog',{name:'Bung Garage'});
 await dialog.locator('.bung-garage-part').filter({hasText:'Sir Twelve V12'}).getByRole('button').click();
 await p.evaluate(()=>BUNG.garage.update());
 assert.equal(await p.evaluate(()=>BUNG.trolley.tune.cylinders),12);
+for(const [name,cylinders] of [['REBAR R16',16],['GIRDER G18',18]]){
+ await dialog.locator('.bung-garage-part').filter({hasText:name}).getByRole('button').click();
+ await p.evaluate(()=>BUNG.garage.update());
+ assert.equal(await p.evaluate(()=>BUNG.trolley.tune.cylinders),cylinders);
+}
+assert.equal(await p.evaluate(async()=>{const {state}=await import('/src/core/state.js');return state.rebars;}),405);
 await dialog.getByRole('navigation',{name:'Garage sections'}).getByRole('button',{name:'Handling',exact:true}).click();
 await dialog.locator('.bung-garage-part').filter({hasText:'Off-road tyres'}).getByRole('button').click();
 await p.evaluate(()=>BUNG.garage.update());
@@ -54,7 +60,7 @@ await dialog.getByRole('button',{name:'BACK TO BRISBANE'}).click();
 assert.equal(await p.evaluate(async()=>{
  const {state,SaveSystem}=await import('/src/core/state.js');
  state.garage={};SaveSystem.load();BUNG.garage.update();return BUNG.trolley.tune.cylinders;
-}),12);
+}),18);
 await p.evaluate(()=>{const g=BUNG,garage=g.zone.garage;const pos=garage.frame.world({x:0,y:garage.floor+4,z:-12});g.camera.position.set(pos.x,pos.y,pos.z);const target=garage.frame.world({x:0,y:garage.floor+2,z:14});g.camera.lookAt(target.x,target.y,target.z);g.renderer.render(g.scene,g.camera);});
 await p.screenshot({path:'../browser-tests/bung-garage.png'});
 assert.deepEqual(errors,[]);console.log('GARAGE WALK-IN AND FITTING PASSED');

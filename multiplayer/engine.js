@@ -14,7 +14,7 @@ import { arenaContains, arenaLive, availablePickup, crossesGate, EXCHANGE, EXCHA
 import { arenaCommand, arenaTick, emptyArena, removeArenaPlayer } from './burgerHeist.js';
 import { advanceRace, collectHunt, eventCommand, eventTick, raceGate, racing, welcomeEvents } from './roomEvents.js';
 import { roomTrolley } from '../src/multiplayer/fleet.js';
-import { GARAGE, garageAction, garageSetup } from '../src/garage/catalog.js';
+import { GARAGE, garageAction, garageSetup, engineSpeedScale } from '../src/garage/catalog.js';
 import { hashWeather, weatherAt } from '../src/weather/model.js';
 export const freshRoom = (code, now) => ({
   code,
@@ -233,17 +233,17 @@ export class RoomEngine {
       if ((arena.phase === 'countdown' || p.stunnedUntil > n) && gap(p.pos, v) > .65) return false;
     }
     if (n - (p.moveAt || 0) < 80) return false;
-    let speedLimit = 58;
+    let speedLimit = 44 * engineSpeedScale(p.garage?.[p.trolley]) + 14;
     if (!fighter) {
       const frame = weatherAt(hashWeather(this.s.code), Math.max(0, (n-this.s.created)/1000));
       const tornado = frame.tornado;
       if (tornado?.ground && Math.hypot(p.pos.x-tornado.x,p.pos.z-tornado.z)<tornado.reach+30)
         p.weatherFlight={until:n+(tornado.duration+3)*1000,speed:Math.max(82,tornado.toss+60)};
-      if (p.weatherFlight?.until>n) speedLimit=p.weatherFlight.speed;
+      if (p.weatherFlight?.until>n) speedLimit=Math.max(speedLimit,p.weatherFlight.speed);
       else {
         delete p.weatherFlight;
         // Driving and the deterministic storm's wind can combine.
-        if(frame.core>.35 && Math.hypot(p.pos.x-frame.x,p.pos.z-frame.z)<1700) speedLimit=82;
+        if(frame.core>.35 && Math.hypot(p.pos.x-frame.x,p.pos.z-frame.z)<1700) speedLimit=Math.max(speedLimit,82);
       }
     }
     const allowed =

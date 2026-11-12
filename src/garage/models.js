@@ -29,16 +29,16 @@ export function fitGarage(mesh, record) {
  const group=new THREE.Group();group.name='Garage equipment';(mesh.userData.chassis||mesh).add(group);
  const metal=new THREE.MeshStandardMaterial({color:0xa7b2b9,metalness:.7,roughness:.32});
  const dark=new THREE.MeshStandardMaterial({color:0x23303d,metalness:.45,roughness:.6});
- const accent=new THREE.MeshStandardMaterial({color:0xd9474f,metalness:.35,roughness:.5});
+ const accent=new THREE.MeshStandardMaterial({color:t.cylinders===18?0xe7b94f:t.cylinders===16?0x35bacb:0xd9474f,metalness:.35,roughness:.5});
  const box=(x,y,z,w,h,d,material=metal)=>{
   const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);m.position.set(x,y,z);group.add(m);return m;
  };
  for(let i=0;i<t.cylinders;i++){
   const side=i%2?1:-1,row=Math.floor(i/2);
-  const cylinder=new THREE.Mesh(new THREE.CylinderGeometry(.046,.055,.19,8),metal);
+  const cylinder=new THREE.Mesh(new THREE.CylinderGeometry(.046,.055,.19,8),t.cylinders>12?accent:metal);
   cylinder.rotation.z=side*.5;cylinder.position.set(side*.16,.73,-.19-row*.075);group.add(cylinder);
  }
- if(t.cylinders)box(0,.58,-.4,.39,.2,.64,dark);
+ if(t.cylinders){const rows=t.cylinders/2;box(0,.58,-.19-(rows-1)*.075/2,.39,.2,.3+(rows-1)*.075,dark);}
  if(equipped.induction==='supercharger')box(0,.91,-.43,.24,.17,.29,accent);
  if(equipped.induction==='turbo'){
   const turbo=new THREE.Mesh(new THREE.TorusGeometry(.1,.04,8,14),metal);

@@ -21,7 +21,7 @@ test('every trolley supports each garage fitting with finite geometry and revers
  for(const fleet of ROOM_FLEET){
   const model=buildTrolley(fleet.id);
   for(const part of PARTS){
-   const record=garageAction({},part.id,'equip',100).next;
+   const record=garageAction({},part.id,'equip',part.price).next;
    fitGarage(model,record);
    model.traverse(o=>{if(o.isMesh)for(const n of o.geometry.attributes.position.array)assert.ok(Number.isFinite(n));});
   }
@@ -43,4 +43,27 @@ test('independent axle setup clamps values, links controls and moves chassis wit
  assert.equal(linked.setup.frontHeight,-.42);assert.equal(linked.setup.rearHeight,-.42);assert.equal(linked.setup.frontCamber,-18);assert.equal(linked.setup.frontWidth,2);
  const unfunded=garageSetup({},record.setup);assert.equal(tuning(unfunded).height,0);assert.equal(tuning(unfunded).frontWidth,1);
  assert.deepEqual(buildRecord(JSON.parse(JSON.stringify(record))).setup,record.setup);
+});
+
+test('elite engines cost more, preserve ownership and scale real trolley speed above the V12 ceiling',async()=>{
+ const {engineSpeedScale,buildRecord}=await import('../../src/garage/catalog.js');
+ const {Trolley}=await import('../../src/entities/Trolley.js');
+ const {state}=await import('../../src/core/state.js');
+ const speed=Object.getOwnPropertyDescriptor(Trolley.prototype,'maxSpeed').get;
+ const v12=tuning(garageAction({},'v12','equip',65).next);
+ for(const [id,price,factor,cylinders] of [['r16',180,1.4,16],['g18',350,2,18]]){
+  assert.throws(()=>garageAction({},id,'equip',price-1),/rebar/);
+  const purchase=garageAction({},id,'equip',price),t=tuning(purchase.next);
+  assert.equal(purchase.cost,price);assert.equal(t.cylinders,cylinders);
+  assert.ok(Math.abs(t.speed/v12.speed-factor)<1e-12);assert.ok(Math.abs(t.accel/v12.accel-factor)<1e-12);
+  assert.equal(engineSpeedScale(purchase.next),factor);
+  const restored=buildRecord(JSON.parse(JSON.stringify(purchase.next)));
+  assert.equal(restored.equipped.engine,id);assert.equal(garageAction(restored,id,'equip',0).cost,0);
+  const saved=state.saga;try{state.saga={};
+   for(const boosting of [false,true]){
+    const context={game:{multiplayer:{raceEntry:()=>null}},spec:{speed:10},boosting,tune:t};
+    const baseline=speed.call({...context,tune:v12});assert.ok(Math.abs(speed.call(context)/baseline-factor)<1e-12);
+   }
+  }finally{state.saga=saved;}
+ }
 });

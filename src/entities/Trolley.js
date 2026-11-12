@@ -9,7 +9,7 @@ import { surfaceY } from '../world/geo/project.js';
 import { state, bus, upgLevel } from '../core/state.js';
 import { buildTrolley, trolleySpec, ALL_TROLLEYS } from './models.js';
 import { dlog } from '../core/Debug.js';
-import { tuning } from '../garage/catalog.js';
+import { tuning, engineSpeedScale } from '../garage/catalog.js';
 import { TrolleyDynamics } from '../garage/dynamics.js';
 import { DriftTrail } from '../garage/DriftTrail.js';
 import { releaseTrolley } from '../garage/models.js';
@@ -93,7 +93,7 @@ export class Trolley {
     let m = (18 + upgLevel('turbo') * 2.5) * (race ? 1 : this.spec.speed) * (this.boosting ? 1.55 : 1) * power;
     if (state.saga?.trolleyDamage) m *= 0.42;
     if (state.saga?.bigBoy) m *= 1.32;
-    return Math.min(44,m*this.tune.speed*(this.boosting?this.tune.nitro:1));
+    return Math.min(44*engineSpeedScale(this.tune),m*this.tune.speed*(this.boosting?this.tune.nitro:1));
   }
   get accel() {
     let a = (16 + upgLevel('turbo') * 2) * (this.game.multiplayer?.raceEntry() ? 1 : this.spec.accel);

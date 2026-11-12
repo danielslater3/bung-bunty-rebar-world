@@ -5,6 +5,8 @@ export const PARTS = [
  part('v6','engine','Bung V6',24,'Six cylinders. +15% speed, +24% acceleration.',{speed:1.15,accel:1.24,cylinders:6}),
  part('v8','engine','Big Bun V8',40,'Eight cylinders. +22% speed, +36% acceleration.',{speed:1.22,accel:1.36,cylinders:8}),
  part('v12','engine','Sir Twelve V12',65,'Twelve cylinders. +30% speed, +50% acceleration.',{speed:1.3,accel:1.5,cylinders:12}),
+ part('r16','engine','REBAR R16',180,'Sixteen cylinders. 1.4× V12 top speed and acceleration.',{speed:1.82,accel:2.1,cylinders:16}),
+ part('g18','engine','GIRDER G18',350,'Eighteen cylinders. 2× V12 top speed and acceleration.',{speed:2.6,accel:3,cylinders:18}),
  part('turbo','induction','Turbocharger',25,'Exhaust turbine. Stronger boost and top speed.',{speed:1.12,accel:1.12}),
  part('supercharger','induction','Supercharger',30,'Belt-driven blower. Faster response and acceleration.',{speed:1.06,accel:1.3}),
  part('race','tyres','Race tyres',15,'High dry grip; sharper turn-in. Wet roads reduce traction.',{turn:1.17}),
@@ -92,4 +94,11 @@ export function garageSetup(record,value){
   if(!allowed)for(const end of ['front','rear'])delete setup[end+name];
  }
  next.setup=setup;return next;
+}
+
+// Scale the existing V12 safety ceiling too, so elite engines retain their
+// advertised advantage even with boost, induction and campaign bonuses.
+export function engineSpeedScale(record){
+ const cylinders=record?.cylinders??tuning(record).cylinders;
+ return cylinders===16?1.4:cylinders===18?2:1;
 }
