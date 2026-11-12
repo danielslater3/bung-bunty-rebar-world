@@ -1143,6 +1143,7 @@ export class Multiplayer {
     t.speed = t.vy = 0;
     t.summoned = t.riding = t.mesh.visible = true;
     t.mesh.position.copy(t.pos);
+    t.snapPose();
     t.mesh.rotation.y = t.heading;
     g.player.facing = t.heading;
     g.camYaw = t.heading;

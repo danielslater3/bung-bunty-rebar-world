@@ -314,6 +314,7 @@ export class Game {
       t.riding = !!place.riding;
       t.mesh.visible = true;
       t.mesh.position.copy(t.pos);
+      t.snapPose();
       t.mesh.rotation.y = t.heading;
       this.actorPrev.trolley.copy(t.pos);
     }
@@ -650,15 +651,17 @@ export class Game {
   updateCamera(dt) {
     const riding = this.trolley.riding;
     const targetPos = riding
-      ? this.trolley.pos.clone().add(new THREE.Vector3(0, 1.8+this.trolley.tune.height, 0))
+      ? this.trolley.renderPos.clone().add(new THREE.Vector3(0, 1.8+this.trolley.tune.height, 0))
       : this.player.pos.clone().add(new THREE.Vector3(0, 1.7, 0));
 
     // While riding, gently align the camera behind the trolley
     if (riding && Math.abs(this.input.mouseDX) < 1) {
       const t=this.trolley;
       const motion=Math.atan2(t.drive.vx,t.drive.vz);
-      const slip=((motion-t.heading+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
-      const targetYaw=t.heading+Math.PI+(t.drifting?slip*.45:0);
+      const slip=((motion-t.renderHeading+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+      const desiredBlend=Math.min(1,Math.max(0,(Math.abs(t.drive.slip)-.025)/.3));
+      t.cameraDriftBlend=(t.cameraDriftBlend||0)+(desiredBlend-(t.cameraDriftBlend||0))*(1-Math.exp(-dt*5));
+      const targetYaw=t.renderHeading+Math.PI+slip*.45*t.cameraDriftBlend;
       let d = ((targetYaw - this.camYaw + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
       this.camYaw += d * (1 - Math.exp(-1.6 * dt));
     }

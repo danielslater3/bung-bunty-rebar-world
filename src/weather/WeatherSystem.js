@@ -607,6 +607,7 @@ export class WeatherSystem {
     const throwing = Math.max(0, (this.throwUntil - f.time) / this.throwDuration);
     if (!v && !push && !throwing) return;
     const target = trolley.riding ? trolley.pos : p;
+    const beforeX=target.x,beforeZ=target.z;
     const vortexWeight = throwing ? .20 : 1;
     // Airborne players orbit the moving column as well as its local centre.
     const carry = caught && !trolley.riding && p.y > ground + .8 ? 1 : 0;
@@ -616,7 +617,10 @@ export class WeatherSystem {
     const dx = THREE.MathUtils.clamp(target.x + vx * dt, grid.minX + 3, grid.minX + grid.w * grid.cell - 3) - target.x;
     const dz = THREE.MathUtils.clamp(target.z + vz * dt, grid.minZ + 3, grid.minZ + grid.h * grid.cell - 3) - target.z;
     if (dx || dz) moveHorizontal(target, dx, dz, trolley.riding ? .8 : actor.radius, this.zone);
-    if (trolley.riding) { trolley.mesh.position.copy(target); actor.pos.copy(target); }
-    actor.mesh.position.copy(actor.pos);
+    if (trolley.riding) {
+      trolley.renderPos.x+=target.x-beforeX;trolley.renderPos.z+=target.z-beforeZ;
+      trolley.mesh.position.copy(trolley.renderPos);actor.pos.copy(target);
+      actor.mesh.position.copy(trolley.renderPos);actor.mesh.position.y+=.55+trolley.tune.height;
+    }else actor.mesh.position.copy(actor.pos);
   }
 }

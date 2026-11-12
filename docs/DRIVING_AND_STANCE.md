@@ -2,7 +2,7 @@
 
 ## Playing
 
-Fit **Drift tyres** in Bung Garage → Handling. Accelerate and turn with W/A/D to break rear traction. The trolley now retains sideways momentum while its body rotates. A steers left and D steers right from the chase camera. Drift tyres use assisted arcade steering: hold a steering key to sustain a fast slide, release it to smoothly straighten out, or countersteer to change direction. Space is an optional rear handbrake for any tyre type. A drift-release boost remains, and bounded ground ribbons show tyre marks. The campaign trolley chip displays speed in km/h and slip angle while sliding. The follow camera blends toward travel direction during a slide.
+Fit **Drift tyres** in Bung Garage → Handling. Accelerate and turn with W/A/D to break rear traction. The trolley now retains sideways momentum while its body rotates. A steers left and D steers right from the chase camera. Drift tyres use assisted arcade steering: hold a steering key to sustain a fast slide, release it to smoothly straighten out, or countersteer to change direction. Space is an optional rear handbrake for any tyre type. Bounded ground ribbons show tyre marks; release effects no longer apply repeated speed impulses. The campaign trolley chip displays speed in km/h and slip angle while sliding. The follow camera blends toward travel direction during a slide.
 
 Garage → **Setup** has a live turntable preview, rider visibility toggle, orbit/zoom and independent front/rear controls:
 
@@ -16,19 +16,17 @@ The chassis, basket, handle, mounted engine and rider move together. Axle assemb
 
 ## Dynamics
 
-`src/garage/dynamics.js` implements a reduced planar single-track model with a 120 Hz fixed step, independent world velocity and yaw, front/rear slip angles, saturating lateral forces, a combined rear-drive friction budget, front/rear brake distribution, longitudinal load transfer, a power curve, drag, and a low-speed parking/reverse blend. Keyboard steering is smoothed, limits decrease with speed, and bounded countersteer assistance makes rear slides controllable. Different tyre compounds affect grip and breakaway. Wet conditions use the active shared weather system. Width and camber affect axle grip; ride height and rake affect load transfer. Rough-ground behavior uses the existing slope sampler as a proxy rather than a detailed surface-material map.
+The live driving path uses a JavaScript planar adaptation of [Ben McInnes’ ArcadeVehiclePhysics](https://github.com/benmcinnes/ArcadeVehiclePhysics), pinned to upstream commit 2883b931c37d55682dc7d4b55551f55bd6d1d0bd. The adapted code lives in src/garage/vendor/ArcadeVehiclePhysics.js with the upstream MIT copyright and licence, also included separately alongside it.
 
-Research references (equations and concepts, not copied engine code):
+The port implements CpTurning’s speed-scaled yaw torque, CpLateralFriction’s local sideways cancellation impulse/slide curve and CaDrift’s timed grip envelope. Stickiness is converted from the original 60 Hz impulse fraction to time-consistent damping. Reverse uses an absolute longitudinal-speed denominator. Drift tyres activate the grip reduction automatically during a turn; Space can trigger it on other tyres. Cancelled lateral speed is redirected with a strict speed cap rather than applying an unbounded recovery acceleration. Steering, grip, wet conditions, widths and camber remain integrated with every existing trolley and garage build. The chosen slide curve is game-specific, since Unity AnimationCurve assets do not run in the browser.
 
-- [NVIDIA PhysX vehicle documentation](https://nvidia-omniverse.github.io/PhysX/physx/5.1.1/docs/Vehicles.html): tyre slip, force/grip models and low-speed stabilization.
-- [NVIDIA slip parameters](https://nvidia-omniverse.github.io/PhysX/physx/latest/_api_build/structPxVehicleTireSlipParams.html): longitudinal-speed denominators around rest.
-- [MathWorks 3DOF vehicle body](https://www.mathworks.com/help/vdynblks/ref/vehiclebody3dof.html): longitudinal, lateral and yaw motion, axle slip angles, and transforming tyre forces.
-- [Unity wheel friction documentation](https://docs.unity.com/en-us/engine/6000.0/manual/physics-section/physics-overview/collision-section/collider-shapes/wheel-colliders/friction): slip-dependent peak and sliding grip.
+This is a source adaptation of the steering/drift core, not the Unity runtime or the full package. Unity Rigidbody, suspension rays, Cinemachine, air abilities and sample assets are not imported. The game retains its swept collision and ground-following systems, engine/braking/power curve and shared weather. It remains an arcade planar controller, not a four-wheel suspension/contact simulation or Drift36’s unpublished implementation. Height/rake set visual/mechanical stance; they do not change the collision capsule.
 
-This is an arcade-tuned planar model integrated with the game's existing swept collisions, ground following, bridges, ramps and weather forces. It is not a full four-wheel suspension/contact simulator, and no claim is made that it is the industry's best vehicle simulation. Lateral load transfer, tyre temperature/wear, deformable tyres, gearing/clutch, and rigid-body crash impulses are not simulated. Suspension sliders describe visual/mechanical stance; they do not change the existing collision capsule or bridge-clearance rules.
+Physics runs at 120 Hz with interpolated presentation snapshots following [fixed-step interpolation](https://gafferongames.com/post/fix_your_timestep/). The camera, rider and cart use the same rendered pose; checkpoints/networking use simulation positions. Warps reset snapshots. A continuous speed limiter avoids throttle chatter at top speed. Wall contacts remove inward velocity once, preserving tangential motion; the duplicate bounce pass was removed. Wind now moves the rendered cart and preserves mounted rider height instead of resetting the rider to ground.
 
 ## Validation
 
+- Smooth-motion checks at 60, 90, 144 and 165 Hz cover interpolated displacement, cruise stability, rider alignment, wind alignment and wall contact without bouncing. The browser motion fixture is flat and controlled; garage/race checks exercise actual mapped locations.
 - Native tests compare drift/race sideslip without Space, throttle-release recovery, render-rate independence, reverse, braking, wet traction, width and rough-ground tyre choices.
 - Model checks cover every trolley and fitting, finite geometry, reversible alignment, independent axle transforms and sanitized setup limits.
 - Profile and room checks cover setup-only persistence, server location/hardware validation, and visibility to peers.

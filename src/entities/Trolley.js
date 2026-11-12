@@ -1,12 +1,11 @@
 // The Golden James Rebar Trolley — summonable motorised shopping trolley.
 // Arcade vehicle physics: heading + speed model with a proper boost state
-// machine, drift mini-boosts, ramp launches, correctly-axled spinning wheels
+// machine, progressive drifting, ramp launches, correctly-axled spinning wheels
 // and a golden particle trail. The trolley never lies.
 import * as THREE from 'three';
-import { moveHorizontal, positionClear, resolveHorizontal } from '../core/motion.js';
+import { moveHorizontal, positionClear } from '../core/motion.js';
 import { clamp, damp } from '../core/utils.js';
 import { surfaceY } from '../world/geo/project.js';
-import { pushFootprints } from '../world/geo/footprints.js';
 import { state, bus, upgLevel } from '../core/state.js';
 import { buildTrolley, trolleySpec, ALL_TROLLEYS } from './models.js';
 import { dlog } from '../core/Debug.js';
@@ -41,6 +40,8 @@ export class Trolley {
     this.drive=new TrolleyDynamics();
     this.skids=new DriftTrail(game);
     this.pos = new THREE.Vector3(0, 0, 0);
+    this.renderPos=new THREE.Vector3();
+    this.renderHeading=0;
     this.heading = 0;
     this.speed = 0;
     this.vy = 0;
@@ -77,6 +78,7 @@ export class Trolley {
   }
 
   get spec() { return trolleySpec(state.trolley); }
+  snapPose(){this.drive.reset(this.speed,this.heading);this.renderPos.copy(this.pos);this.renderHeading=this.heading;this.cameraDriftBlend=0;}
   get tune() {
     const mp=this.game.multiplayer;
     const record=(mp?.active?mp.room?.players[mp.client.id]?.garage:state.garage)?.[state.trolley];
@@ -185,7 +187,7 @@ export class Trolley {
       this.pos.y = p.pos.y + 0.5;
       this.heading = p.facing;
     }
-    this.speed = 0; this.vy = 0;this.drive.reset(0,this.heading);
+    this.speed = 0; this.vy = 0;this.drive.reset(0,this.heading);this.renderPos.copy(this.pos);this.renderHeading=this.heading;
     this.summoned = true;
     this.mesh.visible = true;
     g.audio.sfx('trolleyStart');
@@ -204,7 +206,7 @@ export class Trolley {
 
   mount() {
     const g = this.game;
-    this.riding = true;this.drive.reset(this.speed,this.heading);
+    this.riding = true;this.snapPose();
     g.audio.sfx('trolleyStart');
     bus.emit('qe', { type: 'mount', target: 'trolley' });
     g.player.mesh.position.copy(this.pos);
@@ -280,7 +282,6 @@ export class Trolley {
         if(!wasDrifting)g.audio.sfx('drift');
         this.driftCharge=Math.min(1.5,this.driftCharge+dt*tune.drift);
       }else if(wasDrifting&&this.driftCharge>.4){
-        this.drive.impulse(Math.min(2.5,this.driftCharge*1.5));
         g.fx.burst(this.pos.clone(),0xffe9a8,8);this.driftCharge=0;
       }else this.driftCharge=Math.max(0,this.driftCharge-dt*2);
 
@@ -302,8 +303,18 @@ export class Trolley {
     }
 
     // ---- Integrate position ----
-    const hitWall = moveHorizontal(this.pos, dx, dz, .8, g.zone, 1.2);
-    if (hitWall) {this.speed *= Math.exp(-12*dt);this.drive.reset(this.speed,this.heading);}
+    this.bonkCooldown=Math.max(0,(this.bonkCooldown||0)-dt);
+    const impactSpeed=Math.abs(this.speed);
+    const beforeX=this.pos.x,beforeZ=this.pos.z;
+    const hitWall=moveHorizontal(this.pos,dx,dz,.8,g.zone,1.2);
+    if(hitWall){
+      if(impactSpeed>10&&!this.bonkCooldown){
+        this.bonkCooldown=1.5;g.audio.sfx('bonk');g.shake(.2,.2);
+        g.say('bung','This is not a crash. This is tactical parking.');
+      }
+      this.drive.collide(dx-(this.pos.x-beforeX),dz-(this.pos.z-beforeZ));
+      this.speed=this.drive.forward;
+    }
 
     // Vertical: raycast ground follow + ballistic air
     this._ray.set(this.pos.clone().add(new THREE.Vector3(0, 1.5, 0)), this._down);
@@ -357,47 +368,24 @@ export class Trolley {
     }
     }
 
-    // Wall collisions — soft bounce
-    for (const b of this.game.zone.colliders) {
-      // Rotated venues were resolved in their local frame by moveHorizontal.
-      // Their world broad-phase boxes must never act as solid crash volumes.
-      if (b.frame) continue;
-      if (this.pos.y > b.max.y - 0.3 || this.pos.y + 1.2 < b.min.y) continue;
-      const cx = clamp(this.pos.x, b.min.x, b.max.x);
-      const cz = clamp(this.pos.z, b.min.z, b.max.z);
-      const dx = this.pos.x - cx, dz = this.pos.z - cz;
-      const d2 = dx * dx + dz * dz;
-      const r = 0.8;
-      if (d2 <= 1e-6 && this.pos.x >= b.min.x && this.pos.x <= b.max.x && this.pos.z >= b.min.z && this.pos.z <= b.max.z) {
-        resolveHorizontal(this.pos, r, this.game.zone, 1.2); this.speed = 0;
-      } else if (d2 < r * r && d2 > 1e-6) {
-        const d = Math.sqrt(d2);
-        this.pos.x += (dx / d) * (r - d);
-        this.pos.z += (dz / d) * (r - d);
-        if (Math.abs(this.speed) > 10) {
-          this.game.audio.sfx('bonk');
-          this.game.shake(0.2, 0.2);
-          this.game.say('bung', 'This is not a crash. This is tactical parking.');
-        }
-        this.speed *= -0.25;
-      }
-    }
-    const trolleyPos = { x: this.pos.x, z: this.pos.z };
-    pushFootprints(trolleyPos, 0.8, this.pos.y, this.game.zone);
-    this.pos.x = trolleyPos.x;
-    this.pos.z = trolleyPos.z;
+    // Swept movement already resolves box and footprint contacts once. A second
+    // bounce pass against the same walls used to kick the trolley back and forth.
 
     // Fell off the world
     if (this.pos.y < -40) {
       this.setBoosting(false, 'fell off world');
       this.pos.copy(this.game.zone.spawn).add(new THREE.Vector3(2, 1, 0));
       this.speed = 0; this.vy = 0; this.grounded = true;
+      this.snapPose();
       if (this.riding) this.game.damagePlayer(10, null, true);
     }
 
     // ============ VISUALS ============
-    this.mesh.position.copy(this.pos);
-    this.mesh.rotation.y = this.heading;
+    this.renderPos.copy(this.pos);
+    if(this.riding&&!hitWall){this.renderPos.x+=this.drive.renderX-this.drive.x;this.renderPos.z+=this.drive.renderZ-this.drive.z;}
+    this.renderHeading=this.riding?this.drive.renderHeading:this.heading;
+    this.mesh.position.copy(this.renderPos);
+    this.mesh.rotation.y = this.renderHeading;
     this.mesh.rotation.z = damp(this.mesh.rotation.z, -this.drive.yawRate*Math.min(.025,Math.abs(this.speed)*.001),8,dt);
     this.skids.update(dt,this,this.drifting);
     this.telemetryIn=(this.telemetryIn||0)-dt;
@@ -445,19 +433,19 @@ export class Trolley {
       this._fwd = new THREE.Vector3();
       this._headPos = new THREE.Vector3();
     }
-    this._fwd.set(Math.sin(this.heading), 0, Math.cos(this.heading));
+    this._fwd.set(Math.sin(this.renderHeading), 0, Math.cos(this.renderHeading));
     const lit = this.summoned && (this.riding || this.boosting);
     this.head.intensity = lit ? (this.boosting ? 6 : 2.4)*this.tune.headlight : 0;
-    this.head.position.copy(this.pos).add(this._headPos.set(0, 0.9, 0)).addScaledVector(this._fwd, 0.7);
-    this.headTarget.position.copy(this.pos).add(this._headPos.set(0, 0.4, 0)).addScaledVector(this._fwd, 8);
+    this.head.position.copy(this.renderPos).add(this._headPos.set(0, 0.9, 0)).addScaledVector(this._fwd, 0.7);
+    this.headTarget.position.copy(this.renderPos).add(this._headPos.set(0, 0.4, 0)).addScaledVector(this._fwd, 8);
 
     // Riding Bung pose
     if (this.riding) {
       const p = this.game.player;
       p.pos.copy(this.pos);
       p.mesh.rotation.order='YXZ';
-      p.mesh.position.copy(this.pos).add(new THREE.Vector3(0, .55+this.tune.height, 0));
-      p.mesh.rotation.y = this.heading;
+      p.mesh.position.copy(this.renderPos).add(new THREE.Vector3(0, .55+this.tune.height, 0));
+      p.mesh.rotation.y = this.renderHeading;
       p.mesh.rotation.z = this.mesh.rotation.z;
       p.mesh.rotation.x = this.tune.pitch;
       const parts = p.parts;

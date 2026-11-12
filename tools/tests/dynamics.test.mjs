@@ -26,3 +26,36 @@ test('assisted drifting retains speed in a sustained turn and catches quickly on
  for(let i=0;i<60;i++)d.update(1/60,{...input,tyre:'drift',steer:0});
  assert.ok(Math.abs(d.slip)<.03);assert.ok(d.forward>20);
 });
+
+test('cruise speed and interpolated motion do not chatter at 60, 90, 144 or 165 Hz',()=>{
+ for(const fps of [60,90,144,165]){
+  const d=new TrolleyDynamics();let previous=0,min=Infinity,max=-Infinity,lo=Infinity,hi=-Infinity;
+  for(let n=0;n<fps*20;n++){
+   d.update(1/fps,{...input,tyre:'drift'});
+   if(n>fps*16){const step=d.renderZ-previous;min=Math.min(min,step);max=Math.max(max,step);lo=Math.min(lo,d.forward);hi=Math.max(hi,d.forward);assert.ok(step>0);}
+   previous=d.renderZ;
+  }
+  assert.ok(max-min<1e-7,JSON.stringify({fps,min,max}));assert.ok(hi-lo<1e-7);
+ }
+});
+test('steering transitions have bounded angular acceleration and wall contacts do not bounce',()=>{
+ const d=new TrolleyDynamics();d.reset(20,0);let previous=0;
+ for(let i=0;i<480;i++){
+  const steer=i<120?1:i<240?-1:0;
+  d.update(1/120,{...input,tyre:'drift',steer});
+  assert.ok(Math.abs(d.yawRate-previous)*120<10);previous=d.yawRate;
+ }
+ assert.ok(Math.abs(d.slip)<.03);
+ d.vx=8;d.vz=10;d.collide(1,0);assert.equal(d.vx,0);assert.equal(d.vz,10);d.collide(1,0);assert.equal(d.vz,10);assert.equal(d.renderX,d.x);
+});
+
+test('ArcadeVehiclePhysics port times drift grip, damps lateral impulses and scales yaw torque',async()=>{
+ const {driftEnvelope,lateralFriction,turningVelocity}=await import('../../src/garage/vendor/ArcadeVehiclePhysics.js');
+ let drift=0;for(let i=0;i<60;i++)drift=driftEnvelope(drift,true,1/120);assert.ok(Math.abs(drift-1)<1e-9);
+ for(let i=0;i<120;i++)drift=driftEnvelope(drift,false,1/120);assert.ok(drift<1e-9);
+ const a={vx:8,vz:12},b={...a};lateralFriction(a,0,.2,1/60);lateralFriction(b,0,.05,1/60);
+ assert.ok(a.vx<b.vx&&a.vx>0);assert.equal(a.vz,12);
+ const reverse={vx:8,vz:-12};lateralFriction(reverse,0,.2,1/60);assert.equal(reverse.vx,a.vx);assert.equal(reverse.vz,-12);
+ assert.ok(turningVelocity(0,1,7,1,1/120,7)>turningVelocity(0,1,7,0,1/120,7));
+ assert.equal(turningVelocity(0,0,7,1,1/120,7),0);
+});
