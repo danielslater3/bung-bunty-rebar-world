@@ -73,6 +73,7 @@ export class Player {
 
   update(dt) {
     const g = this.game, input = g.input;
+    if(g.weather?.vortexRide?.active)return;
     this.attackCD = Math.max(0, this.attackCD - dt);
     this.pulseCD = Math.max(0, this.pulseCD - dt);
     this.grappleCD = Math.max(0, this.grappleCD - dt);

@@ -1,3 +1,5 @@
+Latest tornado route/entrainment implementation and verification: [TORNADO_RIDES.md](TORNADO_RIDES.md).
+
 # Permanent wallet update — 11 November 2026
 
 Rebar, purchased garage builds and legacy upgrade levels now belong to a cloud-backed player profile, shared across modes and rooms. Old room balances import once when their original room token reconnects. Rooms can expire without removing profiles. Recover on another device using **Player Profile** and the private recovery code. Campaign chapter progress remains separate. See [PERMANENT_PROFILE.md](PERMANENT_PROFILE.md); older room-local wallet descriptions below are historical.

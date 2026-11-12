@@ -7,7 +7,7 @@ export const TIERS = [
   { rating: 'EF2', gust: 196, core: 37, height: 174, capture: 48, reach: 118, toss: 22, duration: 3.1 },
   { rating: 'EF3', gust: 242, core: 53, height: 195, capture: 80, reach: 185, toss: 34, duration: 4.2 },
   { rating: 'EF4', gust: 291, core: 78, height: 223, capture: 135, reach: 290, toss: 48, duration: 5.5 },
-  { rating: 'EF5', gust: 345, core: 126, height: 250, capture: 315, reach: 525, toss: 94, duration: 9 },
+  { rating: 'EF5', gust: 345, core: 205, height: 325, capture: 470, reach: 850, toss: 128, duration: 10 },
 ];
 export const TRACKS = [
   [-1490, 900, 1480, -360],  // West End, CBD, Fortitude Valley
@@ -36,22 +36,45 @@ export function tornadoTier(roll) {
   return roll < .41 ? 0 : roll < .72 ? 1 : roll < .89 ? 2 :
     roll < .967 ? 3 : roll < .997 ? 4 : 5;
 }
+// Bounds from the compiled Brisbane 4 m grid. Leave room for the funnel at
+// map edges. Seeded randomness keeps the same route on every room client.
+export const WEATHER_BOUNDS={minX:-2100,maxX:2050,minZ:-820,maxZ:2260};
+const routeCache=new Map();
+export function tornadoRoute(seed,cycle){
+ const key=seed+'/'+cycle;if(routeCache.has(key))return routeCache.get(key);
+ const r=n=>random(seed,cycle,n+30),b=WEATHER_BOUNDS;
+ const edge=(side,t)=>side===0?{x:b.minX,z:mix(b.minZ,b.maxZ,t)}:side===1?{x:b.maxX,z:mix(b.minZ,b.maxZ,t)}:side===2?{x:mix(b.minX,b.maxX,t),z:b.minZ}:{x:mix(b.minX,b.maxX,t),z:b.maxZ};
+ const first=Math.floor(r(0)*4),last=first^1;
+ const start=edge(first,r(2)),end=edge(last,r(3)),city={x:mix(-100,240,r(4)),z:mix(25,210,r(5))};
+ const control=()=>({x:mix(b.minX+300,b.maxX-300,r(6)),z:mix(b.minZ+250,b.maxZ-250,r(7))});
+ const tangent={x:(r(8)-.5)*1200,z:(r(9)-.5)*1000};
+ const points=[start,control(),{x:city.x-tangent.x,z:city.z-tangent.z},city,
+  {x:city.x+tangent.x,z:city.z+tangent.z},{x:mix(b.minX+300,b.maxX-300,r(10)),z:mix(b.minZ+250,b.maxZ-250,r(11))},end];
+ // Bounded cache; generating a route never depends on request order.
+ if(routeCache.size>=32)routeCache.delete(routeCache.keys().next().value);
+ routeCache.set(key,points);return points;
+}
+export function tornadoPosition(seed,cycle,progress){
+ const p=tornadoRoute(seed,cycle),half=progress<=.5?0:3,t=clamp(progress<=.5?progress*2:(progress-.5)*2),q=1-t;
+ const point=k=>q*q*q*p[half][k]+3*q*q*t*p[half+1][k]+3*q*t*t*p[half+2][k]+t*t*t*p[half+3][k];
+ return {x:point('x'),z:point('z')};
+}
 export function weatherAt(seed, time, exercise = null) {
   time = Math.max(0, time);
   const cycle = Math.floor(time / WEATHER_PERIOD), phase = time % WEATHER_PERIOD;
   const pick = n => random(seed, cycle, n);
   const roll = exercise ? .99 : pick(0);
   const mode = roll < .13 ? 'fair' : roll < .42 ? 'showers' : roll < .79 ? 'storm' : 'supercell';
-  const track = TRACKS[exercise?.track ?? Math.floor(pick(1) * TRACKS.length)];
   const strength = exercise ? .96 : .58 + .41 * pick(2);
   const envelope = smooth(20, 90, phase) * (1 - smooth(239, 330, phase));
-  const progress = clamp((phase - 25) / 258);
-  const startX = track[0] + (exercise ? 0 : (pick(14) - .5) * 420);
-  const startZ = track[1] + (exercise ? 0 : (pick(15) - .5) * 420);
-  const endX = track[2] + (exercise ? 0 : (pick(16) - .5) * 480);
-  const endZ = track[3] + (exercise ? 0 : (pick(17) - .5) * 480);
-  const vx = (endX - startX) / 258, vz = (endZ - startZ) / 258;
-  const x = mix(startX, endX, progress), z = mix(startZ, endZ, progress);
+  const contact=82+12*pick(6),retreat=267+17*pick(7);
+  const routeProgress=clamp((phase-contact)/(retreat-contact));
+  const routeSeed=exercise?hashWeather(seed+'/drill/'+(exercise.track||0)):seed;
+  const position=tornadoPosition(routeSeed,cycle,routeProgress);
+  const sample=Math.min(.9998,Math.max(.0001,routeProgress));
+  const before=tornadoPosition(routeSeed,cycle,sample),next=tornadoPosition(routeSeed,cycle,sample+.0001);
+  const vx=(next.x-before.x)/(.0001*(retreat-contact)),vz=(next.z-before.z)/(.0001*(retreat-contact));
+  const x=position.x,z=position.z;
   const core = mode === 'fair' ? 0 : envelope * strength;
   const shape = pick(12);
   const scale = mode === 'supercell' ? 1.38 + shape * .36 : mode === 'storm' ? 1.23 : 1;
@@ -60,12 +83,11 @@ export function weatherAt(seed, time, exercise = null) {
     : 0;
   const tier = exercise?.tier ?? tornadoTier(pick(5));
   const possible = mode === 'supercell' && (exercise || pick(4) < .45);
-  const contact = 115 + 23 * pick(6), retreat = contact + 42 + 40 * pick(7);
   const formed = possible && phase > contact - 29 && phase < retreat + 29;
   const touchdown = smooth(contact - 28, contact + 3, phase) * (1 - smooth(retreat - 2, retreat + 28, phase));
   const v = TIERS[tier];
   const tornado = formed ? {
-    ...v, tier, x: x - vx * 11 + Math.sin(time / 14) * 27, z: z - vz * 11 + Math.cos(time / 17) * 27,
+    ...v, tier, id: routeSeed+'/'+cycle, x:position.x, z:position.z, vx, vz, endsAt:cycle*WEATHER_PERIOD+retreat+15,
     touchdown, ground: touchdown > .83, strength: touchdown * strength,
   } : null;
   const slot = Math.floor(time / 7.1), strikeAt = slot * 7.1 + 1 + random(seed, slot, 8) * 4.2;
@@ -105,8 +127,8 @@ export function vortexAt(tornado, x, z, height) {
   if (distance >= reach || height > 80) return null;
   const falloff = (1 - distance / reach) ** 1.65 * tornado.strength;
   const len = Math.max(distance, 1);
-  const tangential = (14 + tornado.tier * 6) * falloff;
-  const inflow = (8 + tornado.tier * 6) * falloff;
+  const tangential = (14 + tornado.tier * 10) * falloff;
+  const inflow = (8 + tornado.tier * 12) * falloff;
   return { x: (dx * inflow - dz * tangential) / len, z: (dz * inflow + dx * tangential) / len,
     lift: (13 + tornado.tier * 8) * falloff, caught: distance < tornado.capture };
 }

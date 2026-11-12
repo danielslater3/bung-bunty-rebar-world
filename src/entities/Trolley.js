@@ -240,6 +240,7 @@ export class Trolley {
   update(dt) {
     if (!this.summoned) return;
     const g = this.game, input = g.input;
+    if(this.riding&&g.weather?.vortexRide?.active)return;
     let steer = 0;
     const afloat = this.overWater();
     if(g.saga?.freeze&&this.riding){this.speed=0;this.drive.reset(0,this.heading);}

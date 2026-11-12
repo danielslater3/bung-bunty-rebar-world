@@ -85,3 +85,38 @@ test('EF5 has a wider capture zone and temporary building collapse restores mesh
   assert.equal(building.footprint.h, 12);
   assert.equal(damage.active.size, 0);
 });
+
+test('seeded curved tornado paths span the map and always cross the CBD continuously',async()=>{
+ const {tornadoPosition,WEATHER_BOUNDS:b}=await import('../../src/weather/model.js');
+ const signatures=new Set();
+ for(let seed=0;seed<120;seed++){
+  const a=tornadoPosition(seed,0,0),city=tornadoPosition(seed,0,.5),end=tornadoPosition(seed,0,1);
+  assert.ok(city.x>=-100&&city.x<=240&&city.z>=25&&city.z<=210);
+  assert.ok(Math.hypot(end.x-a.x,end.z-a.z)>300);
+  signatures.add(JSON.stringify([a,city,end]));
+  let previous=a;
+  for(let j=1;j<=1000;j++){
+   const point=tornadoPosition(seed,0,j/1000);
+   assert.deepEqual(point,tornadoPosition(seed,0,j/1000));
+   assert.ok(point.x>=b.minX&&point.x<=b.maxX&&point.z>=b.minZ&&point.z<=b.maxZ);
+   assert.ok(Math.hypot(point.x-previous.x,point.z-previous.z)<30);previous=point;
+  }
+ }
+ assert.equal(signatures.size,120);
+});
+test('every tier entrains, orbits until dissipation, releases and permits recovery',async()=>{
+ const {VortexRide}=await import('../../src/weather/VortexRide.js');
+ for(let tier=0;tier<=5;tier++){
+  const ride=new VortexRide(),t={...TIERS[tier],tier,id:'test',x:0,z:0,vx:0,vz:0,endsAt:40,ground:true};
+  const p={x:t.capture*.7,y:0,z:0};assert.ok(ride.begin(t,p,0,0));let high=0,turns=0;
+  for(let n=1;n<=2400;n++){
+   const time=n/60,step=ride.step(1/60,time,time<35?t:null,p,0);
+   p.x+=step.dx;p.z+=step.dz;p.y+=step.dy;high=Math.max(high,p.y);turns+=Math.abs(step.yaw-(ride.lastYaw??step.yaw));ride.lastYaw=step.yaw;
+   assert.ok(Object.values(p).every(Number.isFinite));
+   if(time<35)assert.equal(ride.phase,'orbit');
+   else if(p.y<=0){ride.landed(time);break;}
+  }
+  assert.ok(high>10&&turns>Math.PI*3);assert.equal(ride.active,false);
+  assert.equal(ride.begin(t,p,0,36),false);
+ }
+});

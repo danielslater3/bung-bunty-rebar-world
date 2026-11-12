@@ -165,12 +165,12 @@ const { chromium } = require('playwright');
       g.player.mesh.visible = true;
       w.sampleIn = 0;
       const start = g.player.pos.clone();
-      let lifted = false, thrown = false;
+      let lifted = false, orbit = false;
       for (let i = 0; i < 188; i++) {
         g.player.update(1/60);
         w.update(1/60);
         lifted ||= g.player.pos.y > start.y + 1.8;
-        thrown ||= w.throwUntil > w.time;
+        orbit ||= w.vortexRide.phase === 'orbit';
       }
       const radius = Math.hypot(g.player.pos.x - start.x, g.player.pos.z - start.z);
       const t2 = w.frame.tornado, floor = z.groundAt(t2.x,t2.z);
@@ -179,12 +179,12 @@ const { chromium } = require('playwright');
       w.drawAtmosphere(w.frame, w.conditions, g.player.pos);
       g.renderer.render = drawWeather;
       g.renderer.setAnimationLoop(() => drawWeather(g.scene, g.camera));
-      return { lifted, thrown, radius, funnel: w.funnel.visible, debris: w.fragments.count, spot, exposed: w.exposed };
+      return { lifted, orbit, radius, funnel: w.funnel.visible, debris: w.fragments.count, spot, exposed: w.exposed };
     });
     await page.screenshot({ path: '../browser-tests/s24-tornado.png' });
     assert.equal(storm.funnel, true, JSON.stringify(storm));
     assert.equal(storm.lifted, true, JSON.stringify(storm));
-    assert.equal(storm.thrown, true, JSON.stringify(storm));
+    assert.equal(storm.orbit, true, JSON.stringify(storm));
     assert.ok(storm.radius > 3 && storm.debris > 35, JSON.stringify(storm));
     const extreme = await page.evaluate(() => {
       const g = BUNG, w = g.weather, z = g.zone;

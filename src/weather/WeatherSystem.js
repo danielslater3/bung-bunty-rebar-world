@@ -5,6 +5,7 @@ import { state } from '../core/state.js';
 import { conditionsAt, hashWeather, vortexAt, weatherAt } from './model.js';
 import { createFunnel, createStormSky } from './stormSky.js';
 import { StormDamage } from './stormDamage.js';
+import { VortexRide } from './VortexRide.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const ceiling = 156;
@@ -50,6 +51,7 @@ function cloudOpacityTexture() {
 export class WeatherSystem {
   constructor(game) {
     this.game = game;
+    this.vortexRide=new VortexRide();
     this.seed = SOLO_SEED;
     this.time = 0;
     this.frame = weatherAt(this.seed, 0);
@@ -178,6 +180,11 @@ export class WeatherSystem {
   }
 
   detach() {
+    if(this.vortexRide.active){
+      const g=this.game;g.player.mesh.rotation.x=g.player.mesh.rotation.z=0;
+      g.trolley.mesh.rotation.x=g.trolley.mesh.rotation.z=0;
+    }
+    this.vortexRide.reset();
     if (this.root) {
       this.stormDamage.clear();
       this.root.removeFromParent();
@@ -283,7 +290,7 @@ export class WeatherSystem {
     const exposure = nextWeather === 'storm' ? .88 : nextWeather === 'sun' ? 1.12 : 1.02;
     if (!g.saga.venues?.nightBackup)
       g.renderer.toneMappingExposure += (exposure - g.renderer.toneMappingExposure) * Math.min(1, dt * .8);
-    if (running && !fighting && !g.multiplayer.raceCountdown?.() && !g.saga.freeze && !g.saga.scenePlaying && !g.dialogue.cinematic && this.exposed)
+    if (running && !fighting && !g.multiplayer.raceCountdown?.() && !g.saga.freeze && !g.saga.scenePlaying && !g.dialogue.cinematic && (this.exposed||this.vortexRide.active))
       this.applyWind(dt, f, c, p);
     else this.caughtSince = null;
   }
@@ -434,7 +441,7 @@ export class WeatherSystem {
       const ground = this.zone.terrain.walkAt(t.x, t.z);
       const h = Math.max(ceiling, t.height);
       this.funnel.position.set(t.x, ground + 1, t.z);
-      const width = t.core * (t.tier === 5 ? 1.08 : .72);
+      const width = t.core * (t.tier === 5 ? 1.25 : .72);
       this.funnel.scale.set(width, h, width);
       const u = this.funnel.material.uniforms;
       u.time.value = f.time % 3600;
@@ -456,8 +463,8 @@ export class WeatherSystem {
         mist.scale.set(t.core * (.7 + fraction * 1.9), t.core * (.3 + fraction * .46), 1);
         mist.material.opacity = f.strength * Math.sin(fraction * Math.PI) * .28;
       }
-      if (t.ground && Math.hypot(t.x - p.x, t.z - p.z) < 650) {
-        const total = 21 + t.tier * 22;
+      if (t.ground && Math.hypot(t.x - p.x, t.z - p.z) < (t.tier===5?1400:850)) {
+        const total = 25 + t.tier * (t.tier===5?35:22);
         for (let i = 0; i < total; i++) {
           const life = (f.time * (.25 + i % 4 * .025) + i * .398) % 1;
           const a = i * 2.39996 + f.time * (2.1 + 2.7 * (1 - life));
@@ -536,6 +543,7 @@ export class WeatherSystem {
     this.strikeId = null;
     this.flash = 0;
     this.throwUntil = -Infinity;
+    this.vortexRide.reset();
     this.caughtSince = null;
     this.weatherAnnouncement = null;
     this.update(0);
@@ -573,46 +581,52 @@ export class WeatherSystem {
     const ground = this.zone.groundAt(p.x, p.z, p.y);
     const t = f.tornado, v = vortexAt(t, p.x, p.z, p.y - ground);
     const push = Math.max(0, (c.gust - 37) / 31);
-    const caught = v?.caught && f.time >= this.throwUntil;
-    if (!caught) this.caughtSince = null;
-    if (caught) {
-      if (g.phone.opened) g.phone.close();
-      if (trolley.riding) trolley.dismount();
-      if (this.caughtSince == null) {
-        this.caughtSince = f.time;
-        if (g.multiplayer.active) g.multiplayer.error('VORTEX · you’ve been caught');
-        else g.toast('VORTEX · you’ve been caught', 'red');
-      }
+    const ride=this.vortexRide;
+    if(!ride.active&&v?.caught&&f.time>=ride.cooldown){
+      if(g.phone.opened)g.phone.close();if(g.garage.opened)g.garage.close();
+      ride.begin(t,p,ground,f.time);
+      if(trolley.boosting)trolley.setBoosting(false,'vortex');
+      if(g.multiplayer.active)g.multiplayer.error('VORTEX · hold onto your rebar!');
+      else g.toast('VORTEX · hold onto your rebar!','red');
     }
-
-    if (caught && !trolley.riding) {
-      actor.grappling = false;
-      actor.grappleLine.visible = false;
-      if (p.y - ground < 24 + 11 * t.tier)
-        actor.vel.y = Math.min(10 + 5 * t.tier, Math.max(-2, actor.vel.y) + (25 + v.lift) * dt);
-      actor.grounded = false;
-      if (state.stability > 18) state.stability = Math.max(18, state.stability - dt * (2 + t.tier));
-      if (f.time - this.caughtSince > 1.45 + t.tier * .22) {
-        const a = this.launchAngle(p, t);
-        const speed = t.toss;
-        this.throwDuration = t.duration;
-        this.throwX = Math.cos(a) * speed;
-        this.throwZ = Math.sin(a) * speed;
-        this.throwUntil = f.time + this.throwDuration;
-        actor.vel.y = Math.max(actor.vel.y, 6 + t.tier * 5);
-        if (!this.reduceFlash) g.shake(.18, .32);
+    if(ride.active){
+      actor.grappling=false;actor.grappleLine.visible=false;
+      const target=trolley.riding?trolley.pos:actor.pos;
+      const floor=this.zone.groundAt(target.x,target.z,target.y),step=ride.step(dt,f.time,t,target,floor);
+      const grid=g.geoBrisbane.grid;
+      step.dx=THREE.MathUtils.clamp(target.x+step.dx,grid.minX+4,grid.minX+grid.w*grid.cell-4)-target.x;
+      step.dz=THREE.MathUtils.clamp(target.z+step.dz,grid.minZ+4,grid.minZ+grid.h*grid.cell-4)-target.z;
+      // Keep swept horizontal collision and upward box clearance. The vortex
+      // can carry you above roofs, but cannot pull you through a solid wall.
+      if(step.dy>0){this.up.copy(target);this.up.y+=1.5;step.dy=Math.min(step.dy,g.cameraClearance(this.up,UP,step.dy+1.8));}
+      target.y+=step.dy;
+      moveHorizontal(target,step.dx,step.dz,trolley.riding?.8:actor.radius,this.zone);
+      const landing=this.zone.groundAt(target.x,target.z,target.y);
+      if(ride.phase==='release'&&(target.y<=landing+.15||f.time-ride.released>18)){
+        target.y=landing;ride.landed(f.time);actor.vel.set(0,0,0);actor.grounded=true;
+        if(trolley.riding){trolley.speed=trolley.vy=0;trolley.grounded=true;trolley.snapPose();}
+        actor.mesh.rotation.x=actor.mesh.rotation.z=0;
+        if(!this.reduceFlash)g.shake(.15,.25);
+      }else{
+        actor.grounded=false;actor.vel.set(0,0,0);
+        if(trolley.riding){trolley.speed=0;trolley.vy=0;trolley.grounded=false;trolley.heading=step.yaw;}
       }
+      if(trolley.riding){
+        trolley.renderPos.copy(target);trolley.renderHeading=trolley.heading;
+        trolley.mesh.position.copy(target);trolley.mesh.rotation.set(step.roll*.45,trolley.heading,step.roll);
+        actor.pos.copy(target);actor.mesh.position.copy(target);actor.mesh.position.y+=.55+trolley.tune.height;
+        actor.mesh.rotation.set(trolley.tune.pitch,trolley.heading,ride.active?step.roll:0);
+      }else{actor.mesh.position.copy(target);actor.mesh.rotation.set(0,step.yaw,ride.active?step.roll:0);}
+      actor.facing=step.yaw;
+      if(state.stability>18)state.stability=Math.max(18,state.stability-dt*(1+ride.tier));
+      this.caughtSince=ride.active?ride.started:null;
+      this.throwUntil=ride.phase==='release'?f.time+1:-Infinity;
+      return;
     }
-
-    const throwing = Math.max(0, (this.throwUntil - f.time) / this.throwDuration);
-    if (!v && !push && !throwing) return;
-    const target = trolley.riding ? trolley.pos : p;
+    if(!v&&!push)return;
+    const target=trolley.riding?trolley.pos:p;
     const beforeX=target.x,beforeZ=target.z;
-    const vortexWeight = throwing ? .20 : 1;
-    // Airborne players orbit the moving column as well as its local centre.
-    const carry = caught && !trolley.riding && p.y > ground + .8 ? 1 : 0;
-    let vx = (v?.x || 0) * vortexWeight + f.vx * carry + c.windX * push * .13 + this.throwX * throwing;
-    let vz = (v?.z || 0) * vortexWeight + f.vz * carry + c.windZ * push * .13 + this.throwZ * throwing;
+    const vx=(v?.x||0)+c.windX*push*.13,vz=(v?.z||0)+c.windZ*push*.13;
     const grid = g.geoBrisbane.grid;
     const dx = THREE.MathUtils.clamp(target.x + vx * dt, grid.minX + 3, grid.minX + grid.w * grid.cell - 3) - target.x;
     const dz = THREE.MathUtils.clamp(target.z + vz * dt, grid.minZ + 3, grid.minZ + grid.h * grid.cell - 3) - target.z;

@@ -664,3 +664,19 @@ test('elite engines purchase, reconnect, replicate and authorize upgraded drivin
   assert.throws(()=>e.move(driver.id,{seq:2,pos:{x:94+velocity+250,y:9.7,z:37},yaw:0,riding:true}),/corrected/);
  }
 });
+
+test('moving shared tornado accepts the complete mounted orbit and release without broadening distant movement',async()=>{
+ const {VortexRide}=await import('../../src/weather/VortexRide.js');
+ const s=setup(1),{e,p}=s,driver=p[0],seed=hashWeather(e.s.code);let frame,time=0;
+ for(;time<360*100000;time+=3){frame=weatherAt(seed,time);if(frame.tornado?.ground&&frame.tornado.tier===5)break;}
+ assert.ok(frame.tornado?.ground);const t=frame.tornado,ride=new VortexRide();
+ const pos={x:t.x+10,y:20,z:t.z};driver.pos={...pos};driver.riding=true;driver.moveAt=e.s.created+time*1000;
+ ride.begin(t,pos,0,time);let sawRelease=false,accepted=0;
+ for(let n=1;n<30000&&ride.active;n++){
+  const seconds=time+n/120;s.time=e.s.created+seconds*1000;const current=weatherAt(seed,seconds);
+  const step=ride.step(1/120,seconds,current.tornado,pos,0);pos.x+=step.dx;pos.z+=step.dz;pos.y+=step.dy;
+  if(ride.phase==='release'){sawRelease=true;if(pos.y<=0){pos.y=0;ride.landed(seconds);}}
+  if(n%15===0){assert.ok(e.move(driver.id,{seq:driver.moveSeq+1,pos:{...pos},yaw:step.yaw,riding:true}));accepted++;}
+ }
+ assert.ok(sawRelease&&accepted>100);assert.equal(ride.active,false);assert.equal(driver.riding,true);
+});

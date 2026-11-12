@@ -1,12 +1,12 @@
 import { vortexAt, weatherAt } from './model.js';
 import { moveHorizontal } from '../core/motion.js';
 
-const MAX_BUILDINGS = 160;
+const MAX_BUILDINGS = 320;
 const REPAIR_SECONDS = 80;
 
 export function buildingDamage(tornado, building) {
   if (!tornado?.ground || tornado.tier < 2) return 0;
-  const radius = tornado.core * [0, 0, .45, .75, 1.3, 1.85][tornado.tier];
+  const radius = tornado.core * [0, 0, .45, .75, 1.3, 2.6][tornado.tier];
   const dx = building.x - tornado.x, dz = building.z - tornado.z;
   const distanceSquared = dx * dx + dz * dz;
   if (distanceSquared >= radius * radius) return 0;
@@ -102,7 +102,8 @@ export class StormDamage {
         const angle = Math.atan2(p.z - t.z, p.x - t.x) + .9;
         const speed = t.toss * (s.bus ? .38 : .63);
         fly = s.stormFlight = { vx: Math.cos(angle) * speed, vz: Math.sin(angle) * speed,
-          vy: (12 + t.tier * 6) * (s.bus ? .7 : 1), start: frame.time, landed: 0 };
+          vy: (12 + t.tier * 6) * (s.bus ? .7 : 1), start: frame.time, landed: 0,
+          vortex:t.tier===5?t.id:null,angle:Math.atan2(p.z-t.z,p.x-t.x),radius:Math.hypot(p.x-t.x,p.z-t.z) };
         if (s.collider) {
           // Airborne and overturned traffic should leave its road lane open.
           s.collider.localBox.min.y = s.collider.min.y = -120;
@@ -110,6 +111,15 @@ export class StormDamage {
         }
       }
       model.visible = Math.hypot(p.x - player.x, p.z - player.z) < 550;
+      if(fly.vortex&&t?.ground&&t.id===fly.vortex){
+        fly.angle+=dt*.82;fly.radius+=(t.core*.6-fly.radius)*(1-Math.exp(-dt));
+        const x=t.x+Math.cos(fly.angle)*fly.radius,z=t.z+Math.sin(fly.angle)*fly.radius;
+        p.y+=(this.zone.groundAt(t.x,t.z)+65+(s.bus?0:30)-p.y)*(1-Math.exp(-dt*.8));
+        moveHorizontal(p,(x-p.x)*(1-Math.exp(-dt*2)),(z-p.z)*(1-Math.exp(-dt*2)),s.bus?1.3:.95,this.zone);
+        model.rotation.x+=dt;model.rotation.z+=dt*1.4;model.rotation.y+=dt*.8;
+        fly.start=frame.time;continue;
+      }
+      if(fly.vortex){fly.vortex=null;fly.vy=-25;}
       if (!fly.landed) {
         if (moveHorizontal(p, fly.vx * dt, fly.vz * dt, s.bus ? 1.3 : .95, this.zone)) {
           fly.vx *= -.34;
