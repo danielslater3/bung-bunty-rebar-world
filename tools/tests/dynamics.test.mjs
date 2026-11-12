@@ -3,7 +3,7 @@ import {TrolleyDynamics} from '../../src/garage/dynamics.js';
 const input={tyre:'stock',throttle:1,steer:0,maxSpeed:24,accel:22,grounded:true};
 function run(tyre,steer=.75,fps=60){const d=new TrolleyDynamics();let peak=0;for(let n=0;n<fps*7;n++){d.update(1/fps,{...input,tyre,steer:n>fps*3?steer:0});peak=Math.max(peak,Math.abs(d.slip));}return {d,peak};}
 test('drift tyres develop real sideslip under throttle without a handbrake',()=>{
- const drift=run('drift'),race=run('race');assert.ok(drift.peak>.25);assert.ok(drift.peak>race.peak*4);assert.ok(Math.hypot(drift.d.vx,drift.d.vz)>5);
+ const drift=run('drift'),race=run('race');assert.ok(drift.peak>.17&&drift.peak<.5);assert.ok(drift.peak>race.peak*4);assert.ok(Math.hypot(drift.d.vx,drift.d.vz)>5);
  for(let n=0;n<300;n++)drift.d.update(1/60,{...input,tyre:'drift',throttle:0});assert.ok(Math.abs(drift.d.slip)<.02);
 });
 test('fixed-step vehicle dynamics agree across render rates and recover from countersteering',()=>{
@@ -18,4 +18,11 @@ test('braking, reverse, wet traction, width and rough-ground tyre choices affect
  const reverse=new TrolleyDynamics();for(let n=0;n<240;n++)reverse.update(1/60,{...input,throttle:-1,steer:.3});assert.ok(reverse.forward<0&&reverse.forward>=-7.2);
  const grip=(options)=>{const model=new TrolleyDynamics();for(let n=0;n<120;n++)model.update(1/60,{...input,...options});return model.forward;};
  assert.ok(grip({rain:1})<grip({rain:0}));assert.ok(grip({rearWidth:1.8})>grip({rearWidth:.7}));assert.ok(grip({tyre:'offroad',rough:true})>grip({tyre:'race',rough:true}));
+});
+
+test('assisted drifting retains speed in a sustained turn and catches quickly on release',()=>{
+ const d=new TrolleyDynamics();for(let i=0;i<600;i++)d.update(1/60,{...input,tyre:'drift',steer:i>180?1:0});
+ assert.ok(d.forward>20);assert.ok(Math.abs(d.slip)<.4);assert.ok(Math.abs(d.slip)>.18);
+ for(let i=0;i<60;i++)d.update(1/60,{...input,tyre:'drift',steer:0});
+ assert.ok(Math.abs(d.slip)<.03);assert.ok(d.forward>20);
 });

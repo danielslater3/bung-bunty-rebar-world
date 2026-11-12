@@ -2,7 +2,7 @@
 
 ## Playing
 
-Fit **Drift tyres** in Bung Garage → Handling. Accelerate and turn with W/A/D to break rear traction. The trolley now retains sideways momentum while its body rotates. Countersteer with A/D and ease off the throttle to regain grip. Space is an optional rear handbrake for any tyre type. A drift-release boost remains, and bounded ground ribbons show tyre marks. The campaign trolley chip displays speed in km/h and slip angle while sliding. The follow camera blends toward travel direction during a slide.
+Fit **Drift tyres** in Bung Garage → Handling. Accelerate and turn with W/A/D to break rear traction. The trolley now retains sideways momentum while its body rotates. A steers left and D steers right from the chase camera. Drift tyres use assisted arcade steering: hold a steering key to sustain a fast slide, release it to smoothly straighten out, or countersteer to change direction. Space is an optional rear handbrake for any tyre type. A drift-release boost remains, and bounded ground ribbons show tyre marks. The campaign trolley chip displays speed in km/h and slip angle while sliding. The follow camera blends toward travel direction during a slide.
 
 Garage → **Setup** has a live turntable preview, rider visibility toggle, orbit/zoom and independent front/rear controls:
 

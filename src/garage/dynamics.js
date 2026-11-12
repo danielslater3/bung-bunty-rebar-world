@@ -24,6 +24,7 @@ export class TrolleyDynamics {
  step(dt,i){
   const sn=Math.sin(this.heading),cs=Math.cos(this.heading),u=this.vx*sn+this.vz*cs,v=this.vx*cs-this.vz*sn;
   const speed=Math.hypot(u,v),direction=u<-.1?-1:1,tyre=TYRES[i.tyre]||TYRES.stock;
+  const previousYawRate=this.yawRate;
   const wet=1-clamp(i.rain||0,0,1)*(i.tyre==='race'?.48:.23);
   const rough=i.rough?(i.tyre==='offroad'?1.1:.58):1;
   const frontGrip=tyre.front*wet*rough*Math.sqrt(i.frontWidth||1)*(1-Math.abs(i.frontCamber||0)/100);
@@ -66,6 +67,20 @@ export class TrolleyDynamics {
   }else this.yawRate*=Math.exp(-dt*1.5);
   this.vx+=(sn*longitudinal+cs*lateral)*dt;
   this.vz+=(cs*longitudinal-sn*lateral)*dt;
+  if(i.tyre==='drift'&&!air&&u>3){
+   // Assisted arcade drifting: steer chooses the corner, momentum trails the
+   // nose, and releasing steer smoothly catches the slide. Keep engine speed
+   // through the arc instead of dissipating it in a prolonged rear-wheel spin.
+   const steering=clamp(i.steer||0,-1,1);
+   const yawTarget=steering*Math.min(.95,speed*.07)/(1+speed*.012)*(i.turn||1);
+   this.yawRate=previousYawRate+(yawTarget-previousYawRate)*(1-Math.exp(-dt*6));
+   const targetSlip=-steering*(handbrake?.45:.24)*(1+(i.rain||0)*.18)/Math.sqrt(i.rearWidth||1);
+   const motion=Math.atan2(this.vx,this.vz),target=this.heading+targetSlip;
+   const difference=((target-motion+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+   const angle=motion+difference*(1-Math.exp(-dt*(Math.abs(steering)>.05?6:9)));
+   const carry=Math.max(0,speed+(drive-u*(.07+.002*speed)-(handbrake?2:0))*dt);
+   this.vx=Math.sin(angle)*carry;this.vz=Math.cos(angle)*carry;
+  }
   const limit=(i.maxSpeed||18)*1.08,length=Math.hypot(this.vx,this.vz);
   if(length>limit){this.vx*=limit/length;this.vz*=limit/length;}
   if(!i.throttle&&speed<.18){this.vx=this.vz=0;this.yawRate*=Math.exp(-dt*14);}

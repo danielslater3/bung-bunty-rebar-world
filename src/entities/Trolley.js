@@ -248,7 +248,8 @@ export class Trolley {
       // ---- Driving input ----
       const ax = g.saga?.freeze ? { x: 0, y: 0 } : input.axis();
       const throttle = afloat ? 0 : ax.y;
-      steer = ax.x * (afloat ? 0.25 : 1);
+      // With +Z forward, the chase camera sees local -X as screen-right.
+      steer = -ax.x * (afloat ? 0.25 : 1);
 
       // ---- Boost evaluation (state transitions only — no per-frame audio) ----
       const shiftHeld = input.keys['ShiftLeft'] || input.keys['ShiftRight'];
