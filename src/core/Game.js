@@ -243,6 +243,7 @@ export class Game {
     if (seq !== this._zoneSeq) return;
 
     this.phone.close();
+    this.trolley.skids.clear();
     this.garage.close();
     this.weather.detach();
     if (this.zone) this.zone.dispose();
@@ -649,12 +650,15 @@ export class Game {
   updateCamera(dt) {
     const riding = this.trolley.riding;
     const targetPos = riding
-      ? this.trolley.pos.clone().add(new THREE.Vector3(0, 1.8, 0))
+      ? this.trolley.pos.clone().add(new THREE.Vector3(0, 1.8+this.trolley.tune.height, 0))
       : this.player.pos.clone().add(new THREE.Vector3(0, 1.7, 0));
 
     // While riding, gently align the camera behind the trolley
     if (riding && Math.abs(this.input.mouseDX) < 1) {
-      const targetYaw = this.trolley.heading + Math.PI;
+      const t=this.trolley;
+      const motion=Math.atan2(t.drive.vx,t.drive.vz);
+      const slip=((motion-t.heading+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
+      const targetYaw=t.heading+Math.PI+(t.drifting?slip*.45:0);
       let d = ((targetYaw - this.camYaw + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
       this.camYaw += d * (1 - Math.exp(-1.6 * dt));
     }

@@ -29,7 +29,7 @@ export function applyProfile(record,op) {
  const patch=profileRecord(op);
  for(const [id,build] of Object.entries(patch.garage)){
   const previous=next.garage[id]||{owned:[],equipped:{}};
-  next.garage[id]=buildRecord({owned:[...previous.owned,...build.owned],equipped:build.equipped});
+  next.garage[id]=buildRecord({owned:[...previous.owned,...build.owned],equipped:build.equipped,setup:build.setup??previous.setup});
  }
  for(const [id,level] of Object.entries(patch.upgrades))next.upgrades[id]=Math.max(next.upgrades[id]||0,level);
  Object.assign(next.inventory,patch.inventory);next.revision++;

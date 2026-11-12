@@ -14,7 +14,7 @@ import { arenaContains, arenaLive, availablePickup, crossesGate, EXCHANGE, EXCHA
 import { arenaCommand, arenaTick, emptyArena, removeArenaPlayer } from './burgerHeist.js';
 import { advanceRace, collectHunt, eventCommand, eventTick, raceGate, racing, welcomeEvents } from './roomEvents.js';
 import { roomTrolley } from '../src/multiplayer/fleet.js';
-import { GARAGE, garageAction } from '../src/garage/catalog.js';
+import { GARAGE, garageAction, garageSetup } from '../src/garage/catalog.js';
 import { hashWeather, weatherAt } from '../src/weather/model.js';
 export const freshRoom = (code, now) => ({
   code,
@@ -345,6 +345,11 @@ export class RoomEngine {
         if(sold<=0)fail('No Bung Score to sell.');
         this.reward(p,-sold,Math.max(1,Math.round(sold/10)),'Bung Score sold for rebar','sell');
         break;
+      }
+      case 'garageTune': {
+        if(racing(this,id))fail('Finish the race before adjusting your setup.');
+        if(!this.near(p,GARAGE,22))fail('Drive into Bung Garage to tune your trolley.');
+        p.garage??={};p.garage[p.trolley]=garageSetup(p.garage[p.trolley],m.setup);break;
       }
       case 'garageBuy': {
         if(racing(this,id))fail('Finish the race before visiting Bung Garage.');

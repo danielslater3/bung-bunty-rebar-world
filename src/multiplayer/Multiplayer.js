@@ -1172,7 +1172,7 @@ export class Multiplayer {
       Math.abs(p.y - (target.y ?? p.y)) < 3;
   }
   paintTrolley(mesh, enabled) {
-    const basket = mesh?.children[0];
+    const basket = mesh?.userData.basket || mesh?.children[0];
     if (!basket || !this.basketMaterials || basket.userData.roomPaint === enabled) return;
     basket.userData.roomPaint = enabled;
     basket.traverse(part => {
@@ -1342,16 +1342,24 @@ export class Multiplayer {
       a.trolley.visible = !!a.riding && a.mesh.visible;
       const beforeX = a.mesh.position.x,
         beforeZ = a.mesh.position.z;
+      a.mesh.position.y-=a.riderOffsetY||0;
       a.mesh.position.lerp(a.target, 1 - Math.exp(-12 * dt));
+      const previousYaw=a.mesh.rotation.y;
+      a.mesh.rotation.order='YXZ';
       a.mesh.rotation.y = turnToward(a.mesh.rotation.y, a.yaw, dt);
+      const visualYawRate=(a.mesh.rotation.y-previousYaw)/Math.max(.001,dt);
       const speed =
         Math.hypot(beforeX - a.mesh.position.x, beforeZ - a.mesh.position.z) /
         Math.max(dt, 0.001);
       animateAvatar(a.mesh, speed, g.elapsed, a.riding);
       a.trolley.visible = !!a.riding && a.mesh.visible;
+      if(!a.riding){a.riderOffsetY=0;a.mesh.rotation.x=0;}
       if (a.riding) {
         a.trolley.position.copy(a.mesh.position);
-        a.trolley.rotation.y = a.yaw;
+        a.trolley.rotation.y = a.mesh.rotation.y;
+        a.riderOffsetY=.55+(a.trolley.userData.rideHeight||0);
+        a.mesh.position.y+=a.riderOffsetY;a.mesh.rotation.x=a.trolley.userData.ridePitch||0;
+        for(const wheel of a.trolley.userData.wheels||[]){wheel.spin.rotation.x+=speed/.14*dt;if(wheel.front)wheel.steer.rotation.y=Math.atan2(.96*visualYawRate,Math.max(1,speed));}
         const owner = this.room.players[a.mesh.userData.roomPlayer];
         if (owner?.inventory?.trail && speed > 2 && now > (a.trailAt || 0)) {
           a.trailAt = now + 150;

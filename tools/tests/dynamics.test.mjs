@@ -1,0 +1,21 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {TrolleyDynamics} from '../../src/garage/dynamics.js';
+const input={tyre:'stock',throttle:1,steer:0,maxSpeed:24,accel:22,grounded:true};
+function run(tyre,steer=.75,fps=60){const d=new TrolleyDynamics();let peak=0;for(let n=0;n<fps*7;n++){d.update(1/fps,{...input,tyre,steer:n>fps*3?steer:0});peak=Math.max(peak,Math.abs(d.slip));}return {d,peak};}
+test('drift tyres develop real sideslip under throttle without a handbrake',()=>{
+ const drift=run('drift'),race=run('race');assert.ok(drift.peak>.25);assert.ok(drift.peak>race.peak*4);assert.ok(Math.hypot(drift.d.vx,drift.d.vz)>5);
+ for(let n=0;n<300;n++)drift.d.update(1/60,{...input,tyre:'drift',throttle:0});assert.ok(Math.abs(drift.d.slip)<.02);
+});
+test('fixed-step vehicle dynamics agree across render rates and recover from countersteering',()=>{
+ const a=run('drift',.7,30).d,b=run('drift',.7,120).d;
+ // Input transitions are aligned to the same physical time below.
+ const c=new TrolleyDynamics(),d=new TrolleyDynamics();for(let i=0;i<300;i++)c.update(1/30,{...input,steer:.5});for(let i=0;i<1200;i++)d.update(1/120,{...input,steer:.5});
+ assert.ok(Math.abs(c.vx-d.vx)<1e-9&&Math.abs(c.heading-d.heading)<1e-9);
+ for(const model of [a,b]){for(let n=0;n<180;n++)model.update(1/60,{...input,tyre:'drift',steer:0,throttle:0});assert.ok(Math.abs(model.slip)<.02);}
+});
+test('braking, reverse, wet traction, width and rough-ground tyre choices affect forces',()=>{
+ const brake=new TrolleyDynamics();brake.reset(20,0);for(let n=0;n<60;n++)brake.update(1/60,{...input,throttle:-1});assert.ok(brake.forward<12);
+ const reverse=new TrolleyDynamics();for(let n=0;n<240;n++)reverse.update(1/60,{...input,throttle:-1,steer:.3});assert.ok(reverse.forward<0&&reverse.forward>=-7.2);
+ const grip=(options)=>{const model=new TrolleyDynamics();for(let n=0;n<120;n++)model.update(1/60,{...input,...options});return model.forward;};
+ assert.ok(grip({rain:1})<grip({rain:0}));assert.ok(grip({rearWidth:1.8})>grip({rearWidth:.7}));assert.ok(grip({tyre:'offroad',rough:true})>grip({tyre:'race',rough:true}));
+});

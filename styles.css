@@ -564,3 +564,17 @@ body.multiplayer-active:has(.mp-activity-toast:not([hidden])) .mp-notice{top:222
 .bung-garage-ui nav button{background:#294657;color:#d3e4e8}
 .bung-garage-ui nav button[aria-pressed=true]{background:#ffce63;color:#182b39}
 .hud-currency[hidden]{display:none}
+/* Bung Garage: showroom and focused parts workbench. */
+dialog.bung-garage-ui:has(.garage-workbench){width:min(1180px,96vw);padding:0;max-height:92dvh;background:linear-gradient(135deg,#102331,#203c49);box-shadow:0 24px 100px #000b}
+.garage-header{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:20px 26px;border-bottom:1px solid #56717b}
+.garage-header h2{margin:4px 0;font-size:28px}.garage-header small{letter-spacing:2px;color:#8ecbd1}.garage-wallet{margin-left:auto;color:#ffdb84;font-size:21px}
+.garage-workbench{display:grid;grid-template-columns:minmax(300px,.9fr) minmax(330px,1.1fr);gap:24px;padding:24px}
+.garage-showcase{align-self:start;position:sticky;top:0;background:#102635;border:1px solid #45616c;border-radius:15px;padding:18px;overflow:hidden;text-align:center}
+.garage-showcase canvas{display:block;width:100%;height:auto;border-radius:12px;cursor:grab}.garage-showcase canvas:active{cursor:grabbing}
+.garage-showcase>small{display:block;color:#9abdc9;margin:12px}.garage-showcase h3{margin:0 0 8px}.garage-summary{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:18px}.garage-summary span{padding:10px 5px;background:#243f4c;border-radius:7px;color:#c9e0e7;font-size:12px}
+.garage-controls{min-width:0}.garage-controls nav{position:sticky;top:0;padding:8px;background:#1b3542;border-radius:10px;z-index:1}.garage-part-state{font-size:10px;letter-spacing:1.4px;color:#ffcc69!important}
+.bung-garage-part{border:1px solid #3b5967;margin:12px 0;padding:16px}.bung-garage-part strong{font-size:17px}.bung-garage-part button{min-width:105px}
+.garage-slider{display:grid;grid-template-columns:1fr auto;gap:10px;margin:20px 0;color:#c7dee5}.garage-slider input{grid-column:1/-1;width:100%;accent-color:#ffcb64;min-height:24px;cursor:ew-resize}.garage-slider output{color:#ffd781;font-variant-numeric:tabular-nums}
+.garage-link{display:flex;gap:10px;align-items:center;color:#a9c6d1;font-size:12px}.garage-link input{accent-color:#ffcb64;width:20px;height:20px}.garage-apply{width:100%;margin:12px 0}
+@media(max-width:760px){.garage-workbench{grid-template-columns:1fr;padding:14px;gap:14px}.garage-showcase{position:static}.garage-showcase canvas{max-height:290px;object-fit:contain}.garage-header{padding:16px;gap:10px}.garage-wallet{font-size:17px}.garage-header h2{font-size:23px}.garage-header>button{width:100%}}
+.bung-garage-ui{margin:auto}

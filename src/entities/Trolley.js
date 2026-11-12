@@ -11,6 +11,8 @@ import { state, bus, upgLevel } from '../core/state.js';
 import { buildTrolley, trolleySpec, ALL_TROLLEYS } from './models.js';
 import { dlog } from '../core/Debug.js';
 import { tuning } from '../garage/catalog.js';
+import { TrolleyDynamics } from '../garage/dynamics.js';
+import { DriftTrail } from '../garage/DriftTrail.js';
 import { releaseTrolley } from '../garage/models.js';
 
 const GRAVITY = 26;
@@ -36,6 +38,8 @@ export class Trolley {
     this.wheelRadius = this.mesh.userData.wheelRadius;
     this.wheelSpinAxis = this.mesh.userData.wheelSpinAxis;
 
+    this.drive=new TrolleyDynamics();
+    this.skids=new DriftTrail(game);
     this.pos = new THREE.Vector3(0, 0, 0);
     this.heading = 0;
     this.speed = 0;
@@ -181,7 +185,7 @@ export class Trolley {
       this.pos.y = p.pos.y + 0.5;
       this.heading = p.facing;
     }
-    this.speed = 0; this.vy = 0;
+    this.speed = 0; this.vy = 0;this.drive.reset(0,this.heading);
     this.summoned = true;
     this.mesh.visible = true;
     g.audio.sfx('trolleyStart');
@@ -193,12 +197,14 @@ export class Trolley {
     this.setBoosting(false, 'dismissed');
     this.summoned = false;
     this.riding = false;
+    this.drive.reset(0,this.heading);this.skids.clear();
+    if(this.game.player)this.game.player.mesh.rotation.x=this.game.player.mesh.rotation.z=0;
     this.mesh.visible = false;
   }
 
   mount() {
     const g = this.game;
-    this.riding = true;
+    this.riding = true;this.drive.reset(this.speed,this.heading);
     g.audio.sfx('trolleyStart');
     bus.emit('qe', { type: 'mount', target: 'trolley' });
     g.player.mesh.position.copy(this.pos);
@@ -216,7 +222,7 @@ export class Trolley {
     if(!landing){g.toast('NO ROOM TO HOP OFF — ROLL INTO THE CLEAR', 'gold');return;}
     this.setBoosting(false, 'dismounted'); this.riding=false;
     g.player.teleport(landing);
-    this.speed=0;
+    this.speed=0;this.drive.reset(0,this.heading);g.player.mesh.rotation.x=g.player.mesh.rotation.z=0;
   }
 
   overWater() {
@@ -234,12 +240,15 @@ export class Trolley {
     const g = this.game, input = g.input;
     let steer = 0;
     const afloat = this.overWater();
+    if(g.saga?.freeze&&this.riding){this.speed=0;this.drive.reset(0,this.heading);}
+    if(Math.abs(this.speed-this.drive.forward)>.12||Math.abs(this.heading-this.drive.heading)>.01)this.drive.reset(this.speed,this.heading);
+    let dx=0,dz=0;
 
     if (this.riding) {
       // ---- Driving input ----
       const ax = g.saga?.freeze ? { x: 0, y: 0 } : input.axis();
       const throttle = afloat ? 0 : ax.y;
-      steer = -ax.x * (afloat ? 0.25 : 1);
+      steer = ax.x * (afloat ? 0.25 : 1);
 
       // ---- Boost evaluation (state transitions only — no per-frame audio) ----
       const shiftHeld = input.keys['ShiftLeft'] || input.keys['ShiftRight'];
@@ -258,32 +267,21 @@ export class Trolley {
         this.setBoosting(true, 'shift pressed with fuel');
       }
 
-      // ---- Drift (Space while turning at speed) ----
-      const wantDrift = input.keys['Space'] && Math.abs(steer) > 0.1 && Math.abs(this.speed) > 8 && this.grounded;
-      if (wantDrift && !this.drifting) g.audio.sfx('drift');
-      this.drifting = wantDrift;
-      if (this.drifting) {
-        steer *= 1.9 + upgLevel('drift') * 0.4;
-        this.driftCharge = Math.min(1.5, this.driftCharge + dt*this.tune.drift);
-        if (Math.random() < 0.6) g.fx.spark(this.pos.clone().add(new THREE.Vector3(0, 0.15, 0)), 0xffc23d);
-      } else if (this.driftCharge > 0.4) {
-        // Mini-boost on drift release
-        this.speed += this.driftCharge * 4 * (1 + upgLevel('drift') * 0.3);
-        g.fx.burst(this.pos.clone(), 0xffe9a8, 10);
-        g.shake(0.1, 0.15);
-        this.driftCharge = 0;
-      } else this.driftCharge = 0;
-
-      // ---- Speed model ----
-      const accel = throttle > 0 ? this.accel * (this.boosting ? 1.8 : 1) : this.accel * 1.4*this.tune.brake;
-      const slope = g.zone?.slopeAt?.(this.pos.x,this.pos.z) || 0;
-      this.speed += throttle * accel * dt * (slope > .18 ? this.tune.terrain : 1);
-      this.speed = clamp(this.speed, -7, this.maxSpeed);
-      this.speed = damp(this.speed, 0, throttle === 0 ? 1.2 : 0.08, dt);
-
-      // Steering scales with speed
-      const steerScale = clamp(Math.abs(this.speed) / 8, 0.2, 1) * Math.sign(this.speed || 1);
-      this.heading += steer * this.turnRate * steerScale * dt;
+      const tune=this.tune,rough=(g.zone?.slopeAt?.(this.pos.x,this.pos.z)||0)>.18;
+      const wasDrifting=this.drifting;
+      this.drive.update(dt,{throttle,steer,handbrake:input.keys.Space,grounded:this.grounded&&!afloat,
+        tyre:tune.tyre,rain:g.weather?.conditions?.rain||0,rough,frontWidth:tune.frontWidth,rearWidth:tune.rearWidth,
+        frontCamber:tune.frontCamber,rearCamber:tune.rearCamber,height:tune.height,rake:tune.rearHeight-tune.frontHeight,turn:this.turnRate/1.9,
+        maxSpeed:this.maxSpeed,accel:this.accel*(this.boosting?1.8:1)*(rough?tune.terrain:1),brake:tune.brake});
+      this.heading=this.drive.heading;this.speed=this.drive.forward;dx=this.drive.dx;dz=this.drive.dz;
+      this.drifting=this.grounded&&Math.abs(this.speed)>4&&Math.abs(this.drive.slip)>.12;
+      if(this.drifting){
+        if(!wasDrifting)g.audio.sfx('drift');
+        this.driftCharge=Math.min(1.5,this.driftCharge+dt*tune.drift);
+      }else if(wasDrifting&&this.driftCharge>.4){
+        this.drive.impulse(Math.min(2.5,this.driftCharge*1.5));
+        g.fx.burst(this.pos.clone(),0xffe9a8,8);this.driftCharge=0;
+      }else this.driftCharge=Math.max(0,this.driftCharge-dt*2);
 
       // Engine putter
       this.engineT += dt * (1 + Math.abs(this.speed) / 6);
@@ -296,15 +294,15 @@ export class Trolley {
         return;
       }
     } else {
-      this.speed = damp(this.speed, 0, 3, dt);
+      this.speed = damp(this.speed, 0, 3, dt);this.drive.reset(this.speed,this.heading);
+      dx=Math.sin(this.heading)*this.speed*dt;dz=Math.cos(this.heading)*this.speed*dt;
       // Safety: never boost while unmounted
       if (this.boosting) this.setBoosting(false, 'not riding');
     }
 
     // ---- Integrate position ----
-    const fwd = new THREE.Vector3(Math.sin(this.heading), 0, Math.cos(this.heading));
-    const hitWall = moveHorizontal(this.pos, fwd.x * this.speed * dt, fwd.z * this.speed * dt, .8, g.zone, 1.2);
-    if (hitWall) this.speed *= Math.exp(-12 * dt);
+    const hitWall = moveHorizontal(this.pos, dx, dz, .8, g.zone, 1.2);
+    if (hitWall) {this.speed *= Math.exp(-12*dt);this.drive.reset(this.speed,this.heading);}
 
     // Vertical: raycast ground follow + ballistic air
     this._ray.set(this.pos.clone().add(new THREE.Vector3(0, 1.5, 0)), this._down);
@@ -399,7 +397,14 @@ export class Trolley {
     // ============ VISUALS ============
     this.mesh.position.copy(this.pos);
     this.mesh.rotation.y = this.heading;
-    this.mesh.rotation.z = damp(this.mesh.rotation.z, this.drifting ? -Math.sign(this.speed) * 0.12 : 0, 8, dt);
+    this.mesh.rotation.z = damp(this.mesh.rotation.z, -this.drive.yawRate*Math.min(.025,Math.abs(this.speed)*.001),8,dt);
+    this.skids.update(dt,this,this.drifting);
+    this.telemetryIn=(this.telemetryIn||0)-dt;
+    if(this.telemetryIn<=0&&this.riding){
+      this.telemetryIn=.12;
+      const label=g.hud?.$?.('hud-trolley');
+      if(label)label.textContent=this.spec.name+' · '+Math.round(Math.hypot(this.drive.vx,this.drive.vz)*3.6)+' KM/H'+(this.drifting?' · SLIDE '+Math.round(Math.abs(this.drive.slip)*180/Math.PI)+'°':'');
+    }
 
     // ---- Wheel rolling (correct axle = local X, see models.js) ----
     // omega = forward velocity / wheel radius. Reverse speed spins wheels
@@ -407,7 +412,7 @@ export class Trolley {
     // decaying slowly. Stopped: omega is 0, wheels rest.
     if (this.grounded) this.wheelOmega = this.speed / this.wheelRadius;
     else this.wheelOmega = damp(this.wheelOmega, 0, 0.7, dt);
-    const steerAngle = this.riding ? clamp(steer, -1, 1) * 0.45 : 0;
+    const steerAngle = this.riding ? this.drive.steering : 0;
     this.steerVisual = damp(this.steerVisual, steerAngle, 10, dt);
     for (const w of this.wheels) {
       w.spin.rotation[this.wheelSpinAxis] += this.wheelOmega * dt;
@@ -448,9 +453,12 @@ export class Trolley {
     // Riding Bung pose
     if (this.riding) {
       const p = this.game.player;
-      p.mesh.position.copy(this.pos).add(new THREE.Vector3(0, 0.55, 0));
+      p.pos.copy(this.pos);
+      p.mesh.rotation.order='YXZ';
+      p.mesh.position.copy(this.pos).add(new THREE.Vector3(0, .55+this.tune.height, 0));
       p.mesh.rotation.y = this.heading;
-      p.mesh.rotation.z = 0;
+      p.mesh.rotation.z = this.mesh.rotation.z;
+      p.mesh.rotation.x = this.tune.pitch;
       const parts = p.parts;
       parts.armL.rotation.x = -1.1; parts.armR.rotation.x = -1.1;
       parts.legL.rotation.x = 1.3; parts.legR.rotation.x = 1.3;

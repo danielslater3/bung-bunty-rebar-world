@@ -639,3 +639,13 @@ test('Bung Score converts directly to rebar once per request',()=>{
  assert.equal(p[0].score,0);assert.equal(p[0].rebar,17);
  assert.throws(()=>e.command(p[0].id,{cmd:'sellScore',requestId:'empty-sale'}),/No Bung Score/);
 });
+test('garage stance tuning validates location, fitted hardware and independent axle values',()=>{
+ const {e,p,cmd}=setup();
+ assert.throws(()=>cmd(p[0],'garageTune',{setup:{frontHeight:-.4}}),/Garage/);
+ p[0].pos={x:94,y:9.7,z:37};p[0].moveAt=e.now();p[0].rebar=100;
+ for(const part of ['low','camber','wide'])cmd(p[0],'garageBuy',{part,action:'equip'});
+ const balance=p[0].rebar;
+ cmd(p[0],'garageTune',{setup:{frontHeight:-.4,rearHeight:-.1,heightLinked:false,frontCamber:-14,rearCamber:-4,camberLinked:false,frontWidth:1.5,rearWidth:1.8,widthLinked:false}});
+ assert.equal(p[0].rebar,balance);assert.equal(p[0].garage.james.setup.frontHeight,-.4);assert.equal(p[0].garage.james.setup.rearHeight,-.1);
+ assert.equal(e.view(p[1].id).players[p[0].id].garage.james.setup.rearWidth,1.8);
+});

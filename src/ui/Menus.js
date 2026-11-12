@@ -324,7 +324,8 @@ export class Menus {
         <div class="controls-list">
           <div><b>WASD</b> Move / steer trolley</div>
           <div><b>MOUSE</b> Camera (click game to lock)</div>
-          <div><b>SPACE</b> Jump / trolley drift</div>
+          <div><b>SPACE</b> Jump / trolley handbrake</div>
+          <div><b>DRIFT TYRES</b> Accelerate and turn to slide. Countersteer to recover.</div>
           <div><b>SHIFT</b> Sprint / trolley boost</div>
           <div><b>E</b> Interact / mount / dismount</div>
           <div><b>T</b> Summon / dismiss trolley</div>

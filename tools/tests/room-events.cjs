@@ -11,8 +11,10 @@ const { chromium } = require('playwright');
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(process.env.GAME_URL || 'http://127.0.0.1:8765/');
       await page.waitForFunction(() => !!window.BUNG, null, { polling: 150, timeout: 60000 });
-      await page.evaluate(endpoint => {
+      await page.evaluate(async endpoint => {
         sessionStorage.setItem('bung-room-server', endpoint);
+        const {profile}=await import('/src/profile/Profile.js'),{state}=await import('/src/core/state.js');
+        state.rebars+=100;await profile.flush();
         window.drawRoom = BUNG.renderer.render.bind(BUNG.renderer);
         BUNG.renderer.render = () => {};
       }, process.env.ROOM_SERVER || 'http://127.0.0.1:8796');
@@ -89,6 +91,18 @@ const { chromium } = require('playwright');
     await garage.locator('.bung-garage-part').filter({hasText:'River cyan underglow'}).getByRole('button').click();
     await b.waitForFunction(() => Object.values(BUNG.multiplayer.room.players).some(p=>p.garage?.concrete?.equipped.underglow==='cyan'));
     await b.waitForFunction(() => [...BUNG.multiplayer.peers.values()].some(p=>p.trolley.userData.garageKey.includes('cyan')&&p.trolley.getObjectByName('Garage equipment')));
+    await garage.getByRole('button',{name:'Handling',exact:true}).click();
+    for(const name of ['Street coilovers','Adjustable camber plates','Adjustable wheel fitment']){
+      await garage.locator('.bung-garage-part').filter({hasText:name}).getByRole('button').click();
+      await a.waitForFunction(name=>document.querySelector('.bung-garage-ui')?.textContent.includes(name),name);
+    }
+    await a.waitForFunction(()=>BUNG.multiplayer.room.players[BUNG.multiplayer.client.id].garage.concrete.equipped.fitment==='wide');
+    await garage.getByRole('button',{name:'Setup',exact:true}).click();
+    await garage.getByLabel('Front ride height',{exact:true}).evaluate(input=>{input.value=-350;input.dispatchEvent(new Event('input',{bubbles:true}));});
+    await garage.getByLabel('Front camber',{exact:true}).evaluate(input=>{input.value=-10;input.dispatchEvent(new Event('input',{bubbles:true}));});
+    await garage.getByLabel('Front tyre width',{exact:true}).evaluate(input=>{input.value=160;input.dispatchEvent(new Event('input',{bubbles:true}));});
+    await garage.getByRole('button',{name:'APPLY SETUP',exact:true}).click();
+    await b.waitForFunction(()=>[...BUNG.multiplayer.peers.values()].some(p=>Math.abs((p.trolley.userData.rideHeight||0)+.35)<1e-6&&Math.abs(p.trolley.userData.wheels[0].spin.scale.x-1.6)<1e-6));
     await garage.getByRole('button',{name:'BACK TO BRISBANE'}).click();
 
     await a.evaluate(() => { BUNG.multiplayer.hidePanels(); BUNG.multiplayer.mini.open('tictactoe'); });
@@ -105,6 +119,7 @@ const { chromium } = require('playwright');
     }
     await b.waitForFunction(() => BUNG.multiplayer.room.games.tictactoe.status === 'finished');
     await b.evaluate(() => BUNG.multiplayer.hidePanels());
+    await a.waitForFunction(()=>{const m=BUNG.multiplayer;return m.room.players[m.client.id].score>0;});
     const wallet=await a.evaluate(()=>{const m=BUNG.multiplayer,p=m.room.players[m.client.id];return {score:p.score,rebar:p.rebar};});
     assert.ok(wallet.score>0);
     await a.evaluate(()=>BUNG.multiplayer.openBoard('exchange'));

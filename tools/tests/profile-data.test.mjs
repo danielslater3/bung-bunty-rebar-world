@@ -26,3 +26,9 @@ test('wallet rejects overdrafts and invalid changes and permits free part remova
  assert.deepEqual(removed.garage.james.equipped,{});assert.ok(removed.garage.james.owned.includes('v12'));
  assert.equal(profileDelta(base,base),null);
 });
+test('permanent profile retains independent ride height, camber and tyre width on setup-only changes',()=>{
+ const base=profileRecord({rebar:80,garage:{james:{owned:['low','camber','wide'],equipped:{suspension:'low',alignment:'camber',fitment:'wide'}}}});
+ const changed=structuredClone(base);changed.garage.james.setup={frontHeight:-.4,rearHeight:-.12,heightLinked:false,frontCamber:-12,rearCamber:-4,camberLinked:false,frontWidth:1.4,rearWidth:1.8,widthLinked:false};
+ const next=applyProfile(base,profileDelta(base,changed));
+ assert.equal(next.rebar,80);assert.equal(next.garage.james.setup.rearHeight,-.12);assert.equal(next.garage.james.setup.rearWidth,1.8);
+});

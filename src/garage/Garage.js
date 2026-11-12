@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { VenueFrame } from '../core/colliderSpace.js';
 import { state, SaveSystem } from '../core/state.js';
-import { GARAGE, PARTS, buildRecord, garageAction, tuning } from './catalog.js';
+import { GARAGE, PARTS, buildRecord, garageAction, garageSetup, cleanSetup, tuning } from './catalog.js';
+import { GaragePreview } from './Preview.js';
 import { fitGarage } from './models.js';
 import { buildTrolley } from '../entities/models.js';
 
@@ -98,7 +99,7 @@ export class Garage {
   fitGarage(g.trolley.mesh,record);
   state.maxFuel=g.trolley.fuelMax;
   state.fuel=Math.min(state.fuel,state.maxFuel);
-  if(this.opened){const key=JSON.stringify([this.record(),this.balance(),state.trolley]);if(key!==this.key)this.draw();}
+  if(this.opened){const key=JSON.stringify([this.record(),this.balance(),state.trolley]);if(key!==this.key&&!this.dirty)this.draw();else if(this.dirty){const wallet=this.root.querySelector('.garage-wallet');if(wallet)wallet.textContent=this.balance()+' REBAR';}}
  }
  balance(){const m=this.game.multiplayer;return m.active?m.room.players[m.client.id].rebar:state.rebars;}
  record(){const m=this.game.multiplayer;return buildRecord((m.active?m.room.players[m.client.id].garage:state.garage)?.[state.trolley]);}
@@ -109,10 +110,11 @@ export class Garage {
   this.opened=true;this.enabled=g.input.enabled;
   if(g.multiplayer.active)g.multiplayer.setFocus(true);else{g.input.enabled=false;g.input.unlock();}
   const root=document.createElement('dialog');root.className='bung-garage-ui';root.setAttribute('aria-label','Bung Garage');
+  this.preview=new GaragePreview(state.trolley);this.dirty=false;this.draft=null;
   this.root=root;document.body.append(root);root.addEventListener('cancel',e=>{e.preventDefault();this.close();});root.showModal();this.draw();
  }
  close(){
-  if(!this.opened)return;this.opened=false;this.root.close();this.root.remove();
+  if(!this.opened)return;this.opened=false;this.preview?.dispose();this.preview=null;this.dirty=false;this.root.close();this.root.remove();
   const g=this.game;if(g.multiplayer.active)g.multiplayer.setFocus(false);else g.input.enabled=this.enabled;
   g.input.keys={};g.input.pressed={};
  }
@@ -120,21 +122,35 @@ export class Garage {
   const record=this.record();this.key=JSON.stringify([record,this.balance(),state.trolley]);
   const root=this.root;root.replaceChildren();
   const add=(tag,text,parent=root)=>{const e=document.createElement(tag);e.textContent=text;parent.append(e);return e;};
-  add('h2','BUNG GARAGE');add('p',this.balance()+' rebar · '+state.trolley.toUpperCase());
-  const close=add('button','BACK TO BRISBANE');close.onclick=()=>this.close();
-  const stats=tuning(record);add('p',`Engine ×${stats.speed.toFixed(2)} · Acceleration ×${stats.accel.toFixed(2)} · Tank ×${stats.fuel.toFixed(2)}`);
-  const error=add('p','');error.setAttribute('role','status');
-  const categories={Power:['engine','induction','exhaust'],Handling:['tyres','suspension','alignment','brakes','aero'],Range:['tank','nitro'],Style:['underglow','decal','lights']};
-  const nav=add('nav','');nav.setAttribute('aria-label','Garage sections');
+  const header=add('header','');header.className='garage-header';
+  const heading=add('div','',header);add('small','PRECISION BUILDS · BRISBANE',heading);add('h2','BUNG GARAGE',heading);
+  add('strong',this.balance()+' REBAR',header).className='garage-wallet';
+  const close=add('button','BACK TO BRISBANE',header);close.onclick=()=>this.close();
+  const bench=add('div','');bench.className='garage-workbench';
+  const showcase=add('aside','',bench);showcase.className='garage-showcase';
+  add('h3',this.preview.name,showcase);showcase.append(this.preview.canvas);
+  add('small','DRAG TO ROTATE · SCROLL TO ZOOM',showcase);
+  const rider=add('button',this.preview.rider.visible?'HIDE RIDER':'SHOW RIDER',showcase);
+  rider.onclick=()=>{this.preview.rider.visible=!this.preview.rider.visible;rider.textContent=this.preview.rider.visible?'HIDE RIDER':'SHOW RIDER';this.preview.render();};
+  const stats=tuning(record);const summary=add('div','',showcase);summary.className='garage-summary';
+  add('span',stats.cylinders?stats.cylinders+' CYLINDERS':'FACTORY ENGINE',summary);
+  add('span','POWER ×'+stats.accel.toFixed(2),summary);add('span',stats.tyre.toUpperCase()+' TYRES',summary);
+  add('span',record.owned.length+' OWNED PARTS',summary);
+  const controls=add('div','',bench);controls.className='garage-controls';
+  this.preview.update(record);
+  const error=add('p','',controls);error.setAttribute('role','status');
+  const categories={Power:['engine','induction','exhaust'],Handling:['tyres','suspension','alignment','brakes','aero','fitment'],Range:['tank','nitro'],Style:['underglow','decal','lights'],Setup:[]};
+  const nav=add('nav','',controls);nav.setAttribute('aria-label','Garage sections');
   for(const name of Object.keys(categories)){
    const button=add('button',name,nav);button.setAttribute('aria-pressed',String(name===this.category));
-   button.onclick=()=>{this.category=name;this.draw();};
+   button.onclick=()=>{this.category=name;this.dirty=false;this.draw();};
   }
+  if(this.category==='Setup'){this.drawSetup(controls,record,add);return;}
   for(const slot of categories[this.category]){
-   const section=add('section','');add('h3',slot.toUpperCase(),section);
+   const section=add('section','',controls);add('h3',slot.toUpperCase(),section);
    for(const part of PARTS.filter(p=>p.slot===slot)){
     const row=add('div','',section);row.className='bung-garage-part';
-    const text=add('div','',row);add('strong',part.name,text);add('small',part.detail,text);
+    const text=add('div','',row);add('small',record.equipped[slot]===part.id?'FITTED':record.owned.includes(part.id)?'OWNED':'BUNG CERTIFIED',text).className='garage-part-state';add('strong',part.name,text);add('small',part.detail,text);
     const owned=record.owned.includes(part.id),equipped=record.equipped[slot]===part.id;
     const button=add('button',equipped?'REMOVE':owned?'EQUIP':part.price+' REBAR',row);
     button.disabled=!owned&&this.balance()<part.price;
@@ -151,4 +167,50 @@ export class Garage {
    }
   }
  }
+ drawSetup(root,record,add){
+  const stats=tuning(record);
+  this.draft={frontHeight:stats.frontHeight,rearHeight:stats.rearHeight,frontCamber:stats.frontCamber,rearCamber:stats.rearCamber,frontWidth:stats.frontWidth,rearWidth:stats.rearWidth,...record.setup};
+  add('h3','STANCE LAB',root);add('p','Preview your setup, then apply it. Adjustment is free once the matching parts are fitted.',root);
+  const inputs={},outputs={};
+  const apply=add('button','APPLY SETUP',root);apply.className='garage-apply';
+  const update=()=>{
+   this.dirty=true;apply.disabled=false;
+   for(const [key,input] of Object.entries(inputs)){
+    const kind=key.endsWith('Height')?'height':key.endsWith('Camber')?'camber':'width';
+    const multiplier=kind==='height'?1000:kind==='width'?100:1;
+    input.value=this.draft[key]*multiplier;outputs[key].textContent=Math.round(input.value)+(kind==='height'?' mm':kind==='width'?' %':'°');
+   }
+   this.preview.update({...record,setup:cleanSetup(this.draft)});
+  };
+  for(const [name,title,min,max,step,multiplier,allowed,hint] of [
+   ['height','RIDE HEIGHT',-420,280,5,1000,!!record.equipped.suspension,'Fit Street Coilovers or Raised Suspension to unlock.'],
+   ['camber','WHEEL CAMBER',-18,0,.5,1,!!record.equipped.alignment,'Fit Adjustable Camber Plates to unlock.'],
+   ['width','TYRE WIDTH',65,200,5,100,record.equipped.fitment==='wide','Fit Adjustable Wheel Fitment to unlock.'],
+  ]){
+   const section=add('section','',root);add('h3',title,section);
+   if(!allowed)add('p',hint,section);
+   const linkLabel=add('label','',section);linkLabel.className='garage-link';
+   const link=add('input','',linkLabel);link.type='checkbox';link.checked=this.draft[name+'Linked']!==false;link.disabled=!allowed;link.setAttribute('aria-label','Link front and rear '+name);linkLabel.append(document.createTextNode('LINK FRONT + REAR'));
+   const suffix=name[0].toUpperCase()+name.slice(1);
+   link.onchange=()=>{this.draft[name+'Linked']=link.checked;if(link.checked)this.draft['rear'+suffix]=this.draft['front'+suffix];update();};
+   for(const axle of ['front','rear']){
+    const key=axle+suffix,label=add('label','',section);label.className='garage-slider';
+    add('span',axle.toUpperCase(),label);const output=add('output','',label);outputs[key]=output;
+    const input=add('input','',label);input.type='range';input.min=min;input.max=max;input.step=step;input.value=this.draft[key]*multiplier;input.disabled=!allowed;input.setAttribute('aria-label',(axle==='front'?'Front':'Rear')+' '+(name==='height'?'ride height':name==='width'?'tyre width':'camber'));inputs[key]=input;
+    output.textContent=input.value+(name==='height'?' mm':name==='width'?' %':'°');
+    input.oninput=()=>{this.draft[key]=Number(input.value)/multiplier;if(link.checked)this.draft[(axle==='front'?'rear':'front')+suffix]=this.draft[key];update();};
+   }
+  }
+  add('small','Drift tyres break rear traction under power. Countersteer with A/D; lift off to recover grip. Space is an optional handbrake. Extreme camber trades contact grip for stance.',root);
+  const status=add('p','',root);status.setAttribute('role','status');
+  apply.onclick=()=>{
+   try{
+    const next=garageSetup(record,this.draft),g=this.game;
+    this.dirty=false;
+    if(g.multiplayer.active){apply.disabled=true;apply.textContent='FITTING…';g.multiplayer.client.command('garageTune',{setup:next.setup});}
+    else{state.garage[state.trolley]=next;SaveSystem.save(g);this.draw();}
+   }catch(error){status.textContent=error.message;}
+  };
+ }
+
 }

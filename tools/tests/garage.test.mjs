@@ -30,3 +30,17 @@ test('every trolley supports each garage fitting with finite geometry and revers
  }
  } finally {if(previous===undefined)delete globalThis.document;else globalThis.document=previous;}
 });
+
+test('independent axle setup clamps values, links controls and moves chassis without moving contact wheels',async()=>{
+ const {garageSetup,buildRecord}=await import('../../src/garage/catalog.js');
+ let record={};for(const id of ['low','camber','wide'])record=garageAction(record,id,'equip',100).next;
+ record=garageSetup(record,{frontHeight:-.42,rearHeight:-.12,heightLinked:false,frontCamber:-16,rearCamber:-4,camberLinked:false,frontWidth:1.5,rearWidth:1.9,widthLinked:false});
+ const model=buildTrolley();fitGarage(model,record);
+ assert.ok(Math.abs(model.userData.chassis.position.y+.27)<1e-9);
+ assert.ok(model.userData.chassis.rotation.x>0);assert.equal(model.userData.wheels[0].spin.scale.x,1.5);assert.equal(model.userData.wheels[2].spin.scale.x,1.9);
+ assert.ok(model.userData.wheels.every(w=>w.steer.position.y>.12&&w.steer.position.y<.3));
+ const linked=garageSetup(record,{frontHeight:-99,rearHeight:99,frontCamber:-99,frontWidth:99});
+ assert.equal(linked.setup.frontHeight,-.42);assert.equal(linked.setup.rearHeight,-.42);assert.equal(linked.setup.frontCamber,-18);assert.equal(linked.setup.frontWidth,2);
+ const unfunded=garageSetup({},record.setup);assert.equal(tuning(unfunded).height,0);assert.equal(tuning(unfunded).frontWidth,1);
+ assert.deepEqual(buildRecord(JSON.parse(JSON.stringify(record))).setup,record.setup);
+});

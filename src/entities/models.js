@@ -512,6 +512,7 @@ export function buildTrolley(id = 'james') {
   for (const [x, z] of [[-0.3, 0.45], [0.3, 0.45], [-0.3, -0.45], [0.3, -0.45]]) {
     const leg = cyl(0.022, 0.022, 0.45, gold, 6);
     leg.position.set(x, 0.32, z);
+    leg.userData.suspensionLeg={x,z};
     g.add(leg);
   }
 
@@ -556,10 +557,10 @@ export function buildTrolley(id = 'james') {
 
   // ENGINE — ridiculous strapped-on motor with exhaust
   const engine = box(0.4, 0.28, 0.3, mat(0x2e2e35, { metalness: 0.7, roughness: 0.35 }));
-  engine.position.set(0, 0.42, -0.68);
+  engine.position.set(0, 0.92, -0.68);
   g.add(engine);
   const exhaust = cyl(0.05, 0.07, 0.3, mat(0x8b8b95, { metalness: 0.9, roughness: 0.3 }), 8);
-  exhaust.position.set(0.18, 0.5, -0.85);
+  exhaust.position.set(0.18, 1.0, -0.85);
   exhaust.rotation.x = 1.2;
   g.add(exhaust);
   // Headlight
@@ -576,15 +577,15 @@ export function buildTrolley(id = 'james') {
 
   // 3.0 decorations — fuel tank, boost vents, strapped rebar cargo
   const tank = cyl(0.09, 0.09, 0.26, mat(0xd92f2f, { roughness: 0.45, metalness: 0.4 }), 10);
-  tank.position.set(-0.22, 0.5, -0.68);
+  tank.position.set(-0.22, 0.9, -0.68);
   tank.rotation.z = 0.2;
   g.add(tank);
   const tankCap = sphere(0.045, mat(0xffc02e, { metalness: 0.8, roughness: 0.3 }), 6, 5);
-  tankCap.position.set(-0.25, 0.64, -0.68);
+  tankCap.position.set(-0.25, 1.04, -0.68);
   g.add(tankCap);
   for (const sx of [-1, 1]) { // boost vents flanking the engine
     const vent = cyl(0.035, 0.05, 0.12, mat(0x2ee6ff, { emissive: 0x1787c9, emissiveIntensity: 0.9, metalness: 0.6 }), 7);
-    vent.position.set(sx * 0.3, 0.36, -0.82);
+    vent.position.set(sx * 0.3, .94, -0.82);
     vent.rotation.x = 1.35;
     g.add(vent);
   }
@@ -602,6 +603,10 @@ export function buildTrolley(id = 'james') {
   g.userData.fleet = id;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   addOutline(g, 0.04); // the icon deserves ink
+  const chassis=new THREE.Group();chassis.name='Sprung chassis';
+  const legs=g.children.filter(o=>o.userData.suspensionLeg);
+  for(const child of [...g.children])if(!wheels.some(w=>w.steer===child)&&!legs.includes(child))chassis.add(child);
+  g.add(chassis);g.userData.chassis=chassis;g.userData.basket=basket;g.userData.suspensionLegs=legs;
   return g;
 }
 
